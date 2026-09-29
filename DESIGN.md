@@ -133,9 +133,13 @@ where no player is standing*, *Tag every object you place*):
   Anything a player builds down there is never touched (trekship
   `BUILDING.md`: a builder that takes a player's wall for wilderness is the
   worst bug a base-building mod can have).
-- **A roof.** Build A is below the street and should need none. Build B is in
-  the void and will: every floor square gets the invisible roof tile one
-  storey up, or it rains in the sewer.
+- **A roof.** Build A is below the street and was expected to need none. It
+  does, and cannot have one: the engine never roofs a square below z 0, so a
+  tunnel is outdoors to it and to every mod that asks. Lua callers are told
+  otherwise (`SEW_Compat.lua`; DEV_GUIDE, *Below ground is outdoors to the
+  engine*); the engine's own weather is the game's to show. Build B is in the
+  void and would: every floor square gets the invisible roof tile one storey
+  up, or it rains in the sewer.
 
 ## 6. The dead below
 
@@ -197,7 +201,7 @@ pipeline.
 | 3 | The server builds as players walk | **built**, sliced, current-revision tracked |
 | 4 | Zombies below | **built** (sandbox density, never on a player); falling in through open covers: not yet |
 | 5 | Shelters | **built**: 93, four kinds, stocked once |
-| 6 | Art | procedural pass **built** (26 tiles, wall variants); image-model pass next |
+| 6 | Art | procedural pass **built** (27 tiles, wall variants); image-model pass next |
 | 7 | In game | **waiting on the author's first run** (DEV_GUIDE, *Current state*) |
 
 ## 10. Open decisions for the author

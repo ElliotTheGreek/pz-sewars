@@ -222,6 +222,11 @@ def single_player():
           "the dev build gives the kit once (%d torch)" % torches)
     SEW.Dev = None
 
+    # Above ground, the engine's answer stands.
+    check(SEW.Compat.wrapped == 3, "isOutside is wrapped on squares, players and characters (%s)" % SEW.Compat.wrapped)
+    check(L.execute("return getPlayer():isOutside() and getCell():getGridSquare(%d, %d, 0):isOutside()" % (mx, my)) is True,
+          "on the street the player and the square are outside")
+
     # Climbing down.
     m = menu(L, 0, mx, my)
     names = [n for n, _ in options(m)]
@@ -245,6 +250,26 @@ def single_player():
     check(p.noVault is True, "the vault switch is on below")
     notes = lua_list(sim.notes)
     check(any("Down into the dark" in n for n in notes), "the arrival note (%s)" % notes[-1:])
+
+    # Below ground is indoors to anybody who asks from Lua (Flying Birds flew
+    # its flocks over the sewer: the engine calls a tunnel square outdoors).
+    below = L.execute("""
+        local sq = getCell():getGridSquare(%d, %d, -1)
+        local street = getCell():getGridSquare(%d, %d, 0)
+        local engine = rawget(getmetatable(sq).__index, "SEW_isOutsideEngine")
+        return engine ~= nil and engine(sq), getPlayer():isOutside(), sq:isOutside(),
+               SIM.newCharacter(sq):isOutside(), SIM.newCharacter(street):isOutside()
+    """ % (mx, my, mx, my))
+    check(below[0] is True, "the engine's own answer for a tunnel square is outdoors (the sim is not being kind)")
+    check(below[1] is False and below[2] is False and below[3] is False,
+          "below, the player, the square and a zombie are not outside (%s)" % (below[1:4],))
+    check(below[4] is True, "a zombie on the street still is")
+    check(L.execute("""
+        local index = getmetatable(getPlayer()).__index
+        local engine = rawget(index, "SEW_isOutsideEngine")
+        SEW.Compat.install()
+        return engine ~= nil and rawget(index, "SEW_isOutsideEngine") == engine and getPlayer():isOutside() == false
+    """) is True, "a second install wraps the engine's method, not its own wrapper")
     sim.tickN(100)
     check(len([k for k in sim.lamps.keys()]) > 0, "a lamp hangs at the shaft")
 
@@ -386,6 +411,49 @@ def single_player():
     """)
     check(mig is not None and mig[0] is False, "a revised layout that opens an edge takes our wall away")
     check(mig is not None and mig[1] is True, "and leaves a wall a player built")
+
+    # A chunk built before 0.3.2 wears vanilla's floating sludge: a revision
+    # pass swaps ours in, and leaves a player's copy of the old tile alone.
+    sl = L.execute("""
+        local C = SEW.Config
+        for key, body in pairs(SEW.Data.muldraugh.chunks) do
+            do
+                local cx, cy = key:match("(-?%d+),(-?%d+)")
+                cx, cy = tonumber(cx), tonumber(cy)
+                for i = 1, #body, 7 do
+                    local rec = body:sub(i, i + 6)
+                    if rec:sub(3, 3) == "w" then
+                        local x, y = cx * 8 + tonumber(rec:sub(1, 1)), cy * 8 + tonumber(rec:sub(2, 2))
+                        SIM.load(cx, cy)
+                        SEW.Build.around(x, y, 0)
+                        local sq = SIM.squares[x .. "," .. y .. ",-1"]
+                        for _, o in ipairs(sq.objects._t) do
+                            if o.md.sew and o.sprite:getName() == C.Sprites.sludge then sq.objects:remove(o) break end
+                        end
+                        local old = IsoObject.new(sq, C.Sprites.sludgeOld, "")
+                        old.md.sew = 1
+                        sq.objects:add(old)
+                        local theirs = IsoObject.new(sq, C.Sprites.sludgeOld, "")
+                        sq.objects:add(theirs)
+                        SEW.Build.state().built[key] = "old"
+                        SEW.Build.around(x, y, 0)
+                        local oldLeft, new, kept = false, 0, false
+                        for _, o in ipairs(sq.objects._t) do
+                            local nm = o.sprite:getName()
+                            if o == theirs then kept = true
+                            elseif o.md.sew and nm == C.Sprites.sludgeOld then oldLeft = true
+                            elseif o.md.sew and nm == C.Sprites.sludge then new = new + 1 end
+                        end
+                        sq.objects:remove(theirs)
+                        return oldLeft, new, kept
+                    end
+                end
+            end
+        end
+    """)
+    check(sl is not None and sl[0] is False and sl[1] == 1,
+          "a revision pass swaps the old floating sludge for ours (%s)" % (sl,))
+    check(sl is not None and sl[2] is True, "and leaves a player's own copy of it")
 
     walk_ok = L.execute("""
         local T = SEW.Data.muldraugh
@@ -648,6 +716,8 @@ def multiplayer():
     check(gs.SEW.Client is None, "the client's files do nothing on the server")
     check(gc.SEW.Build is None and gc.SEW.Server is None, "the server's files do nothing on a client")
     check(gc.SEW.Data is None or len(list(gc.SEW.Data.keys())) == 0, "the town data stays on the server")
+    check(gs.SEW.Compat.wrapped == 3 and gc.SEW.Compat.wrapped == 3,
+          "below ground is indoors on the server and on the client")
 
     shafts = pick_shafts(Ls)
     # The shaft nearest a shelter, so a door is among what has to reach the client.

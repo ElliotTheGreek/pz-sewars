@@ -232,6 +232,12 @@ function SquareMT:transmitRemoveItemFromSquare(o)
     self.objects:remove(o)
 end
 function SquareMT:getChunk() return { getMinLevel = function() return -1 end } end
+-- The engine's rule (RecalcProperties): exterior unless a room or a roof, and
+-- no square below z 0 is ever roofed (checkHaveRoof stops at 0). The sim has
+-- no rooms and no roofs, so every square is outdoors until a test gives one a
+-- room -- a tunnel included, as in the game.
+function SquareMT:isOutside() return self.room == nil end
+function SquareMT:getRoom() return self.room end
 
 local function key(x, y, z) return x .. "," .. y .. "," .. z end
 local function chunkKey(x, y) return math.floor(x / 8) .. "," .. math.floor(y / 8) end
@@ -303,9 +309,38 @@ function PlayerMT:isTimedActionInstant() return false end
 function PlayerMT:getPlayerNum() return 0 end
 function PlayerMT:getModData() self.md = self.md or {}; return self.md end
 
+-- IsoPlayer.isOutside: a square, and no room on it. Not the exterior flag.
+function PlayerMT:isOutside()
+    local sq = self:getCurrentSquare()
+    return sq ~= nil and sq.room == nil
+end
+
 function SIM.newPlayer(name, x, y, z)
     return setmetatable({ name = name, x = x, y = y, z = z, inv = Container(50), noVault = false }, PlayerMT)
 end
+
+-- Any other character (a zombie, an animal): IsoGameCharacter.isOutside asks
+-- its square. Only the tests make one of these.
+local CharacterMT = {}
+CharacterMT.__index = CharacterMT
+function CharacterMT:getZ() return self.z end
+function CharacterMT:isOutside() return self.square ~= nil and self.square:isOutside() end
+function SIM.newCharacter(square)
+    return setmetatable({ z = square.z, square = square }, CharacterMT)
+end
+
+-- Kahlua's class metatables (KahluaThread.getClassMetatable): keyed by the
+-- Java Class, whose tostring is "class <name>"; the value is the metatable
+-- every instance wears, and its __index the table methods are looked up in.
+local function Class(name)
+    return setmetatable({}, { __tostring = function() return "class " .. name end })
+end
+__classmetatables = {
+    [Class("zombie.iso.IsoGridSquare")] = SquareMT,
+    [Class("zombie.characters.IsoGameCharacter")] = CharacterMT,
+    [Class("zombie.characters.IsoPlayer")] = PlayerMT,
+    [Class("zombie.iso.IsoObject")] = IsoObjectMT,
+}
 
 SIM.players = {}
 function getPlayer() return SIM.players[1] end
