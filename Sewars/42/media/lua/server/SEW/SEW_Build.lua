@@ -247,7 +247,19 @@ function B.square(x, y, rec, first)
     local f, n, w, fix, dress = rec:sub(3, 3), rec:sub(4, 4), rec:sub(5, 5), rec:sub(6, 6), rec:sub(7, 7)
     local floorFn = FLOOR[f]
     if floorFn and not U.floorOf(sq) then put(sq, floorFn(x, y)) end
-    if f == "w" then put(sq, C.Sprites.sludge) end
+    if f == "w" then
+        -- Chunks built before 0.3.2 carry vanilla's floating sludge: ours only.
+        if not first then
+            local old = {}
+            U.eachObject(sq, function(o)
+                if U.isOurs(o) and U.spriteName(o) == C.Sprites.sludgeOld then old[#old + 1] = o end
+            end)
+            for _, o in ipairs(old) do
+                U.try("unsludge", function() sq:transmitRemoveItemFromSquare(o) end)
+            end
+        end
+        put(sq, C.Sprites.sludge)
+    end
 
     -- Walls. A door frame stands in for the wall on its edge.
     local nw, ww = n, w

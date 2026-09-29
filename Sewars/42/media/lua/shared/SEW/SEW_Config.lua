@@ -17,7 +17,7 @@ C.Debug = false
 -- already built is revisited once and has its missing hull put back. The
 -- layout's own revision (SEW.Index.rev, from tools/gen_sewers.py) is folded
 -- in, so regenerating the tunnels does the same by itself.
-C.BuildRev = 1
+C.BuildRev = 2   -- 2: the sludge swapped for our floor-level tile
 
 -- The tunnels' level: one storey under the street. FBORenderCell.renderInternal
 -- (bci 400-428) draws nothing above ceil(z) + 1 for a camera player below zero,
@@ -82,7 +82,10 @@ C.Sprites = {
     -- would show as a strip round every tunnel (seen on the first render).
     floorRock    = "floors_burnt_01_0",
     grating      = { "location_sewer_01_40", "location_sewer_01_41", "location_sewer_01_42" },
-    sludge       = "location_sewer_01_26",
+    -- Vanilla's picture lowered onto the floor; vanilla's own tile draws its
+    -- water two thirds of a storey up and floated over the walkway (0.3.2).
+    sludge       = "sewars_01_26",
+    sludgeOld    = "location_sewer_01_26",
     wall = {
         c = { N = "location_sewer_01_9", W = "location_sewer_01_8", NW = "location_sewer_01_10",
               pillar = "location_sewer_01_11" },

@@ -75,6 +75,13 @@ TILES_DEF += [
     ("debris", "floor", {"attachedFloor": ""}),
     ("lightpool", "floor", {"attachedFloor": ""}),
     ("smear", "floor", {"attachedFloor": ""}),
+    # Vanilla's sludge (location_sewer_01_26) is drawn 128 px up its cell -- a
+    # water line two thirds of a storey above its square, for a channel one
+    # level below the walkway. Laid on our walkway it floated up against the
+    # wall, over squares that looked like floor and would not let you on
+    # (found in play, 0.3.2). This is its picture put down on the floor
+    # diamond, still solidtrans: the channel is crossed by its bridges.
+    ("sludge", "lower:location_sewer_01_26", {"BlocksPlacement": "", "solidtrans": ""}),
 ]
 
 
@@ -301,6 +308,11 @@ def floor_tex(kind, rnd):
 def draw(name, kind, rnd, vanilla):
     if kind.startswith("copy:"):
         return vanilla[kind[5:]]
+    if kind.startswith("lower:"):
+        # Down from where vanilla draws it (oy 64) to the floor diamond (oy 192).
+        cell = Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
+        cell.alpha_composite(vanilla[kind[6:]].crop((0, 0, CW, CH - 128)), (0, 128))
+        return cell
     side = kind[-1] if kind.startswith("wall") else None
     base = name.rsplit("_", 1)[0]
     if base == "exit":
@@ -465,7 +477,7 @@ def review(cells, vanilla):
 
 
 def main():
-    vanilla = vanilla_cells({"location_sewer_01_32", "location_sewer_01_33", "location_sewer_01_8",
+    vanilla = vanilla_cells({"location_sewer_01_32", "location_sewer_01_33", "location_sewer_01_26", "location_sewer_01_8",
                              "location_sewer_01_9", "floors_interior_tilesandwood_01_24"})
     cells = []
     for name, kind, _ in TILES_DEF:

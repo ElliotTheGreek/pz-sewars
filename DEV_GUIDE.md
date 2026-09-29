@@ -53,13 +53,14 @@ media/lua/shared/SEW/SEW_Util.lua          safe engine calls, squares, stocking,
 media/lua/shared/SEW/SEW_Net.lua           client -> server commands and replies, all three setups
 media/lua/shared/SEW/SEW_Sewer.lua         read-only questions: which shaft, which cover, am I below
 media/lua/shared/SEW/SEW_Actions.lua       SEWClimb, the timed action: down a cover, up a ladder (global, shared)
+media/lua/shared/SEW/SEW_Compat.lua        below ground is indoors: isOutside wrapped for every Lua caller, other mods included
 media/lua/shared/SEW/SEW_Index.lua         GENERATED: towns, shafts, shelters -- small, every process
 media/lua/server/SEW/SEW_Build.lua         raising a chunk of tunnel: floors, walls, doors, ladders, dressing, shelters, the dead
 media/lua/server/SEW/SEW_Server.lua        the authority: granting climbs, building round players below, rescues, console
 media/lua/server/SEW/Data/SEW_Town_*.lua   GENERATED: every town's squares, by chunk -- 1.3 MB, server only
 media/lua/client/SEW/SEW_Client.lua        the menus, the move, the vault switch, lamps, ambience
 media/lua/shared/Translate/EN/*.json       ContextMenu, Tooltip, IG_UI, Sandbox -- one file per category
-media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 26 tiles
+media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 27 tiles
 media/scripts/sewars_sounds.txt, sound/SEW_*.wav   the sounds (wavs generated)
 media/sandbox-options.txt                  the zombie density option
 
@@ -341,6 +342,16 @@ It goes over a floor now (`SEW_Build`, floor code `w`), `test_assets.py`
 asserts the property both ways, and `tests/sim.lua` decides what is a floor
 from the real catalogue. Read `tools/_catalog/tiles.json`, never the picture.
 
+**And where a sprite is drawn is part of what it is (found in play, 0.3.2).**
+The same sludge is packed at `oy 64`, not the floor's `oy 192`: its water sits
+two thirds of a storey up its square, because vanilla lays it in a channel a
+level *below* the walkway. On our walkway it hung in the air against the north
+wall, one square off the squares that blocked. `tools/tilesheet.py` shows it
+plainly (the water is halfway up the cell); the pack entry's offsets say it in
+numbers. Our `sewars_01_26` is the same picture moved down onto the diamond,
+and `test_assets.py` checks its bounding box. Before laying any vanilla tile
+as floor dressing, look at where its cell puts it.
+
 ### A long street is one segment
 
 **New in this mod.** Dixie Highway runs through Muldraugh as a single
@@ -435,6 +446,46 @@ first moved two ladders by opening the wall they hang on). **Before shipping
 any layout change, diff the index against the previous one: shelters, shafts
 and furniture must be identical** unless moving them is the point.
 
+### Below ground is outdoors to the engine, and other mods ask the engine
+
+**Found by a player (0.3.2): Flying Birds (Workshop 3789637851) flew its
+flocks over people in the sewer.** Its birds are a client-side screen effect
+that stays away "while the player is indoors", and to the engine the sewer
+is not indoors. The trekship's rule (*A runtime-generated interior is not a
+building*), met from below:
+
+```
+IsoGridSquare.RecalcProperties  463-537  roomId != -1 or haveRoof -> unset exterior, else set it
+IsoCell.checkHaveRoof           2-8      z from 31 down while z >= 0   -> nothing below 0 is ever roofed
+IsoChunk.loadInWorldStreamerThread 212   roofs down to minLevel, but only under a rain-blocking tile at z >= 1
+IsoPlayer.isOutside                      no room and not isInARoom -- the exterior flag is not read at all
+```
+
+A tunnel square has no room and no roof, so it is `exterior`, and a player
+on one is outside by a rule that does not even look at the flag. Vanilla's
+basements escape by being rooms. **There is no engine switch**: `haveRoof`
+has no setter; the chunk-load pass would need a roof at z 1 over the street,
+which would stop the rain on the street; and `setRoomID` with no room behind
+it hands every caller that trusts a room id a null.
+
+So `SEW_Compat.lua` answers where every mod asks: Kahlua looks a Java
+method up in `__classmetatables[class].__index`, an ordinary table chained to
+the superclass's (`KahluaThread.getClassMetatable`,
+`LuaJavaClassExposer.setupMetaTables`). `isOutside` on `IsoGridSquare`,
+`IsoGameCharacter` and `IsoPlayer` is wrapped there: **below z 0, no**. It
+reaches every Lua caller -- any mod, and vanilla's rain barrels, crops,
+campfires, foraging and plowing, all of which counted the tunnels as open
+sky -- and none of the engine's Java. The engine's method is kept in the
+table under `SEW_isOutsideEngine`, so a second load wraps it and not the
+wrapper.
+
+What it cannot reach: a mod that asks `getBuilding()` or `getRoom()` (nil
+below, and nothing honest can answer otherwise), and the engine's own
+weather -- rain splashes read the square's cached flag in Java (checklist,
+*Rain*). The sim models the engine's answer (`SquareMT:isOutside`,
+`PlayerMT:isOutside`, `__classmetatables`), and `test_flow` asserts the
+unwrapped answer below is *outdoors* before asserting ours is not.
+
 ### The shell mangles escapes, and it will do it to you
 
 **The trekship's rule, broken three times in one session.** A heredoc turned
@@ -503,7 +554,7 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | `tests/test_assets.py` (71 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call |
 | `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement -- and a self-check that the walker really reads walls |
 | `tests/test_flow.py` (49 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking, the dead (and none on the player), a shut cover greyed out, refusals, the rescue, somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | sixteen guards broken one at a time; every one must be caught |
+| `tests/mutate.py` (`dev.py mutate`) | 30 guards broken one at a time; every one must be caught |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -565,7 +616,7 @@ gets verified.
 
 ## Current state
 
-Version **0.3.2** (local, not yet on the Workshop), build revision **1**,
+Version **0.3.2** (local, not yet on the Workshop), build revision **2**,
 layout from `tools/gen_sewers.py`. 2026-09-29. **Workshop:** item
 **3810188405**, public, 0.3.1 uploaded 2026-09-29; `WORKSHOP_ID` is set in
 `tools/package_workshop.py`.
@@ -575,7 +626,7 @@ down, tunnels under 16 towns -- 442 shafts, 93 shelters, 114,911 walkable
 squares, 4 covers left shut because they are over buildings), ladders out,
 vaults and the sludge channel, shelters behind steel doors with stocked
 crates and shelves and sometimes their dead, zombies below by sandbox
-density, rescue, lamps at the shafts and shelters, ambience, 26 tiles of our
+density, rescue, lamps at the shafts and shelters, ambience, 27 tiles of our
 own, four sounds, the poster, the Workshop package (unpublished, private).
 
 **Not yet seen in game** -- the checklist, in order:
@@ -592,9 +643,15 @@ own, four sounds, the poster, the Workshop package (unpublished, private).
 5. **Build something** down there, leave, come back: still there.
 6. **Another ladder.** *Climb out to the street*: up on the right cover.
 7. **Save and reload below.** Still standing on the floor; lamps come back.
-8. **Rain** on the street while you are below: none in the tunnel.
+8. **Rain** on the street while you are below: none in the tunnel. The
+   engine still calls the tunnel outdoors (*Below ground is outdoors to the
+   engine*); if rain is drawn down there, that is why.
 9. **A dedicated server** (above): the same, and a second player sees what the
    first opened.
+10. **Other mods think you are indoors.** `console.txt` at load:
+    `[SEW] compat: below ground is indoors (IsoGridSquare, IsoGameCharacter,
+    IsoPlayer)` -- a `WARN` there means a class was not found. With Flying
+    Birds on: flocks on the street, none below.
 
 Known limits: only named streets get full tunnels (unnamed lanes and car
 parks get the culverts that join their covers); the art is procedural until

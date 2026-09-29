@@ -16,6 +16,8 @@ import re
 import sys
 import wave
 
+from PIL import Image
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MEDIA = os.path.join(ROOT, "Sewars", "42", "media")
 LUA = os.path.join(MEDIA, "lua")
@@ -79,8 +81,17 @@ def main():
         check(m and "solidfloor" in tiles.get(m.group(1), {}), "%s is a solid floor" % name)
     for s in ("location_sewer_01_40", "location_sewer_01_41", "location_sewer_01_42"):
         check("solidfloor" in tiles[s], "grating %s is a solid floor" % s)
-    check("solidfloor" not in tiles["location_sewer_01_26"],
-          "the sludge is not a floor (so SEW_Build lays one under it)")
+    m = re.search(r'\bsludge\s*=\s*"([^"]+)"', config)
+    sludge = our_tiles.get(m.group(1)) if m else None
+    check(sludge is not None and "solidfloor" not in sludge and "solidtrans" in sludge,
+          "the sludge is ours, not a floor (SEW_Build lays one under it) and blocks like vanilla's")
+    # Vanilla's sludge draws its water 128 px up the cell and floated over the
+    # walkway (0.3.2, found in play). Ours must sit on the floor diamond.
+    art = Image.open(os.path.join(ROOT, "design", "art", "tiles", "sewars_01.png")).convert("RGBA")
+    i = int(m.group(1).rsplit("_", 1)[1]) if m else 0
+    box = art.crop(((i % 8) * 128, (i // 8) * 256, (i % 8) * 128 + 128, (i // 8) * 256 + 256)).split()[3].getbbox()
+    check(box is not None and box[1] >= 188 and box[3] <= 256,
+          "the sludge is drawn on the floor diamond, not up the wall (%s)" % (box,))
     check(tiles["fixtures_doors_01_25"].get("doorN") == "" and tiles["fixtures_doors_01_24"].get("doorW") == "",
           "the steel doors face the way the config says")
     check("DoorWallN" in tiles["location_sewer_01_19"] and "DoorWallW" in tiles["location_sewer_01_18"],

@@ -50,7 +50,23 @@ Status: `[x]` done and tested offline · `[~]` in progress · `[ ]` not started 
 - [x] **Dead end on Harris St** (Muldraugh, found in play): the street list stops 49 squares short of Irma Dr where the painted road does not. A late pass now runs any 1-wide dead end on under painted road to the network (up to 80 squares), after the shelters are placed so none moves; 3 ends joined in Muldraugh. Shelters, ladders, furniture and journals unchanged; existing saves open the old end wall on the revision pass
 - [x] `test_layout.py` fails on any tunnel that ends in a wall with the road running on to more tunnel (fails on the 0.3.1 layout, Harris St included)
 - [ ] **(game)** Harris St east of its ladder runs through to Irma Dr
+- [x] **Below ground is indoors to other mods** (a player's report: Flying Birds, Workshop 3789637851, flew flocks through the sewer). The engine calls every square below z 0 outdoors; `isOutside` on squares, players and other characters now answers no below ground for every Lua caller, any mod and vanilla's rain barrels, crops, campfires and foraging included (`SEW_Compat.lua`). Tested SP and MP, three mutations caught
+- [ ] **(game)** with Flying Birds: flocks over the street, none below
+- [x] **The sludge floated** (found in play): vanilla's `location_sewer_01_26` draws its water 128 px up the cell, for a channel a level below the walkway, so on our walkway it hung against the wall over squares that looked walkable. Ours now (`sewars_01_26`): the same water on the floor diamond, still blocking like vanilla's (the bridges are the way across). Build revision 2 swaps it in on chunks already built, ours only. `test_assets` checks where it is drawn, `test_flow` the swap, two mutations caught
+- [x] **(game)** the channel lies flat in the walkway; bridges cross it
 - [ ] Remaining ends are at a town's edge, where the road leaves town: dress them (a collapse, a grate) so they read as the end of the line, not a bug
+
+## 0.3.3 -- the sewer is really indoors, and other mods can tell (proposed)
+
+The engine calls every square below z 0 outdoors (DEV_GUIDE, *Below ground is
+outdoors to the engine*). 0.3.2 fixed what Lua asks; the Java side is still open,
+and so is the next Flying Birds.
+
+- [ ] **(game)** Weather below: is rain drawn in the tunnel, does the player get wet, is it the outdoor temperature with wind chill? The bytecode says likely: `Temperature.getWindChillAmountForPlayer` and `ClimateManager.getAirTemperatureForSquare` key on rooms, `BodyDamage` on `isOutside`
+- [ ] If so, a fix: find an engine lever, or counter it in Lua below ground (dry the player, hold a cellar temperature) -- tested as a pair with the street, where the weather must stay
+- [ ] **An API for other mods**: `SEW.Sewer.below(player)` documented and kept stable, plus `OnSewerEnter` / `OnSewerExit` events, so an ambience or weather mod can opt out without guessing from z
+- [ ] **Map mods**: the layout is cut from the vanilla map; a map mod that rebuilds a town can put a building or a basement over a tunnel. Refuse a cover with a building over it at runtime (not only the four known), and say in the README which map mods are known safe
+- [ ] A *Plays well with* line on the Workshop page once Flying Birds is confirmed in game
 
 ## 0.4 -- more underground
 
