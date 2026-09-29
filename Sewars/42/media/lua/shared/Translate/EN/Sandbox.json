@@ -1,0 +1,9 @@
+{
+    "Sandbox_Sewars": "Sewars",
+    "Sandbox_Sewars.Zombies": "The dead in the sewers",
+    "Sandbox_Sewars.Zombies_tooltip": "How many zombies are down there when a stretch of tunnel is first opened up. Shelters that were someone's last stand keep their occupants whatever this is set to.",
+    "Sandbox_Sewars.Zombies_option1": "None",
+    "Sandbox_Sewars.Zombies_option2": "Few",
+    "Sandbox_Sewars.Zombies_option3": "Some",
+    "Sandbox_Sewars.Zombies_option4": "Many"
+}

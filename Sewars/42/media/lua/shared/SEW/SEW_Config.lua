@@ -1,0 +1,178 @@
+--[[ Sewars -- every constant the mod uses. Start here.
+
+    shared/: loaded by single player, every client and every server. No guard,
+    and nothing in here touches the world (DEV_GUIDE.md, "The server owns the
+    sewers; a client asks").
+]]
+
+SEW = SEW or {}
+SEW.Config = SEW.Config or {}
+local C = SEW.Config
+
+C.Version = "0.3.2"
+C.ModPrefix = "[SEW]"
+C.Debug = false
+
+-- Bump when what the builder puts on a square changes, so every stretch
+-- already built is revisited once and has its missing hull put back. The
+-- layout's own revision (SEW.Index.rev, from tools/gen_sewers.py) is folded
+-- in, so regenerating the tunnels does the same by itself.
+C.BuildRev = 1
+
+-- The tunnels' level: one storey under the street. FBORenderCell.renderInternal
+-- (bci 400-428) draws nothing above ceil(z) + 1 for a camera player below zero,
+-- so from down here the town above is simply not drawn (DESIGN.md 3).
+C.Z = -1
+
+-- The way in: the round cast-iron cover vanilla paints on its streets. Checked
+-- by eye on design/art/vanilla_street_tiles.png and counted on the real map by
+-- tools/pzmap.py (446 on the map). 13, 14, 30 and 31 are kerb storm drains.
+C.ManholeSprite = "street_decoration_01_15"
+
+-- How far a player may stand from a cover or a ladder and still use it. The
+-- right-click lands on the floor square under the cursor, not on the picture
+-- (pz_trekship DEV_GUIDE, "A right-click lands on the floor"), so a margin.
+C.Reach = 1.6
+-- How far from the square that was clicked the menu looks for a cover or a shaft.
+C.ClickSlack = 1
+
+-- Timed actions, in ticks.
+C.LiftTicks = 110          -- prising the cover up and climbing down
+C.LiftTicksCrowbar = 60    -- with a crowbar or a pipe wrench in the inventory
+C.ClimbTicks = 80          -- climbing the ladder and shouldering the cover up
+C.LiftTools = { "Base.Crowbar", "Base.PipeWrench" }
+
+-- Tag in every placed object's mod data. A rebuild keeps anything carrying
+-- it and never touches anything that does not -- which, down here, is the
+-- player's (pz_trekship BUILDING.md).
+C.Tag = "sew"
+
+-- Server mod data: which chunks are built at which revision. Never
+-- transmitted: it is a list that grows with every chunk anybody walks into
+-- (pz_trekship DEV_GUIDE, "State that is transmitted whole cannot hold a
+-- list that grows").
+C.StateKey = "SewarsBuilt"
+
+-- Server mod data: what each player has found below, by username (the sewer
+-- map's memory; SEW_Discovery.lua). Never transmitted whole.
+C.SeenKey = "SewarsSeen"
+
+-- Building round players below ground: this many chunks each way, and at
+-- most this many chunks built per tick.
+C.BuildRadiusChunks = 5
+C.BuildChunksPerTick = 2
+C.BuildEveryTicks = 15
+-- On the way down, the stretch under the cover is built before the move is
+-- granted, this many chunks each way.
+C.EntryRadiusChunks = 2
+
+-- No zombie is put down within this many squares of a player.
+C.SpawnClearance = 12
+
+-- The client's wait for the floor to reach it before it climbs down, in ticks.
+C.ArriveTimeout = 600
+
+-- Sprites. Vanilla's are checked against tools/_catalog/tiles.json by
+-- tests/test_assets.py; ours are sewars_01, drawn by tools/gen_sewer_art.py.
+C.Sprites = {
+    floorTunnel  = "floors_interior_tilesandwood_01_24",
+    floorVault   = "floors_interior_tilesandwood_01_30",
+    floorShelter = "floors_interior_tilesandwood_01_31",
+    -- Under the walls outside the tunnel: dark earth, not a tiled floor that
+    -- would show as a strip round every tunnel (seen on the first render).
+    floorRock    = "floors_burnt_01_0",
+    grating      = { "location_sewer_01_40", "location_sewer_01_41", "location_sewer_01_42" },
+    sludge       = "location_sewer_01_26",
+    wall = {
+        c = { N = "location_sewer_01_9", W = "location_sewer_01_8", NW = "location_sewer_01_10",
+              pillar = "location_sewer_01_11" },
+        b = { N = "location_sewer_01_1", W = "location_sewer_01_0", NW = "location_sewer_01_2",
+              pillar = "location_sewer_01_3" },
+    },
+    -- Plain runs of wall pick from these by a hash of the square, so a
+    -- corridor is not one panel repeated (the first render). Same edge flags
+    -- and material as the plain piece; the plain one is listed most.
+    wallVariants = {
+        c = { N = { "location_sewer_01_9", "location_sewer_01_9", "location_sewer_01_13", "location_sewer_01_15" },
+              W = { "location_sewer_01_8", "location_sewer_01_8", "location_sewer_01_12", "location_sewer_01_14" } },
+        b = { N = { "location_sewer_01_1", "location_sewer_01_1", "location_sewer_01_5", "location_sewer_01_7" },
+              W = { "location_sewer_01_0", "location_sewer_01_0", "location_sewer_01_4", "location_sewer_01_6" } },
+    },
+    doorFrame    = { N = "location_sewer_01_19", W = "location_sewer_01_18" },
+    door         = { N = "fixtures_doors_01_25", W = "fixtures_doors_01_24" },
+    pipes        = { "location_sewer_01_34", "location_sewer_01_35",
+                     "location_sewer_01_36", "location_sewer_01_37" },
+    ladder       = { N = "sewars_01_1", W = "sewars_01_0" },
+    exit         = { N = "sewars_01_3", W = "sewars_01_2" },
+    graffiti     = {
+        a = { N = "sewars_01_5",  W = "sewars_01_4" },    -- KEEP OUT
+        b = { N = "sewars_01_7",  W = "sewars_01_6" },    -- THEY HEAR YOU
+        c = { N = "sewars_01_9",  W = "sewars_01_8" },    -- DONT GO DEEPER
+        d = { N = "sewars_01_11", W = "sewars_01_10" },   -- tally, DAY 31
+        e = { N = "sewars_01_13", W = "sewars_01_12" },   -- hand prints
+        f = { N = "sewars_01_15", W = "sewars_01_14" },   -- UP
+        g = { N = "sewars_01_17", W = "sewars_01_16" },   -- the eye
+    },
+    safe         = { N = "sewars_01_19", W = "sewars_01_18" },
+    grime        = { N = "sewars_01_21", W = "sewars_01_20" },
+    puddle       = "sewars_01_22",
+    debris       = "sewars_01_23",
+    lightpool    = "sewars_01_24",
+    smear        = "sewars_01_25",
+}
+
+-- What the dead down here wore when they came down. Every name is in both
+-- the male and female lists of vanilla's clothing.xml (checked by
+-- tests/test_assets.py): addZombiesInOutfit picks a sex first.
+C.Outfits = { "Sanitation", "Hobbo", "Survivalist", "HazardSuit", "Evacuee",
+              "Bandit", "Punk", "Grunge", "Resident", "Fossoil", "Camper" }
+
+-- Zombies per hundred squares of new tunnel, by the sandbox's density.
+C.Density = { 0, 0.6, 1.4, 2.6 }
+
+-- Shelter loot, by the list the generator names (tools/gen_sewers.py
+-- FURNITURE). Every id is checked against the build by tests/test_assets.py.
+C.Loot = {
+    tools    = { "Base.Hammer", "Base.Screwdriver", "Base.Wrench", "Base.PipeWrench", "Base.Crowbar",
+                 "Base.Saw", "Base.DuctTape", "Base.Rope", "Base.HandTorch", "Base.Battery" },
+    hardware = { "Base.NailsBox", "Base.ScrewsBox", "Base.Wire", "Base.MetalPipe", "Base.SmallSheetMetal",
+                 "Base.DuctTape", "Base.Garbagebag", "Base.Tarp" },
+    mechanic = { "Base.Wrench", "Base.EngineParts", "Base.ElectronicsScrap", "Base.WeldingRods",
+                 "Base.BlowTorch", "Base.Battery", "Base.Wire" },
+    fuel     = { "Base.PetrolCan", "Base.JerryCan", "Base.Matches", "Base.Lighter" },
+    food     = { "Base.TinnedBeans", "Base.TinnedSoup", "Base.CannedCorn", "Base.CannedChili",
+                 "Base.CannedTomato2", "Base.TinOpener", "Base.WaterBottle", "Base.Crisps" },
+    survival = { "Base.Candle", "Base.Matches", "Base.Lighter", "Base.Sheet", "Base.Pillow",
+                 "Base.WaterPurificationTablets", "Base.Notebook", "Base.Pencil", "Base.HandTorch" },
+    arms     = { "Base.BaseballBat", "Base.Machete", "Base.Axe", "Base.Pistol", "Base.Bullets9mmBox",
+                 "Base.Revolver", "Base.Bullets38Box", "Base.Shotgun", "Base.ShotgunShellsBox" },
+    medical  = { "Base.Bandage", "Base.Disinfectant", "Base.Pills", "Base.AlcoholWipes",
+                 "Base.Splint", "Base.SutureNeedle", "Base.Antibiotics" },
+}
+C.FillFraction = 0.45
+C.FillItemCap = 14
+
+-- Light down here, for addLamppost: r, g, b, radius. The engine lights a
+-- lamppost on the client that made it only, so each client hangs its own.
+C.ShaftLightDay   = { 0.55, 0.60, 0.68, 4 }
+C.ShaftLightNight = { 0.16, 0.18, 0.26, 3 }
+C.ShelterLight    = { 0.85, 0.55, 0.28, 5 }
+C.LightRange = 34
+
+-- The story's items (SEW_Story.lua, media/scripts/sewars_items.txt), and the
+-- size of a plan's sheet -- the map's tile, 256 squares (tools/gen_sewers.py MAP_TILE).
+C.PlanItem = "Sewars.SewerPlan"
+C.JournalItem = "Sewars.SewerJournal"
+C.MapTile = 256
+
+-- The dev build's kit: given once per character, in single player, only when
+-- SEW.Dev is set -- which only tools/deploy_windows.py does, by writing
+-- shared/SEW/SEW_Dev.lua into the installed SewarsDev copy. The source tree and
+-- the Workshop package never contain that file.
+C.DevKit = { "Base.HandTorch", "Base.Battery", "Base.Battery", "Base.Crowbar" }
+
+-- Ambience: one sound every so many ticks while below, give or take.
+C.AmbienceTicks = { 700, 1900 }
+C.Ambience = { "SEW_Drip", "SEW_Drip", "SEW_Drip", "AnimalRatScuttleWall", "SEW_Groan" }
+
+return C

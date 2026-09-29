@@ -1,0 +1,20 @@
+Every manhole in Kentucky goes somewhere.
+
+Vanilla paints 446 manhole covers on its streets and puts nothing under them. Sewars digs the sewers: brick and concrete tunnels running under the streets of every town, laid out from the game's own street map, so a highway is a trunk sewer with a sludge channel down it, a street is a main, and a back lane is a culvert you can barely turn round in.
+
+- Right-click a manhole cover in the road: Climb down into the sewer. A crowbar or a pipe wrench makes quicker work of the lid.
+- Every cover has a ladder under it. Right-click a ladder: Climb out to the street, and you come up through the cover above it.
+- It is dark. Daylight comes down through the holes in the covers; bring a torch for the rest.
+- The dead are down here too.
+- Shelters: other survivors dug in before you. Maintenance rooms, pump stations, squats and last stands behind steel doors, some stocked, some still occupied.
+- Build down there. The tunnels are yours to wall off, barricade and furnish; the mod never touches anything you build.
+- 16 towns, 442 shafts, 93 shelters, over 110,000 squares of tunnel.
+
+THE SEWER MAP
+The sewers are something you learn. Your map starts black and fills in as you walk: the ladders you have used (with the street above), the shelters you have found. Open it with N (rebindable in Options -> Mods) or Sewer map on the right-click menu below ground. Municipal sewer plans, left in maintenance rooms and pump stations, reveal whole sheets of a town at once, and the journals the shelters' builders left behind point you to the next place worth finding.
+
+The tunnels sit one level under the real streets, so they are exactly where they should be: walk under Main Street and you come up on Main Street.
+
+Single player, hosted co-op and dedicated servers. Build 42.
+
+Sandbox: how many of the dead are down there.

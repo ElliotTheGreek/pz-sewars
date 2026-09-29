@@ -1,0 +1,57 @@
+# Holds API tokens for the Flowdot and ads MCP servers. Never commit it.
+.mcp.json
+/.flowdot
+.env
+.env.*
+
+# Claude Code's per-machine settings (the shared .claude/settings.json may be committed)
+.claude/settings.local.json
+
+# Catalogues of the installed game's sprites and item ids. Regenerate with:
+#   python tools/pzcatalog.py build
+tools/_catalog/
+
+# Map reads cached by tools/gen_sewers.py (regenerated from the install)
+tools/_cache/
+
+# Scratch output
+tools/_*.png
+
+# Pictures of the game's own art, made from the installed packs and map: they
+# are the game's, not ours, and every one regenerates.
+#   tools/tilesheet.py           -> design/art/vanilla_*.png
+#   tools/pzmap.py town ...      -> design/art/map_*.png
+#   tools/render_sewer.py        -> design/art/render_*.png
+#   tools/gen_poster.py          -> design/art/poster_source.png
+#   tools/gen_sewer_art.py       -> design/art/sewer_art_sheet.png
+design/art/vanilla_*.png
+design/art/map_*.png
+design/art/render_*.png
+design/art/poster_source.png
+design/art/sewer_art_sheet.png
+
+# The packaged Workshop build is generated (python tools/dev.py package)
+workshop/Sewars/
+
+# The dev build's test kit is written only into the deployed SewarsDev copy;
+# it must never reach the source tree or the Workshop.
+Sewars/42/media/lua/shared/SEW/SEW_Dev.lua
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs copied across to look at
+console.txt
+*.log

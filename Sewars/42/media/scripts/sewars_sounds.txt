@@ -1,0 +1,57 @@
+module Sewars
+{
+    /* The sewers' sounds (tools/gen_sewer_sounds.py). Played by bare name from
+       Lua: SEW_Lid and SEW_Ladder on the climber's emitter where everyone
+       near can hear them, SEW_Drip and SEW_Groan only on the listener's own
+       machine (playSoundLocal), as ambience. */
+
+    sound SEW_Lid
+    {
+        category = World,
+        loop = false,
+        is3D = true,
+        clip
+        {
+            file = media/sound/SEW_Lid.wav,
+            distanceMax = 30,
+            volume = 0.9,
+        }
+    }
+
+    sound SEW_Ladder
+    {
+        category = World,
+        loop = false,
+        is3D = true,
+        clip
+        {
+            file = media/sound/SEW_Ladder.wav,
+            distanceMax = 20,
+            volume = 0.8,
+        }
+    }
+
+    sound SEW_Drip
+    {
+        category = World,
+        loop = false,
+        is3D = false,
+        clip
+        {
+            file = media/sound/SEW_Drip.wav,
+            volume = 0.5,
+        }
+    }
+
+    sound SEW_Groan
+    {
+        category = World,
+        loop = false,
+        is3D = false,
+        clip
+        {
+            file = media/sound/SEW_Groan.wav,
+            volume = 0.6,
+        }
+    }
+}

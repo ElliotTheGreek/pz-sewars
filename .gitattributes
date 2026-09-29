@@ -1,0 +1,15 @@
+# LF everywhere, whatever core.autocrlf says. Git for Windows defaults to
+# CRLF on checkout, and tools/package_workshop.py checks mod.info for
+# "id=Sewars\n": a CRLF clone would fail to package. The game reads LF fine.
+* text=auto eol=lf
+
+# Binary: never touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.wav binary
+*.ogg binary
+*.pack binary
+*.tiles binary
+*.npz binary
+*.pyc binary

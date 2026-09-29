@@ -1,0 +1,8 @@
+VERSION = 1,
+
+/***** SEWARS *****/
+
+option Sewars.Zombies = {
+    type = enum, numValues = 4, default = 3,
+    page = Sewars, translation = Sewars.Zombies, valueTranslation = Sewars.Zombies,
+}

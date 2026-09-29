@@ -1,0 +1,38 @@
+module Sewars
+{
+    imports
+    {
+        Base
+    }
+
+    /* The Municipal Sewer Plan: one sheet of one town's sewers. Which sheet is
+       in the item's mod data (SewarsPlan = index in SEW.Index.plans), stamped
+       by the server when it stocks a shelter. Reading it reveals that sheet on
+       the reader's sewer map (SEW_Story.lua). Icon: design/art/items/plan_raw.jpg. */
+    item SewerPlan
+    {
+        ItemType = base:normal,
+        Type = Normal,
+        DisplayName = Municipal Sewer Plan,
+        DisplayCategory = Literature,
+        Icon = SEW_Plan,
+        Weight = 0.1,
+        Tooltip = Tooltip_SEW_Plan,
+    }
+
+    /* A journal left by somebody who was down here. Which one is in the item's
+       mod data (SewarsJournal = index in SEW.Index.journals). Reading it shows
+       the text and marks what it describes on the reader's sewer map.
+       Deliberately not CanBeWrite: vanilla would offer Write, and the text is
+       the mod's, translated, and the same for everyone. */
+    item SewerJournal
+    {
+        ItemType = base:normal,
+        Type = Normal,
+        DisplayName = Water-stained Journal,
+        DisplayCategory = Literature,
+        Icon = SEW_Journal,
+        Weight = 0.2,
+        Tooltip = Tooltip_SEW_Journal,
+    }
+}
