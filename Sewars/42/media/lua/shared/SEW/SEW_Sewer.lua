@@ -42,10 +42,31 @@ end
 function S.nearestShaft(x, y, range)
     local best, bestD = nil, range or 1e9
     for _, s in pairs(SEW.Index and SEW.Index.shafts or {}) do
-        local d = U.dist(x, y, s.x, s.y)
-        if d < bestD then best, bestD = s, d end
+        -- Never a hatch's: its ladder is under a house that may have a
+        -- basement instead, and its way up may be shut.
+        if not s.hatch then
+            local d = U.dist(x, y, s.x, s.y)
+            if d < bestD then best, bestD = s, d end
+        end
     end
     return best, bestD
+end
+
+--- The hatch in a house's floor nearest to x, y at street level within
+--- `slack` squares: the square it is on, or nil. Only a hatch the server has
+--- opened is there to find: it places the trapdoor.
+function S.hatchNear(x, y, slack)
+    local best, bestD = nil, 1e9
+    for dx = -slack, slack do
+        for dy = -slack, slack do
+            local sq = U.square(x + dx, y + dy, 0, false)
+            if sq and U.findSprite(sq, C.Sprites.hatch) then
+                local d = math.abs(dx) + math.abs(dy)
+                if d < bestD then best, bestD = sq, d end
+            end
+        end
+    end
+    return best
 end
 
 -- chunk key -> { shelter indices touching that chunk }, built once.
@@ -76,8 +97,9 @@ function S.shelterAt(x, y)
     return nil
 end
 
+--- Vanilla's cover, or one of ours (the towns the map gives few).
 function S.isManhole(sq)
-    return sq ~= nil and U.findSprite(sq, C.ManholeSprite) ~= nil
+    return sq ~= nil and (U.findSprite(sq, C.ManholeSprite) ~= nil or U.findSprite(sq, C.Sprites.cover) ~= nil)
 end
 
 --- The manhole cover nearest to x, y at street level within `slack` squares:
@@ -118,6 +140,39 @@ function S.hasLiftTool(player)
         end
     end
     return false
+end
+
+--- True when the character carries something to pry or break with.
+function S.hasPryTool(character)
+    local inv = U.try("inventory", function() return character:getInventory() end)
+    if not inv then return false end
+    for _, id in ipairs(C.PryTools) do
+        local bare = id:match("%.(.+)$") or id
+        if U.try("containsTypeRecurse", function() return inv:containsTypeRecurse(bare) end) then return true end
+    end
+    return false
+end
+
+--- The two squares either side of one of the nest's walls ("wall", the false
+--- wall from the sewer, or "gate", into the hoard), from the index; nil
+--- when this build has no nest.
+function S.gateSquares(which)
+    local L = SEW.Index and SEW.Index.lair
+    if not L then return nil end
+    if which == "wall" then return L.tx, L.ty, L.ex, L.ey end
+    if which == "gate" then return L.gx, L.gy, L.vx, L.vy end
+    return nil
+end
+
+--- True when the edge between two squares holds a door frame: one of the
+--- nest's walls that has been opened (the builder puts a breach there,
+--- over vanilla's frame). What the client can see for itself.
+function S.gateOpenHere(ax, ay, bx, by)
+    local x, y = math.max(ax, bx), math.max(ay, by)
+    local sq = U.square(x, y, C.Z, false)
+    if not sq then return false end
+    local frame = (ax == bx) and C.Sprites.doorFrame.N or C.Sprites.doorFrame.W
+    return U.findSprite(sq, frame) ~= nil
 end
 
 return S

@@ -173,24 +173,24 @@ function U.addItem(container, id)
     return false
 end
 
---- Fills a container to `fraction` of its own capacity by weight, picking
---- from `list` by a rolling position so two crates do not hold the same.
-function U.fill(obj, list, fraction, cap, seed)
+--- Stocks a container with `count` picks from `list`, drawn by U.rng(seed) --
+--- a list names an item twice to make it likelier -- and stops short of
+--- filling it past C.FillFraction of its capacity by weight. Until 0.3.2 it
+--- walked the list until the crate was nearly half full, so a last stand's
+--- crate held every gun on it (a player's report).
+function U.fill(obj, list, count, seed)
     local container = U.containerOf(obj)
     if not container or not list or #list == 0 then return 0 end
-    fraction, cap = fraction or C.FillFraction, cap or C.FillItemCap
     local capacity = U.try("capacity", function() return container:getCapacity() end) or 0
-    local target = capacity > 0 and capacity * fraction or nil
-    local start = seed or 0
-    local added, taken = 0, 0
-    while taken < cap do
+    local target = capacity > 0 and capacity * C.FillFraction or nil
+    local roll = U.rng(seed)
+    local added = 0
+    for _ = 1, count or 0 do
         if target then
             local held = U.try("weight", function() return container:getContentsWeight() end) or 0
             if held >= target then break end
         end
-        local id = list[((start + taken) % #list) + 1]
-        taken = taken + 1
-        if U.addItem(container, id) then added = added + 1 end
+        if U.addItem(container, list[roll(#list)]) then added = added + 1 end
     end
     return added
 end
@@ -261,6 +261,18 @@ function U.hash(a, b, c)
     h = h % 2147483647
     if h < 0 then h = -h end
     return h
+end
+
+--- A seeded generator for a run of choices: roll(n) is 1..n. U.hash is
+--- linear, so U.hash(x, y, k) for k = 1, 2, 3 steps through a list in a fixed
+--- stride (by one, for a list of ten) -- a walk, not a draw. This is the
+--- Park-Miller generator: every product stays under 2^47, exact in a double.
+function U.rng(seed)
+    local state = (seed or 0) % 2147483646 + 1
+    return function(n)
+        state = (state * 48271) % 2147483647
+        return state % n + 1
+    end
 end
 
 return U

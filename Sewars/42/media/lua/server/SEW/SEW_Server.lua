@@ -31,6 +31,7 @@ require "SEW/SEW_Sewer"
 require "SEW/SEW_Build"
 require "SEW/SEW_Discovery"
 require "SEW/SEW_Story"
+require "SEW/SEW_Nest"
 
 SEW = SEW or {}
 local C = SEW.Config
@@ -58,6 +59,11 @@ function Server.grant(player, x, y, mode)
     local shaft = S.shaftAt(x, y)
     if not shaft then return refuse(player, "shut") end
 
+    -- A hatch leads anywhere only once its house has been found clear (SEW_Build.hatch).
+    if shaft.hatch and B.hatch(shaft) ~= "open" then return refuse(player, "shut") end
+    -- And a cover of ours only once it is in the road.
+    if shaft.made and B.cover(shaft) ~= "placed" then return refuse(player, "shut") end
+
     if mode == "down" then
         if S.below(player) then return refuse(player, "level") end
         if not S.within(player, x, y, C.Reach + 1.0) then return refuse(player, "reach") end
@@ -68,7 +74,8 @@ function Server.grant(player, x, y, mode)
         SEW.Discovery.ladder(player, x, y)
         U.log("%s climbs down at %d,%d (%s; %d chunks built, %d waiting)",
               nameOf(player), x, y, shaft.town, done, left)
-        Net.toClient(player, "go", { x = x, y = y, z = C.Z, street = shaft.street or "", mode = "down" })
+        Net.toClient(player, "go", { x = x, y = y, z = C.Z, street = shaft.street or "", mode = "down",
+                                     hatch = shaft.hatch ~= nil })
         return true
     elseif mode == "up" then
         if not S.below(player) then return refuse(player, "level") end
@@ -78,7 +85,8 @@ function Server.grant(player, x, y, mode)
         end
         SEW.Discovery.ladder(player, x, y)
         U.log("%s climbs out at %d,%d (%s)", nameOf(player), x, y, shaft.town)
-        Net.toClient(player, "go", { x = x, y = y, z = 0, street = shaft.street or "", mode = "up" })
+        Net.toClient(player, "go", { x = x, y = y, z = 0, street = shaft.street or "", mode = "up",
+                                     hatch = shaft.hatch ~= nil })
         return true
     end
     return refuse(player, "mode")
@@ -112,6 +120,30 @@ end)
 ---------------------------------------------------------------------------
 -- Building round players below
 ---------------------------------------------------------------------------
+-- Every hatch and every cover of ours in the index, listed once.
+local surfaceList = nil
+--- What the server puts in at street level near a player there, each once:
+--- the trapdoors of houses with a way down (SEW_Build.hatch, which may leave
+--- one shut) and the covers of ours in the towns the map gives few
+--- (SEW_Build.cover).
+function Server.hatches(p)
+    if not surfaceList then
+        surfaceList = {}
+        for _, s in pairs(SEW.Index and SEW.Index.shafts or {}) do
+            if s.hatch or s.made then surfaceList[#surfaceList + 1] = s end
+        end
+    end
+    local st = B.state()
+    local px, py = p:getX(), p:getY()
+    for _, s in ipairs(surfaceList) do
+        local key = s.x .. "," .. s.y
+        if math.abs(s.x - px) <= C.HatchRange and math.abs(s.y - py) <= C.HatchRange then
+            if s.hatch and not st.hatches[key] then B.hatch(s)
+            elseif s.made and not st.covers[key] then B.cover(s) end
+        end
+    end
+end
+
 local ticks = 0
 local function service()
     ticks = ticks + 1
@@ -120,7 +152,7 @@ local function service()
     -- Discovery first, for everyone: the build loop below stops when its budget
     -- is spent, and a player later in the list must not miss what they walk into.
     for _, p in ipairs(players) do
-        if S.below(p) then U.try("discover", SEW.Discovery.look, p) end
+        if S.below(p) then U.try("discover", SEW.Discovery.look, p) else U.try("hatches", Server.hatches, p) end
     end
     local budget = C.BuildChunksPerTick
     for _, p in ipairs(players) do
@@ -169,6 +201,16 @@ function SEW_Here()
           px, py, pz, key, tostring(B.townOf(key)), tostring(B.state().built[key]),
           shaft and (shaft.x .. "," .. shaft.y) or "none", d and math.floor(d) or "-",
           shaft and shaft.street or "")
+end
+
+--- The houses with a way down in a town, and whether each is open yet.
+function SEW_Hatches(town)
+    local st = B.state().hatches
+    for _, s in pairs(SEW.Index.shafts) do
+        if s.hatch and (not town or s.town == town) then
+            U.log("hatch %d,%d (%s, %s): %s", s.x, s.y, s.town, s.hatch, tostring(st[s.x .. "," .. s.y] or "not looked at"))
+        end
+    end
 end
 
 --- Builds everything within r chunks of you now (r defaults to 3).

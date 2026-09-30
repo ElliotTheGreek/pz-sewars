@@ -2,9 +2,9 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "muldraugh_3", name = "Muldraugh", chunks = {}, furniture = {}, claimed = {} }
+local T = { id = "muldraugh_3", name = "Muldraugh", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {} }
 SEW.Data["muldraugh_3"] = T
-local c, f, z = T.chunks, T.furniture, T.claimed
+local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
 c["1289,1177"]="14tcc.e15t.c..16t.c..17rc...24tc.P.25gc.Lx26t....27rc...33tcc..34t....35t....36t....37rc.P.43tc..e44rcc..45r.c..46r.c..53tc..i54rc...63tc..i64rc...73tc...74rc..."
 c["1290,1172"]="26tcc.e27g.clx36tc...37rcc..46tc...47rc...56tc...57rc...66tc...67rc...76tc...77rc..."
 c["1290,1173"]="20rc.P."
@@ -44,12 +44,17 @@ c["1293,1168"]="00r.c..01r.c..02r.c..03r.c..04r.c..05r.c..06r.c..07r.c.."
 c["1293,1169"]="00r.c..01r.c.."
 c["1294,1154"]="55gccLx56t.c.e57t.c.e65r.c..66r.c..67r.c.."
 c["1294,1155"]="50t.c..51t.c..52t.c..53t.c..54t.c..55t.c..56t.c..57t.c..60r.c..61r.c..62r.c..63r.c..64r.c..65r.c..66r.c..67r.c.."
-c["1294,1156"]="50t.c..51t.c..52t.c.i53t.c.p54t.c..55t.c.i56t.c..57t.c.d60r.c..61r.c..62r.c..63r.c..64r.c..65r.c..66r.c..67r.c.."
+c["1294,1156"]="50t.c.z51t.c..52t.c.i53t.c.p54t.c..55t.c.i56t.c..57t.c.d60meo.z61rec..62r.c..63r.c..64r.c..65r.c..66r.c..67r.c..70me...71re..."
 c["1294,1157"]="50t.c.p51t.c.i52t.c..53t.c.i54t.c.i55t.c.i56rc...60r.c..61r.c..62r.c..63r.c..64r.c..65tc...66t.c..67rc...75r.c..76tc...77t.c.."
 c["1294,1158"]="67tccP.70t.c..71t.c..72t.c..73t.c.i74t.c..75t.c.p76t.c..77t...."
 c["1294,1159"]="00tc..d01rc...10tc...11rc...20tc...21rc...30tc...31rc...40tc...41rc...50tc.P.51rc...60t....61rc.P.70rccP."
+c["1295,1156"]="00me...01m.e..02m.e.z03m.e..04m.e..05m.e..06re...10r.e..11r.e..12r.e..13r.e..14me..z15m....16re...24r.e..25me...26re...35me...36re...45me...46re...55me...56re...63mee..64re...65me...66re...72mee..73m....74m.e..75m...z76re..."
 c["1295,1157"]="06r.c..07r.c.."
 c["1295,1158"]="00r.c..01r.c..02r.c..03r.c..04r.c..05r.c..06r.c..07r.c.."
+c["1296,1155"]="37mee..47me...57me...67r.e.."
+c["1296,1156"]="02me...03m....04m....05ree..11mee..12m....13m....14ree..20mee..21m....22m....23m....24m.e..25re...30m....31m....32m....33m....34m....35re...40m....41m....42m....43m....44m...z45re...50m....51m....52m....53m....54m....55re...60me...61m....62m....63m....64m....65re...70r.e..71r.e..72r.e..73r.e..74r.e.."
 f["1290,1177"]={{10322,9423,"constructedobjects_01_44","arms","j86"},{10324,9423,"carpentry_01_16","food",nil},{10320,9420,"camping_02_3",nil,nil},{10320,9421,"camping_02_2",nil,nil},{10320,9423,"carpentry_02_65","medical",nil}}
 z["1290,1177"]={{10322,9422,"Survivalist"},{10323,9423,"Hobbo"}}
+v["1296,1155"]={{10372,9247,"camping_02_4",nil,nil},{10373,9247,"camping_02_5",nil,nil}}
+v["1296,1156"]={{10374,9248,"carpentry_01_16","food",nil},{10374,9252,"carpentry_01_16","survival",nil}}
 return T

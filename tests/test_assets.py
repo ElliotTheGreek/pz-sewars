@@ -9,6 +9,7 @@ Both sides of each lookup have a floor, so an empty catalogue fails loudly
 instead of passing everything (pz_trekship DEV_GUIDE, "A check against an
 empty set is not a passing check").
 """
+import collections
 import glob
 import json
 import os
@@ -92,6 +93,52 @@ def main():
     box = art.crop(((i % 8) * 128, (i // 8) * 256, (i % 8) * 128 + 128, (i // 8) * 256 + 256)).split()[3].getbbox()
     check(box is not None and box[1] >= 188 and box[3] <= 256,
           "the sludge is drawn on the floor diamond, not up the wall (%s)" % (box,))
+    # Every tile of ours that lies on the floor is drawn in the floor pass:
+    # without RenderLayer=Floor a placed puddle is drawn over whoever walks on
+    # it (FBORenderCell.isObjectRenderLayer_Floor; a player's report, 0.3.1).
+    from gen_sewer_art import TILES_DEF
+    flat = ["%s_%d" % ("sewars_01", i) for i, (_n, kind, _p) in enumerate(TILES_DEF)
+            if kind == "floor" or kind.startswith(("lower:", "copyfloor:"))]
+    check(len(flat) >= 6 and all(our_tiles.get(k, {}).get("RenderLayer") == "Floor" for k in flat),
+          "every floor tile of ours is drawn under characters, not over them (%d: %s)"
+          % (len(flat), [k for k in flat if our_tiles.get(k, {}).get("RenderLayer") != "Floor"]))
+
+    # Caves. Their floors are floors, their stones block nothing and are not
+    # floors of their own; our earth walls are walls and our breaches door
+    # frames (walked through). And every one has a picture: boulders_36..39
+    # are in the catalogue with none, and would have drawn nothing.
+    cave_floors = re.findall(r'"(floors_exterior_natural_01_\d+)"', config)
+    stones = re.findall(r'"(boulders_\d+)"', config)
+    check(len(cave_floors) >= 1 and all("solidfloor" in tiles.get(f, {}) for f in cave_floors),
+          "the cave floors are solid floors (%s)" % cave_floors)
+    check(len(stones) >= 4 and all(s in tiles and not {"solidfloor", "solidtrans", "solid"} & set(tiles[s])
+                                   for s in stones),
+          "the loose stones exist and neither block nor make a floor (%d)" % len(stones))
+    try:
+        from gen_sewer_art import vanilla_cells
+        vanilla_cells(set(cave_floors) | set(stones))
+        drawn = True
+    except SystemExit as e:
+        drawn = str(e)
+    check(drawn is True, "every cave floor and stone has a picture in the packs (%s)" % drawn)
+    wall_e = re.search(r'\be = \{ N = "([^"]+)", W = "([^"]+)", NW = "([^"]+)" \}', config)
+    # The walls under them are vanilla's (with vanilla's depth): a wall of ours
+    # would be drawn over characters.
+    check(wall_e is not None and "WallN" in tiles.get(wall_e.group(1), {}) and "WallW" in tiles.get(wall_e.group(2), {})
+          and "WallNW" in tiles.get(wall_e.group(3), {}), "the earth walls stand on vanilla walls, each on its edge")
+    breach = re.findall(r'\b([oq]) = \{ N = "([^"]+)", W = "([^"]+)" \}', config)
+    check(len(breach) == 2 and all(n in our_tiles and w in our_tiles for _, n, w in breach),
+          "the breaches are ours, laid over vanilla's door frames (%s)" % [b[0] for b in breach])
+
+    # Every tile of ours on a wall takes the wall's depth, and none is a wall,
+    # door frame or floor itself: those are vanilla's, with vanilla's depth.
+    walls = [("%s_%d" % ("sewars_01", i), kind) for i, (_n, kind, _p) in enumerate(TILES_DEF)
+             if kind.startswith(("wall", "copy:", "breach:", "corner:"))]
+    bad = [k for k, _ in walls if "WallOverlay" not in our_tiles.get(k, {})
+           or not ({"attachedW", "attachedN"} & set(our_tiles.get(k, {})))]
+    check(len(walls) >= 29 and not bad, "every wall tile of ours is drawn at the wall's depth (%d, %s)" % (len(walls), bad))
+    solid = [k for k, p in our_tiles.items() if {"WallN", "WallW", "WallNW", "DoorWallN", "DoorWallW", "solidfloor"} & set(p)]
+    check(not solid, "no tile of ours is itself a wall, door frame or floor (%s)" % solid)
     check(tiles["fixtures_doors_01_25"].get("doorN") == "" and tiles["fixtures_doors_01_24"].get("doorW") == "",
           "the steel doors face the way the config says")
     check("DoorWallN" in tiles["location_sewer_01_19"] and "DoorWallW" in tiles["location_sewer_01_18"],
@@ -139,10 +186,36 @@ def main():
     fem = set(re.findall(r"<m_Name>([^<]+)</m_Name>", x[x.find("<m_FemaleOutfits>"):x.find("<m_MaleOutfits>")]))
     male = set(re.findall(r"<m_Name>([^<]+)</m_Name>", x[x.find("<m_MaleOutfits>"):]))
     check(len(fem) > 50 and len(male) > 50, "both outfit lists read (%d, %d)" % (len(fem), len(male)))
-    m = re.search(r"C\.Outfits\s*=\s*\{([^}]*)\}", config)
-    outfits = re.findall(r'"([^"]+)"', m.group(1)) + re.findall(r'"(Survivalist|Hobbo|Bandit)"', gen)
+    ordinary = re.findall(r'"([^"]+)"', re.search(r"C\.Outfits\s*=\s*\{([^}]*)\}", config).group(1))
+    equipped = re.findall(r'"([^"]+)"', re.search(r"C\.OutfitsEquipped\s*=\s*\{([^}]*)\}", config).group(1))
+    gen_dead = set(re.findall(r'dead\.append\(\(x0 \+ x, y0 \+ y, \(([^)]*)\)', gen))
+    gen_dead = sorted({o for group in gen_dead for o in re.findall(r'"([^"]+)"', group)})
+    check(len(gen_dead) >= 3, "the generator's shelter and hideout dead read (%s)" % gen_dead)
+    outfits = ordinary + equipped + gen_dead
     bad = sorted({o for o in outfits if o not in fem or o not in male})
-    check(outfits and not bad, "every outfit is in both of vanilla's lists (%s)" % bad)
+    check(ordinary and equipped and not bad, "every outfit is in both of vanilla's lists (%s)" % bad)
+    # What each outfit can be dressed in, by the file guid table: an ordinary
+    # outfit carries no bag, an equipped one does (a player's report, 0.3.2:
+    # "they all carry something"), and every bag the generator's dead could
+    # carry is one SEW_Build.dress can take away.
+    guid = {}
+    for block in open(os.path.join(PZ, "fileGuidTable.xml"), encoding="utf-8", errors="ignore").read().split("<files>")[1:]:
+        p, g = re.search(r"<path>(.*?)</path>", block), re.search(r"<guid>(.*?)</guid>", block)
+        if p and g:
+            guid[g.group(1)] = os.path.basename(p.group(1))
+    bags = collections.defaultdict(set)
+    for _sex, body in re.findall(r"<m_(Male|Female)Outfits>(.*?)</m_\1Outfits>", x, re.S):
+        name = re.search(r"<m_Name>(.*?)</m_Name>", body).group(1)
+        for g in re.findall(r"<itemGUID>([^<]*)</itemGUID>", body):
+            if guid.get(g, "").startswith("Bag_"):
+                bags[name].add(guid[g])
+    check(len(guid) > 1000 and bags, "the guid table and the outfits' bags read (%d, %d)" % (len(guid), len(bags)))
+    carry = sorted(o for o in ordinary if bags[o])
+    check(not carry, "no ordinary outfit carries a bag (%s)" % carry)
+    empty = sorted(o for o in equipped if not bags[o])
+    check(not empty, "every equipped outfit does (%s)" % empty)
+    loose = sorted(o for o in gen_dead if bags[o] and o not in equipped)
+    check(not loose, "every generator outfit with a bag is one the build can undress (%s)" % loose)
 
     # Sounds, both ways.
     decl = open(os.path.join(MEDIA, "scripts", "sewars_sounds.txt")).read()

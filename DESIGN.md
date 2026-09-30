@@ -114,8 +114,57 @@ server builds from the Lua. Nothing in the game reads a map file.
     graffiti, grime, puddles, debris, smears, a light pool under each cover,
     SAFE by each shelter door.
 
-`design/art/plans/<town>.png` is each town's plan over its streets; look at it
-after any change. `tools/render_sewer.py` draws a stretch with the real tiles.
+11. **Caves** (0.4), last and from a generator of their own, so nothing above
+    moves under a save: one per eight shafts, 50 squares apart, each breaking
+    through a plain tunnel wall away from ladders, doors and the channel. A
+    passage 18-40 squares, winding, a square wider here and there, sometimes
+    a side branch, then a hideout grown out from its end. A cave keeps two
+    squares of rock from every other space, so its breach is its only way in.
+    Floors `m`, earth walls `e`, breaches `o` (concrete) and `q` (brick).
+
+12. **Houses with a way down** (0.4), after the caves and from their own
+    generator again: one per six shafts, 40 squares apart, in a garage,
+    kitchen, laundry, shed or storeroom whose house the map gives no
+    basement. The hatch goes on a floor square with nothing else on it
+    (`clear_floor`, from the map), and its culvert leaves the house by the
+    cheapest way out (a square under the house costs four), at most 8 squares
+    under it and 30 in all, meeting the tunnel end-on on plain walkway.
+    **These are the only tunnel squares under a building**, and they are
+    listed in the index: B42 stamps random basements under houses when a
+    world is made, so the server looks under the house in game and puts the
+    trapdoor into its floor only if nothing is there (SEW_Build.hatch).
+
+13. **Towns the map gives few covers** (0.4), last of all. A map cell with
+    1,500 street-level building squares is built up; built-up cells that
+    touch are a district; a district of 5,000 building squares or more with
+    fewer than 5 vanilla covers per 10,000 of them becomes a town of its own
+    (Louisville, Irvington, Brandenburg, March Ridge, Valley Station and ten
+    smaller ones). Its tunnels follow its streets exactly as above, kept to
+    its own cells and out of every older town's chunks (one town per chunk,
+    and nothing in a save moves). Its covers are ours: on the tunnel's edge
+    within two squares of the street's centre line, on painted road with
+    nothing else on it, by junctions 45 apart and then every 70 squares along
+    any run with none. In game the server puts each into the road when a
+    player on the street first comes near (SEW_Build.cover).
+
+14. **The rats' nest** (0.5), under Louisville's district only, last of all
+    from its own generator (`dig_lair`), so nothing above moves. Placed where
+    solid rock clear of everything by two squares fits it, nearest a house
+    with a way down and the park south of downtown. A false wall off plain
+    walkway (`x` concrete, `y` brick: a wall until pulled away, then a breach),
+    a winding run through the rock with a square of rock either side, a round
+    nest of radius 6 (floor `n`), and on its far side a bricked-up room, the
+    hoard (floor `v`), behind a wall they have gnawed half through (`z`).
+    Both walls are on the north or west edge of the square they are found
+    from, because from inside a square only those walls face the camera
+    (found in play: on the south, their cracks and claws were on the far
+    side). It is
+    on no plan and on no player's map: hidden is the point. `SEW.Index.lair`
+    names its squares, where its rodents sleep, and the hatch and cover
+    nearest it by walking the tunnels.
+
+`design/art/plans/<town>.png` is each town's plan over its streets (caves in
+ochre, breaches pink, hatches cyan); look at it after any change. `tools/render_sewer.py` draws a stretch with the real tiles.
 
 ## 5. Building a stretch
 
@@ -154,6 +203,21 @@ where no player is standing*, *Tag every object you place*):
   our own (section 8).
 - **Sound.** In build A, noise travels between the street and the tunnel the
   way the engine lets it; in build B it cannot.
+
+### Rats, and the rodents of unusual size (0.5)
+
+- **Rats**: vanilla's own (`rat`, `ratfemale`), put down on a stretch's
+  walkway on its first build by the sandbox's density, and the engine's
+  after that. They flee, can be trapped, and are food.
+- **ROUS**: four, in the nest only. An animal of our own on the rat's
+  model, 2.8 times its size, that stands its ground. The server sets them on
+  whoever is below within 16 squares and bites for them -- the engine cannot
+  make a rat attack, and a mod cannot give an animal new behaviour
+  (DEV_GUIDE, *A mod cannot add an action group*). The hoard's
+  wall gives only when the server can find none of them alive within 60
+  squares of the nest -- it looks, rather than counting kills, so it cannot
+  be fooled by a death it never heard of, and one lured away and left alive
+  keeps it shut. (**Open**: whether they should ever come back.)
 
 ## 7. Shelters
 
@@ -199,9 +263,9 @@ pipeline.
 | 1 | *Climb down* / *Climb out* | **built**, tested single player and client-server |
 | 2 | The generator, every town | **built**: 16 towns, 442 shafts, plans rendered |
 | 3 | The server builds as players walk | **built**, sliced, current-revision tracked |
-| 4 | Zombies below | **built** (sandbox density, never on a player); falling in through open covers: not yet |
+| 4 | Zombies below | **built** (sandbox density and outfit mix, never on a player); falling in through open covers: not yet |
 | 5 | Shelters | **built**: 93, four kinds, stocked once |
-| 6 | Art | procedural pass **built** (27 tiles, wall variants); image-model pass next |
+| 6 | Art | procedural pass **built** (36 tiles, wall variants); image-model pass next |
 | 7 | In game | **waiting on the author's first run** (DEV_GUIDE, *Current state*) |
 
 ## 10. Open decisions for the author
@@ -213,4 +277,4 @@ pipeline.
 - **Flooding**: does rain raise the water in the channels?
 - **Depth**: one level of tunnels, or a deeper storm-relief level under the
   trunks?
-- **Sandbox**: zombie density, shelter frequency, whether covers need a tool.
+- **Sandbox**: zombie density, their outfits and shelter supplies are options (0.3.2); shelter frequency and whether covers need a tool are not.

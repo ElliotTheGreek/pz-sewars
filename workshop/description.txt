@@ -11,10 +11,10 @@ Vanilla paints 446 manhole covers on its streets and puts nothing under them. Se
 - 16 towns, 442 shafts, 93 shelters, over 110,000 squares of tunnel.
 
 THE SEWER MAP
-The sewers are something you learn. Your map starts black and fills in as you walk: the ladders you have used (with the street above), the shelters you have found. Open it with N (rebindable in Options -> Mods) or Sewer map on the right-click menu below ground. Municipal sewer plans, left in maintenance rooms and pump stations, reveal whole sheets of a town at once, and the journals the shelters' builders left behind point you to the next place worth finding.
+The sewers are something you learn. Your map starts black and fills in as you walk: the ladders you have used (with the street above), the shelters you have found. Open it with K (rebindable in Options -> Mods) or Sewer map on the right-click menu below ground. Municipal sewer plans, left in maintenance rooms and pump stations, reveal whole sheets of a town at once, and the journals the shelters' builders left behind point you to the next place worth finding.
 
 The tunnels sit one level under the real streets, so they are exactly where they should be: walk under Main Street and you come up on Main Street.
 
 Single player, hosted co-op and dedicated servers. Build 42.
 
-Sandbox: how many of the dead are down there.
+Sandbox: how many of the dead are down there, who they were (ordinary people or survivors with full packs), and how well the shelters are stocked.

@@ -6,3 +6,18 @@ option Sewars.Zombies = {
     type = enum, numValues = 4, default = 3,
     page = Sewars, translation = Sewars.Zombies, valueTranslation = Sewars.Zombies,
 }
+
+option Sewars.Loot = {
+    type = enum, numValues = 4, default = 3,
+    page = Sewars, translation = Sewars.Loot, valueTranslation = Sewars.Loot,
+}
+
+option Sewars.Outfits = {
+    type = enum, numValues = 3, default = 2,
+    page = Sewars, translation = Sewars.Outfits, valueTranslation = Sewars.Outfits,
+}
+
+option Sewars.Rats = {
+    type = enum, numValues = 4, default = 3,
+    page = Sewars, translation = Sewars.Rats, valueTranslation = Sewars.Rats,
+}

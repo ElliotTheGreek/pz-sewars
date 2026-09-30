@@ -94,6 +94,7 @@ def process(role):
     L.execute("SIM = {}")
     sim = g.SIM
     sim.root = LUA.replace("\\", "/")
+    sim.pzLua = (PZ + "/lua").replace("\\", "/")
     sim.tiles = L.table_from({k: L.table_from(v) for k, v in TILES.items()})
     sim.items = L.table_from({k: True for k in ITEMS})
     sim.outfits = L.table_from({k: True for k in OUTFITS})
@@ -125,7 +126,7 @@ def pick_shafts(L, town="muldraugh"):
     out = []
     for k in shafts.keys():
         s = shafts[k]
-        if s.town == town:
+        if s.town == town and not s.hatch:
             out.append((s.x, s.y, s.lx, s.ly, s.street))
     return sorted(out)
 
@@ -176,7 +177,14 @@ def objects_at(L, x, y, z):
     sq = L.globals().SIM.squares["%d,%d,%d" % (x, y, z)]
     if not sq:
         return []
-    return [sq.objects._t[i].sprite.getName() for i in range(1, len(sq.objects._t) + 1)]
+    out = []
+    for i in range(1, len(sq.objects._t) + 1):
+        o = sq.objects._t[i]
+        out.append(o.sprite.getName())
+        # and what hangs on it (SEW_Build, "Pictures on walls")
+        if o.attached is not None:
+            out += [o.attached._t[j].getParentSprite().getName() for j in range(1, len(o.attached._t) + 1)]
+    return out
 
 
 def count_ours(L):
@@ -190,6 +198,229 @@ def count_ours(L):
 
 
 # --- single player -----------------------------------------------------------------------------
+
+def lair_test(L, p):
+    """The rats' nest under Louisville (0.5): built with its town, found by
+    its false wall, the rodents of unusual size in it, the hoard shut until
+    the last of them is dead."""
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    lair = SEW.Index.lair
+    check(lair is not None, "the index has the rats' nest")
+    if lair is None:
+        return
+    check(SEW.Rats.defined is True, "the ROUS is defined on vanilla's rat")
+    d = g.AnimalDefinitions.animals.rous
+    # The rat's own animation set: a mod's action group is never loaded, and an
+    # animal without one stands still (found in play, 0.5).
+    check(d is not None and d.animset == "rat" and d.wild is False and d.alwaysFleeHumans is False
+          and d.minSize > 2 and d.hungerMultiplier == 0,
+          "a ROUS moves as a rat, stands its ground and is large (%s)" % ((d.animset, d.minSize) if d else None,))
+    check(g.AnimalDefinitions.animals.rat.animset == "rat" and g.AnimalDefinitions.animals.rat.minSize < 1,
+          "vanilla's rat is left as it was")
+    tx, ty, ex, ey, gx, gy, vx, vy = lair.tx, lair.ty, lair.ex, lair.ey, lair.gx, lair.gy, lair.vx, lair.vy
+    cx, cy = lair.x, lair.y
+    # A fresh world: everything round the nest loaded and built, as walking
+    # there would. Rats off, so only the nest's own are counted.
+    L.execute("SandboxVars.Sewars.Rats = 1")
+    keys = L.execute("""
+        local x0, y0, x1, y1 = ...
+        local B = SEW.Build
+        local keys = {}
+        for kx = math.floor(x0 / 8) - 2, math.floor(x1 / 8) + 2 do
+            for ky = math.floor(y0 / 8) - 2, math.floor(y1 / 8) + 2 do
+                SIM.load(kx, ky)
+                local k = kx .. "," .. ky
+                if B.townOf(k) then keys[#keys + 1] = k end
+            end
+        end
+        for _, k in ipairs(keys) do B.chunk(k) end
+        return keys
+    """, min(tx, cx, vx) - 8, min(ty, cy, vy) - 8, max(tx, cx, vx) + 8, max(ty, cy, vy) + 8)
+
+    def rous():
+        return L.execute("""
+            local n, alive = 0, 0
+            for _, a in ipairs(SIM.animals) do
+                if a.kind == "rous" then
+                    n = n + 1
+                    if not a.dead then alive = alive + 1 end
+                end
+            end
+            return n, alive
+        """)
+    n, alive = rous()
+    want = len(lua_list(lair.rous)) // 2
+    check(n == want and alive == want, "the nest's rodents are put down, %d of %d" % (n, want))
+    placed = L.execute("""
+        local ok = true
+        for _, a in ipairs(SIM.animals) do
+            if a.kind == "rous" then ok = ok and a.inWorld and a.size == SEW.Config.Rous.size and a.z == -1 end
+        end
+        return ok
+    """)
+    check(placed is True, "each handed to the world, at its size, below ground")
+    ex_rec = max(tx, ex), max(ty, ey)
+    here = objects_at(L, ex_rec[0], ex_rec[1], -1)
+    C = SEW.Config
+    cracks = [C.Sprites.cracks.N, C.Sprites.cracks.W]
+    frames = [C.Sprites.doorFrame.N, C.Sprites.doorFrame.W]
+    check(any(c in here for c in cracks) and not any(f in here for f in frames),
+          "the false wall is a wall, with its cracks and gnawed hole (%s)" % here)
+    hoard = L.execute("""
+        local x, y, w, h = ...
+        local pieces, stocked, gold = 0, 0, false
+        for px = x, x + w - 1 do for py = y, y + h - 1 do
+            local sq = SIM.squares[px .. "," .. py .. ",-1"]
+            for _, o in ipairs(sq and sq.objects._t or {}) do
+                local c = SEW.Util.containerOf(o)
+                if c then
+                    pieces = pieces + 1
+                    if c:getItems():size() > 0 then stocked = stocked + 1 end
+                    for _, it in ipairs(c:getItems()._t) do
+                        local t = it:getType()
+                        if t == "GoldBar" or t == "SilverBar" or t == "Diamond" or t == "GoldCoin" then gold = true end
+                    end
+                end
+            end
+        end end
+        return pieces, stocked, gold
+    """, lair.hoard[1], lair.hoard[2], lair.hoard[3], lair.hoard[4])
+    check(hoard[0] >= 6 and hoard[1] == hoard[0] and hoard[2],
+          "the hoard: %d pieces, %d stocked, something that glitters %s" % hoard)
+
+    # Below, at the false wall: it offers to be pulled away.
+    p.x, p.y, p.z = tx + 0.5, ty + 0.5, -1
+    sim.players = L.table(p)
+    m = menu(L, 0, ex, ey)
+    names = [nm for nm, _ in options(m)]
+    check(TEXT["ContextMenu_SEW_PryWall"] in names, "the false wall offers Pull at the loose bricks (%s)" % names)
+    m2 = menu(L, 0, tx + 6, ty + 6)
+    check(TEXT["ContextMenu_SEW_PryWall"] not in [nm for nm, _ in options(m2)], "and nowhere else does")
+    # From too far, the server says no (the action's own reach check aside).
+    far = L.execute("""
+        local p = SIM.players[1]
+        local x, y = p.x, p.y
+        p.x, p.y = x + 8, y + 8
+        local ok = SEW.Nest.pry(p, "wall")
+        p.x, p.y = x, y
+        return ok, SEW.Build.gateOpen("wall")
+    """)
+    check(far[0] is False and far[1] is False, "the server refuses a pull from out of reach")
+    choose(m, TEXT["ContextMenu_SEW_PryWall"])
+    sim.runActions()
+    sim.tickN(2)
+    here = objects_at(L, ex_rec[0], ex_rec[1], -1)
+    breach = [C.Sprites.breach.o.N, C.Sprites.breach.o.W, C.Sprites.breach.q.N, C.Sprites.breach.q.W]
+    check(any(f in here for f in frames) and any(b in here for b in breach) and not any(c in here for c in cracks),
+          "pulled away: a breach where the wall was, the cracks gone with it (%s)" % here)
+    check(TEXT["ContextMenu_SEW_PryWall"] not in [nm for nm, _ in options(menu(L, 0, ex, ey))],
+          "an open wall offers nothing more")
+    notes = lua_list(sim.notes)
+    check(any("bricks come away" in nt for nt in notes), "and says what is behind it (%s)" % notes[-1:])
+
+    # Into the nest: they wake and come for whoever is there. The sim's engine
+    # path does nothing below ground, so they are walked by hand -- and never
+    # through a wall.
+    p.x, p.y = cx + 0.5, cy + 3.5
+    before = L.execute("""
+        local t = 0
+        for _, a in ipairs(SIM.animals) do
+            if a.kind == "rous" then t = t + math.sqrt((a.x - SIM.players[1].x)^2 + (a.y - SIM.players[1].y)^2) end
+        end
+        return t
+    """)
+    p.wounds, p.damage = L.table(), 0
+    walls = L.execute("""
+        local bad = 0
+        for _ = 1, 600 do
+            SIM.tickN(1)
+            for _, a in ipairs(SIM.animals) do
+                if a.kind == "rous" and not (a.square and SEW.Util.floorOf(a.square)) then bad = bad + 1 end
+            end
+        end
+        return bad
+    """)
+    hunted = L.execute("""
+        local t, near, pathed = 0, 0, 0
+        for _, a in ipairs(SIM.animals) do
+            if a.kind == "rous" then
+                local d = math.sqrt((a.x - SIM.players[1].x)^2 + (a.y - SIM.players[1].y)^2)
+                t = t + d
+                if d <= SEW.Config.Rous.reach + 0.05 then near = near + 1 end
+                if (a.pathed or 0) > 0 then pathed = pathed + 1 end
+            end
+        end
+        return t, near, pathed
+    """)
+    check(hunted[2] == want, "each is sent after the player on the engine's path first (%d)" % hunted[2])
+    check(hunted[0] < before * 0.4 and hunted[1] >= 1,
+          "then walked to them by hand (%.1f squares between them all, from %.1f; %d at their heels)"
+          % (hunted[0], before, hunted[1]))
+    check(walls == 0, "and never off the floor, through a wall (%d)" % walls)
+    wounds = len(lua_list(p.wounds))
+    check(wounds >= 2 and (p.damage or 0) > 0, "they bite: %d wounds, %s damage" % (wounds, p.damage))
+    notes = lua_list(sim.notes)
+    check(any("bites" in nt for nt in notes), "and the player is told (%s)" % notes[-1:])
+
+    # The gnawed wall: not while any of them lives.
+    p.x, p.y = gx + 0.5, gy + 0.5
+    m = menu(L, 0, vx, vy)
+    check(TEXT["ContextMenu_SEW_PryGate"] in [nm for nm, _ in options(m)], "the gnawed wall offers to be torn through")
+    choose(m, TEXT["ContextMenu_SEW_PryGate"])
+    sim.runActions()
+    sim.tickN(2)
+    check(L.execute("return SEW.Build.gateOpen('gate')") is False, "and will not give while they live")
+    notes = lua_list(sim.notes)
+    check(any("still breathing" in nt for nt in notes), "the player is told why (%s)" % notes[-1:])
+    # One dead is not all of them.
+    L.execute("for _, a in ipairs(SIM.animals) do if a.kind == 'rous' then a.dead = true break end end")
+    check(L.execute("return SEW.Nest.pry(SIM.players[1], 'gate')") is False, "nor with one of them still alive")
+    L.execute("for _, a in ipairs(SIM.animals) do if a.kind == 'rous' then a.dead = true end end")
+    p.x, p.y = cx + 0.5, cy + 0.5
+    sim.tickN(SEW.Config.Rous.every * 2)
+    notes = lua_list(sim.notes)
+    check(any("nest is still" in nt for nt in notes), "the last one dead, the nest goes quiet (%s)" % notes[-1:])
+    p.x, p.y = gx + 0.5, gy + 0.5
+    choose(menu(L, 0, vx, vy), TEXT["ContextMenu_SEW_PryGate"])
+    sim.runActions()
+    sim.tickN(2)
+    gate = objects_at(L, max(gx, vx), max(gy, vy), -1)
+    check(L.execute("return SEW.Build.gateOpen('gate')") is True and any(f in gate for f in frames)
+          and any(b in gate for b in breach), "then it gives, into the hoard (%s)" % gate)
+
+    # A later revision puts back no rodent and no crate, and shuts nothing.
+    L.execute("""
+        local keys = ...
+        local s = SEW.Build.state()
+        for _, k in ipairs(keys) do s.built[k] = "older" end
+        for _, k in ipairs(keys) do SEW.Build.chunk(k) end
+    """, keys)
+    n2, _ = rous()
+    hoard2 = L.execute("""
+        local x, y, w, h = ...
+        local pieces = 0
+        for px = x, x + w - 1 do for py = y, y + h - 1 do
+            local sq = SIM.squares[px .. "," .. py .. ",-1"]
+            for _, o in ipairs(sq and sq.objects._t or {}) do if SEW.Util.containerOf(o) then pieces = pieces + 1 end end
+        end end
+        return pieces
+    """, lair.hoard[1], lair.hoard[2], lair.hoard[3], lair.hoard[4])
+    here = objects_at(L, ex_rec[0], ex_rec[1], -1)
+    check(n2 == want and hoard2 == hoard[0] and any(f in here for f in frames),
+          "a later pass: no second rodent (%d), no second crate (%d), the walls stay open" % (n2, hoard2))
+    # And asked again directly -- the chunk's caves-done mark would otherwise
+    # hide the rodents' own record (DEV_GUIDE, "Two guards that cover each other").
+    again = L.execute("""
+        local L, made = SEW.Index.lair, 0
+        for i = 1, #L.rous, 2 do
+            made = made + SEW.Nest.lairChunk(math.floor(L.rous[i] / 8) .. "," .. math.floor(L.rous[i + 1] / 8))
+        end
+        return made
+    """)
+    check(again == 0, "a nest chunk visited again puts down no rodent twice (%d)" % again)
+    L.execute("SandboxVars.Sewars.Rats = nil")
+
 
 def single_player():
     print("single player")
@@ -248,6 +479,46 @@ def single_player():
     check(any(o in ("sewars_01_0", "sewars_01_1") for o in ladder_objs), "the ladder hangs at %d,%d" % (lx, ly))
     sim.tickN(20)
     check(p.noVault is True, "the vault switch is on below")
+    rats = L.execute("""
+        local n, bad, kinds = 0, 0, {}
+        for _, a in ipairs(SIM.animals) do
+            if a.kind == "rat" or a.kind == "ratfemale" then
+                n = n + 1
+                kinds[a.kind .. "/" .. a.breed] = true
+                -- In the middle of the square, not on its corner (the wall line).
+                if a.x % 1 ~= 0.5 or a.y % 1 ~= 0.5 then bad = bad + 1 end
+                local sq = SIM.squares[math.floor(a.x) .. "," .. math.floor(a.y) .. "," .. a.z]
+                if a.z ~= -1 or not (sq and SEW.Util.floorOf(sq)) or not a.inWorld then bad = bad + 1 end
+            end
+        end
+        local k = 0
+        for _ in pairs(kinds) do k = k + 1 end
+        return n, bad, k
+    """)
+    check(rats[0] > 0 and rats[1] == 0,
+          "vanilla's rats are down here, in the middle of walkway squares (%d, %d misplaced, %d kinds)" % rats)
+    # The leash: one that has got through a wall is put back, one with no
+    # walkway near is taken away.
+    leash = L.execute("""
+        local rat
+        for _, a in ipairs(SIM.animals) do if a.kind == "rat" or a.kind == "ratfemale" then rat = a break end end
+        local x, y = math.floor(rat.x), math.floor(rat.y)
+        local rock
+        for dx = -3, 3 do for dy = -3, 3 do
+            local sq = SIM.squares[(x + dx) .. "," .. (y + dy) .. ",-1"]
+            local f = sq and SEW.Util.floorOf(sq)
+            if f and f.sprite:getName() == SEW.Config.Sprites.floorRock then rock = { x + dx, y + dy } end
+        end end
+        SEW.Nest.place(rat, rock[1] + 0.5, rock[2] + 0.5)
+        local lost = SEW.Nest.addAnimal(x, y, "rat", "grey")
+        SEW.Nest.place(lost, x + 40.5, y + 40.5)
+        -- On its own clock, not asked: the server's tick does it.
+        SIM.tickN(SEW.Config.LeashEvery)
+        local back = rat.square and SEW.Util.floorOf(rat.square)
+        return back ~= nil
+            and back.sprite:getName() ~= SEW.Config.Sprites.floorRock and lost.removed == true
+    """)
+    check(leash is True, "a rat that got through a wall is put back on the walkway, one far off it taken away")
     notes = lua_list(sim.notes)
     check(any("Down into the dark" in n for n in notes), "the arrival note (%s)" % notes[-1:])
 
@@ -351,6 +622,21 @@ def single_player():
         check(win2 is not None and win2.width == 480 and win2.x == x0 + 30, "it reopens where it was left, the size it was")
         win2.closeButton.click(win2.closeButton)
         check(SEW.Map.window is None and not sim.ui[win2], "and the X closes it")
+    # The key: K, not vanilla's Start/Stop Engine (N) -- even for a player
+    # whose ModOptions.ini saved 0.3.1's N -- and never at the wheel.
+    KB = L.globals().Keyboard
+    check(SEW.Map.keyOption is not None and SEW.Map.keyOption.getValue(SEW.Map.keyOption) == KB.KEY_K,
+          "the map's key is K, whatever 0.3.1 saved")
+    sim.fire("OnKeyPressed", KB.KEY_N)
+    check(SEW.Map.window is None, "N (the engine) does not open the map")
+    sim.fire("OnKeyPressed", KB.KEY_K)
+    check(SEW.Map.window is not None, "K opens it")
+    sim.fire("OnKeyPressed", KB.KEY_K)
+    check(SEW.Map.window is None, "and K closes it")
+    p.vehicle = True
+    sim.fire("OnKeyPressed", KB.KEY_K)
+    check(SEW.Map.window is None, "not in a car")
+    p.vehicle = None
     tunk = [k for k in sim.unknownText.keys()]
     check(not tunk, "every text the map uses exists (%s)" % tunk[:3])
 
@@ -522,6 +808,64 @@ def single_player():
             return full, empty
         """)
     check(stocked[0] > 0, "shelter containers are stocked and explored (%d, %d empty)" % stocked)
+    # A player's report (0.3.2): every crate full and every one of the dead
+    # carrying a pack. At the default, a crate holds a few things plus any
+    # journal and plan, and the equipped are a few of the dead.
+    most = L.execute("""
+        local most = 0
+        for _, sq in pairs(SIM.squares) do
+            for _, o in ipairs(sq.objects._t) do
+                if o.md.sew and o.container then most = math.max(most, o.container:getItems():size()) end
+            end
+        end
+        return most
+    """)
+    check(0 < most <= 6, "a shelter's container holds a few things, not a crate full (%d at most)" % most)
+    mix = L.execute("""
+        local B, C = SEW.Build, SEW.Config
+        local eq = {}
+        for _, o in ipairs(C.OutfitsEquipped) do eq[o] = true end
+        local out = {}
+        for opt = 1, 3 do
+            SandboxVars.Sewars.Outfits = opt
+            local n, kept = 0, 0
+            for i = 1, 2000 do
+                if eq[B.outfit(10000 + i * 7, 9000 + i * 3, i % 5 + 1)] then n = n + 1 end
+                if B.dress("Survivalist", 10000 + i * 5, 9000 + i) == "Survivalist" then kept = kept + 1 end
+            end
+            out[#out + 1] = n
+            out[#out + 1] = kept
+        end
+        SandboxVars.Sewars.Outfits = nil
+        local ordinary = B.dress("Hobbo", 1, 2) == "Hobbo" and B.option("Outfits", 2, 3) == 2
+        return out[1], out[2], out[3], out[4], out[5], out[6], ordinary
+    """)
+    check(mix[0] < 250 and mix[2] < 450 and mix[4] > 550, "equipped dead by the sandbox: %d, %d, %d in 2000" % (mix[0], mix[2], mix[4]))
+    check(mix[1] < 700 and 700 < mix[3] < 1300 and mix[5] == 2000,
+          "a shelter's own dead keep their pack by the sandbox: %d, %d, %d in 2000" % (mix[1], mix[3], mix[5]))
+    check(mix[6], "an ordinary one is left as it is; no option in the save means Mixed")
+    loot = L.execute("""
+        local U, C = SEW.Util, SEW.Config
+        local function crate()
+            local items = {}
+            local c = { getCapacity = function() return 50 end, getContentsWeight = function() return 0 end,
+                        getItems = function() return { size = function() return #items end } end,
+                        AddItem = function(_, it) items[#items + 1] = it end }
+            return { getContainer = function() return c end }, items
+        end
+        local obj, items = crate()
+        local n = U.fill(obj, C.Loot.arms, 4, 12345)
+        local none = U.fill(crate(), C.Loot.arms, 0, 1)
+        local seen = {}
+        local roll = U.rng(777)
+        for _ = 1, 400 do seen[roll(10)] = true end
+        local all = 0
+        for i = 1, 10 do if seen[i] then all = all + 1 end end
+        return n, #items, none, all
+    """)
+    check(loot[0] == 4 and loot[1] == 4, "a crate gets its count, not the whole list (%d added, %d in it)" % (loot[0], loot[1]))
+    check(loot[2] == 0, "None puts nothing in")
+    check(loot[3] == 10, "the generator reaches every pick (%d of 10)" % loot[3])
     hi = L.execute("""
         for i, h in ipairs(SEW.Index.shelters) do
             if h.town == "muldraugh" and SIM.squares[(h.x + 1) .. "," .. (h.y + 1) .. ",-1"] then return i, h.x, h.y end
@@ -688,6 +1032,275 @@ def single_player():
     check(objs == ["location_sewer_01_34"] or not any(o.startswith("floors_") for o in objs),
           "a square already holding something is left alone (%s)" % objs)
 
+    # A cave (ROADMAP 0.4), the Muldraugh one the dev build starts at, in
+    # chunks built before caves existed: a save from 0.3. Our rock is already
+    # on the square the breach opens onto, as it would be under an outside wall.
+    cave = L.execute("local v = SEW.Client.devCave(); return v.bx, v.by, v.x, v.y, v.sx, v.sy")
+    check(cave is not None, "the dev build has a Muldraugh cave to start at")
+    bx, by, hx, hy, sx, sy = cave
+    res = L.execute("""
+        local bx, by, hx, hy = ...
+        local C, B = SEW.Config, SEW.Build
+        local s = B.state()
+        local keys = {}
+        for cx = math.floor(math.min(bx, hx) / 8) - 1, math.floor(math.max(bx, hx) / 8) + 1 do
+            for cy = math.floor(math.min(by, hy) / 8) - 1, math.floor(math.max(by, hy) / 8) + 1 do
+                SIM.load(cx, cy)
+                local key = cx .. "," .. cy
+                if B.townOf(key) then
+                    keys[#keys + 1] = key
+                    s.first[key], s.built[key], s.caves[key] = "old", "old", nil
+                end
+            end
+        end
+        -- The square through the breach: find it from the breach's record.
+        local T = SEW.Data.muldraugh
+        local function rec(x, y)
+            local body = T.chunks[math.floor(x / 8) .. "," .. math.floor(y / 8)] or ""
+            for i = 1, #body, 7 do
+                local r = body:sub(i, i + 6)
+                if tonumber(r:sub(1, 1)) == x % 8 and tonumber(r:sub(2, 2)) == y % 8 then return r end
+            end
+        end
+        local entry
+        for _, d in ipairs({ { 0, -1 }, { -1, 0 }, { 1, 0 }, { 0, 1 } }) do
+            local r = rec(bx + d[1], by + d[2])
+            if r and r:sub(3, 3) == "m" then entry = { bx + d[1], by + d[2] } end
+        end
+        local esq = getCell():getOrCreateGridSquare(entry[1], entry[2], -1)
+        local rock = IsoObject.new(esq, C.Sprites.floorRock, "")
+        rock.md.sew = 1
+        esq.objects:add(rock)
+        for _, key in ipairs(keys) do B.chunk(key) end
+
+        local function sprites(x, y)
+            local out = {}
+            local sq = SIM.squares[x .. "," .. y .. ",-1"]
+            for _, o in ipairs(sq and sq.objects._t or {}) do
+                out[o.sprite:getName()] = (out[o.sprite:getName()] or 0) + 1
+                for _, a in ipairs(o.attached and o.attached._t or {}) do
+                    local n = a:getParentSprite():getName()
+                    out[n] = (out[n] or 0) + 1
+                end
+            end
+            return out
+        end
+        local breach = false
+        for _, set in pairs(C.Sprites.breach) do
+            for _, v in pairs(set) do
+                if sprites(bx, by)[v] or sprites(entry[1], entry[2])[v] then breach = true end
+            end
+        end
+        local e = sprites(entry[1], entry[2])
+        local rockGone = e[C.Sprites.floorRock] == nil and (e[C.Sprites.floorCave[1]] or e[C.Sprites.floorCave[2]]) == 1
+        -- The hideout: crates, stocked.
+        local crates, full = 0, 0
+        for x = hx - 4, hx + 4 do for y = hy - 4, hy + 4 do
+            local sq = SIM.squares[x .. "," .. y .. ",-1"]
+            for _, o in ipairs(sq and sq.objects._t or {}) do
+                if o.sprite:getName() == "carpentry_01_16" then
+                    crates = crates + 1
+                    local c = SEW.Util.containerOf(o)
+                    if c and c:getItems():size() > 0 then full = full + 1 end
+                end
+            end
+        end end
+        local done = true
+        for _, key in ipairs(keys) do
+            if B.hasCave(T.chunks[key]) and s.caves[key] == nil then done = false end
+        end
+        -- And again, as the next revision would: nothing twice.
+        for _, key in ipairs(keys) do s.built[key] = "older" end
+        for _, key in ipairs(keys) do B.chunk(key) end
+        local crates2 = 0
+        for x = hx - 4, hx + 4 do for y = hy - 4, hy + 4 do
+            local sq = SIM.squares[x .. "," .. y .. ",-1"]
+            for _, o in ipairs(sq and sq.objects._t or {}) do
+                if o.sprite:getName() == "carpentry_01_16" then crates2 = crates2 + 1 end
+            end
+        end end
+        return breach, rockGone, crates, full, done, crates2
+    """, bx, by, hx, hy)
+    breach, rock_gone, crates, full, done, crates2 = res
+    check(breach, "the cave's breach is knocked through the tunnel wall (%d,%d)" % (bx, by))
+    check(rock_gone, "our rock where the cave now runs gives way to the cave's floor, one floor, not two")
+    check(crates >= 1 and full == crates, "the hideout's crates are there and stocked (%d, %d full)" % (crates, full))
+    check(done, "caves reach chunks built before there were any, and are recorded done")
+    check(crates2 == crates, "a later pass puts in no second crate (%d)" % crates2)
+
+    # Pictures on walls (found in play, 0.3.2: earth floating by a breach). The
+    # cutaway cuts a wall and what is attached to it, so every picture of ours
+    # with a wall of ours on its edge hangs on that wall, not beside it.
+    hung = L.execute("""
+        local B = SEW.Build
+        local loose, attached, kinds = 0, 0, {}
+        for _, sq in pairs(SIM.squares) do
+            for _, o in ipairs(sq.objects._t) do
+                if o.md.sew and B.overlayEdge(o.sprite:getName()) then loose = loose + 1 end
+                for _, a in ipairs(o.attached and o.attached._t or {}) do
+                    attached = attached + 1
+                    kinds[a:getParentSprite():getName()] = true
+                end
+            end
+        end
+        local C = SEW.Config
+        local earth = kinds[C.Sprites.earthFace.N] or kinds[C.Sprites.earthFace.W]
+        local ladder = kinds[C.Sprites.ladder.N] or kinds[C.Sprites.ladder.W]
+        local breach = false
+        for _, set in pairs(C.Sprites.breach) do if kinds[set.N] or kinds[set.W] then breach = true end end
+        return loose, attached, earth == true, ladder == true, breach
+    """)
+    check(hung[1] > 0 and hung[2] and hung[3] and hung[4],
+          "earth, breaches and ladders hang on their walls (%d attached; earth %s, ladder %s, breach %s)"
+          % (hung[1], hung[2], hung[3], hung[4]))
+    check(hung[0] == 0, "and none is an object of its own beside a wall it could hang on (%d)" % hung[0])
+    # A save from before: the picture an object of its own. The next revision
+    # pass takes it off the square and hangs it, once.
+    moved = L.execute("""
+        local B, C, U = SEW.Build, SEW.Config, SEW.Util
+        for k, sq in pairs(SIM.squares) do
+            for _, o in ipairs(sq.objects._t) do
+                local a = o.attached and o.attached._t[1]
+                local name = a and a:getParentSprite():getName()
+                if o.md.sew and (name == C.Sprites.earthFace.N or name == C.Sprites.earthFace.W) then
+                    table.remove(o.attached._t, 1)
+                    local old = IsoObject.new(sq, name, "")
+                    old.md.sew = 1
+                    sq.objects:add(old)
+                    local before = B.hasPicture(sq, name) and U.findSprite(sq, name) ~= nil
+                    -- A revision pass over its chunk, twice.
+                    local ck = math.floor(sq.x / 8) .. "," .. math.floor(sq.y / 8)
+                    for _ = 1, 2 do
+                        B.state().built[ck] = "old"
+                        B.chunk(ck)
+                    end
+                    local n = 0
+                    for _, a2 in ipairs(o.attached._t) do if a2:getParentSprite():getName() == name then n = n + 1 end end
+                    return before, U.findSprite(sq, name) == nil, n
+                end
+            end
+        end
+    """)
+    check(moved is not None and moved[0] and moved[1] and moved[2] == 1,
+          "an old save's loose earth is taken off the square and hung on its wall, once (%s)" % (moved,))
+
+    # Houses with a way down (ROADMAP 0.4). Two Muldraugh hatches: one clear,
+    # one with a random basement stamped under its house.
+    hl = L.execute("""
+        local out = {}
+        for _, s in pairs(SEW.Index.shafts) do
+            if s.hatch and s.town == "muldraugh" then out[#out + 1] = s end
+        end
+        table.sort(out, function(a, b) return a.x < b.x end)
+        return out[1], out[#out]
+    """)
+    hs, hb = hl
+    hx, hy = int(hs.x), int(hs.y)
+    q = sim.newPlayer("hatch", hx + 1.5, hy + 0.5, 0)
+    q.hours = 50
+    sim.players = L.table(q)
+    street(L, hx, hy, 3, manhole=False)
+    check(TEXT["ContextMenu_SEW_HatchDown"] not in [n for n, _ in options(menu(L, 0, hx, hy))],
+          "a house not yet looked at has no hatch in its floor")
+    sim.tickN(20)
+    check(L.execute("return SEW.Build.state().hatches['%d,%d']" % (hx, hy)) == "open"
+          and "sewars_01_34" in objects_at(L, hx, hy, 0),
+          "a player on the street near it: the house is looked at, nothing is under it, the trapdoor goes in")
+    m = menu(L, 0, hx, hy)
+    check(TEXT["ContextMenu_SEW_HatchDown"] in [n for n, _ in options(m)], "the hatch offers Climb down through the hatch")
+    choose(m, TEXT["ContextMenu_SEW_HatchDown"])
+    sim.runActions()
+    sim.tickN(3)
+    check(abs(q.z + 1) < 1e-6 and int(q.x) == hx and int(q.y) == hy,
+          "down through the hatch to the foot of its ladder (%.1f,%.1f,%.1f)" % (q.x, q.y, q.z))
+    lobjs = objects_at(L, int(hs.lx), int(hs.ly), -1)
+    check(any(o in ("sewars_01_0", "sewars_01_1") for o in lobjs), "a ladder hangs under the hatch (%s)" % lobjs)
+    m = menu(L, 0, hx, hy)
+    check(TEXT["ContextMenu_SEW_HatchUp"] in [n for n, _ in options(m)], "below, the ladder offers Climb up through the hatch")
+    choose(m, TEXT["ContextMenu_SEW_HatchUp"])
+    sim.runActions()
+    sim.tickN(3)
+    check(q.z == 0 and int(q.x) == hx and int(q.y) == hy, "and back up into the house (%.1f,%.1f,%.1f)" % (q.x, q.y, q.z))
+
+    bx2, by2 = int(hb.x), int(hb.y)
+    q.x, q.y, q.z = bx2 + 1.5, by2 + 0.5, 0
+    street(L, bx2, by2, 3, manhole=False)
+    L.execute("""
+        local s = ...
+        local u = s.under
+        local sq = getCell():getOrCreateGridSquare(u[#u - 1], u[#u], -1)
+        sq.objects:add(IsoObject.new(sq, "floors_interior_tilesandwood_01_24", ""))
+    """.replace("local s = ...", "local s = SEW.Index.shafts['%d,%d']" % (bx2, by2)))
+    sim.tickN(20)
+    check(L.execute("return SEW.Build.state().hatches['%d,%d']" % (bx2, by2)) == "blocked"
+          and "sewars_01_34" not in objects_at(L, bx2, by2, 0),
+          "a house with a basement under it is left shut: no trapdoor")
+    check(not options(menu(L, 0, bx2, by2)), "and its floor offers nothing")
+    check(L.execute("return SEW.Server.grant(getPlayer(), %d, %d, 'down')" % (bx2, by2)) is False,
+          "and the server refuses a climb down it whatever the client asks")
+    check(L.execute("local s = SEW.Sewer.nearestShaft(%d, %d); return s ~= nil and s.hatch == nil" % (bx2, by2)),
+          "a rescue is never sent to a hatch's ladder, even standing on it")
+
+    # A town the map gives few covers (ROADMAP 0.4): covers of ours, put into
+    # the road when a player on the street first comes near.
+    made = L.execute("""
+        local out = {}
+        for _, s in pairs(SEW.Index.shafts) do if s.made and s.town:find("^louisville") then out[#out + 1] = s end end
+        table.sort(out, function(a, b) return a.x < b.x or (a.x == b.x and a.y < b.y) end)
+        return out[1], #out
+    """)
+    ms, n_made = made
+    check(ms is not None and n_made >= 50, "Louisville has covers of ours (%s)" % n_made)
+    cx_, cy_ = int(ms.x), int(ms.y)
+    q.x, q.y, q.z = cx_ + 1.5, cy_ + 0.5, 0
+    sim.players = L.table(q)
+    street(L, cx_, cy_, 3, manhole=False)
+    L.execute("local sq = getCell():getGridSquare(%d, %d, 0); for i = #sq.objects._t, 1, -1 do sq.objects._t[i] = nil end"
+              % (cx_, cy_))
+    check(L.execute("return SEW.Server.grant(getPlayer(), %d, %d, 'down')" % (cx_, cy_)) is False,
+          "a cover of ours not yet in the road leads nowhere, whatever the client asks")
+    street(L, cx_, cy_, 3, manhole=False)
+    check(not options(menu(L, 0, cx_, cy_)), "and there is nothing in the road to offer")
+    sim.tickN(20)
+    check("sewars_01_35" in objects_at(L, cx_, cy_, 0), "a player comes near: the cover goes into the road (%s)"
+          % objects_at(L, cx_, cy_, 0))
+    m = menu(L, 0, cx_, cy_)
+    check(TEXT["ContextMenu_SEW_Enter"] in [n for n, _ in options(m)], "and offers Climb down")
+    choose(m, TEXT["ContextMenu_SEW_Enter"])
+    sim.runActions()
+    sim.tickN(3)
+    check(abs(q.z + 1) < 1e-6 and int(q.x) == cx_ and int(q.y) == cy_,
+          "down a cover of ours to the foot of its ladder (%.1f,%.1f,%.1f)" % (q.x, q.y, q.z))
+    q.z = 0
+    sim.players = L.table(p)
+
+    # The dev build starts a new character on the cover over that cave; one
+    # that has lived is left where it stands, and without the flag nobody moves.
+    hx, hy = SEW.Index.lair.hx, SEW.Index.lair.hy
+    check(SEW.Index.shafts["%d,%d" % (hx, hy)] is not None and SEW.Index.shafts["%d,%d" % (hx, hy)].hatch is not None,
+          "the nest names a hatch to start by (%d,%d)" % (hx, hy))
+    for hours, dev, moved_wanted, what, start, tx_, ty_ in (
+            (0, False, False, "without the dev flag, a new character stays put", "lair", hx, hy),
+            (0, True, True, "the dev build puts a new character by the hatch nearest the rats' nest", "lair", hx, hy),
+            (0, True, True, "or, set to caves, on the cover over a cave", "cave", sx, sy),
+            (40, True, False, "and leaves a character that has lived where it stands", "lair", hx, hy)):
+        SEW.Config.DevStart = start
+        sx, sy = tx_, ty_
+        q = sim.newPlayer("dev", mx + 3.5, my + 0.5, 0)
+        q.hours = hours
+        sim.players = L.table(q)
+        SEW.Dev = True if dev else None
+        sim.fire("OnCreatePlayer", 0, q)
+        sim.tickN(60)
+        moved = abs(q.x - (sx + 0.5)) < 1e-6 and abs(q.y - (sy + 0.5)) < 1e-6 and q.z == 0
+        check(moved == moved_wanted, "%s (%.1f,%.1f)" % (what, q.x, q.y))
+    SEW.Dev = None
+    SEW.Config.DevStart = "lair"
+    sim.players = L.table(p)
+
+    lair_test(L, p)
+    sim.players = L.table(p)
+
     unknown = [k for k in sim.unknownSprites.keys()]
     check(not unknown, "every sprite placed exists in the game (%s)" % unknown[:5])
     unk = [k for k in sim.unknownText.keys()]
@@ -749,6 +1362,34 @@ def multiplayer():
         if special then sq.specials:add(o) end
     end''')
 
+    # What an updated-sprite packet does: the object's attached sprites, as the
+    # server has them now, on the client's copy (found by square and sprite).
+    resprite = Lc.eval('''function(x, y, z, name, names)
+        local sq = SIM.squares[x .. "," .. y .. "," .. z]
+        for _, o in ipairs(sq and sq.objects._t or {}) do
+            if o.sprite:getName() == name then
+                o.attached = SIM.List()
+                for _, n in ipairs(names) do
+                    local spr = getSprite(n)
+                    o.attached:add({ getParentSprite = function() return spr end })
+                end
+                return true
+            end
+        end
+        return false
+    end''')
+
+    def land(msg):
+        o = msg[2]
+        sq = o.square
+        if not gc.SIM.loaded["%d,%d" % (sq.x // 8, sq.y // 8)]:
+            return
+        if msg[1] == "addObject":
+            arrive(sq.x, sq.y, sq.z, o.sprite.getName(), o.north, o["class"], msg[3], o.md.sew)
+        else:
+            names = [o.attached._t[j].getParentSprite().getName() for j in range(1, len(o.attached._t) + 1)]
+            resprite(sq.x, sq.y, sq.z, o.sprite.getName(), Lc.table(*names))
+
     def pump(late_floor=False):
         held = []
         for _ in range(4):
@@ -763,14 +1404,10 @@ def multiplayer():
             for msg in out:
                 if msg[1] == "serverCommand":
                     gc.SIM.fire("OnServerCommand", msg[3], msg[4], copy(Lc, msg[5]))
-                elif msg[1] == "addObject" and late_floor:
+                elif msg[1] in ("addObject", "updateSprite") and late_floor:
                     held.append(msg)
-                elif msg[1] == "addObject":
-                    o, special = msg[2], msg[3]
-                    sq = o.square
-                    ck = "%d,%d" % (sq.x // 8, sq.y // 8)
-                    if gc.SIM.loaded[ck]:
-                        arrive(sq.x, sq.y, sq.z, o.sprite.getName(), o.north, o["class"], special, o.md.sew)
+                elif msg[1] in ("addObject", "updateSprite"):
+                    land(msg)
             gc.SIM.runActions()
             gc.SIM.tickN(2)
             gs.SIM.tickN(2)
@@ -778,10 +1415,7 @@ def multiplayer():
 
     def deliver(held):
         for msg in held:
-            o, special = msg[2], msg[3]
-            sq = o.square
-            if gc.SIM.loaded["%d,%d" % (sq.x // 8, sq.y // 8)]:
-                arrive(sq.x, sq.y, sq.z, o.sprite.getName(), o.north, o["class"], special, o.md.sew)
+            land(msg)
 
     m = menu(Lc, 0, mx, my)
     check(TEXT["ContextMenu_SEW_Enter"] in [n for n, _ in options(m)], "the client offers Climb down")
@@ -812,6 +1446,15 @@ def multiplayer():
         for _, sq in pairs(SIM.squares) do for _, o in ipairs(sq.specials._t) do if o.class == "IsoDoor" then n = n + 1 end end end
         return n
     """)
+    pics = [L.execute("""
+        local n = 0
+        for _, sq in pairs(SIM.squares) do
+            for _, o in ipairs(sq.objects._t) do n = n + (o.attached and #o.attached._t or 0) end
+        end
+        return n
+    """) for L in (Ls, Lc)]
+    check(pics[0] > 0 and pics[1] == pics[0], "every picture the server hung on a wall reached the client on it (%d/%d)"
+          % (pics[1], pics[0]))
     check(doors_server > 0 and doors_client == doors_server, "every door the server hung reached the client as a door (%d/%d)" % (doors_client, doors_server))
 
     # Up again.

@@ -24,7 +24,16 @@
         complete() never runs on a client;
       * the server's transmitAddObjectToSquare reaches a client only if that
         client has the chunk loaded; AddSpecialObject alone reaches nobody;
-      * a client that edits the world is recorded (SIM.violations).
+      * a client that edits the world is recorded (SIM.violations);
+      * animals are vanilla's own definitions (RatDefinitions.lua, loaded
+        from the game), read once, the first time one is asked for, as the
+        engine does; a type with no action group of its animset in the game
+        or the mod has no definition, a breed it lacks is nil, and addAnimal
+        with a nil breed or onto no square throws; an animal is listed on the
+        square it stands on, and moving it moves it there; the engine's
+        pathToCharacter does nothing below ground (the game's pathfinder is
+        not known to see squares raised there at runtime);
+      * a player has a body to be bitten; syncBodyPart is a server's call.
 ]]
 
 SIM = SIM or {}
@@ -36,6 +45,7 @@ SIM.unknownText = {}
 SIM.notes = {}
 SIM.sounds = {}
 SIM.zombies = {}
+SIM.animals = {}
 SIM.lamps = {}
 SIM.outbox = {}        -- messages for the network: { kind, ... }
 SIM.loaded = {}        -- "cx,cy" -> true
@@ -159,6 +169,25 @@ function IsoObjectMT:createContainersFromSpriteProperties()
     if p.container then self.container = Container(tonumber(p.ContainerCapacity) or 50) end
 end
 function IsoObjectMT:getNorth() return self.north end
+-- Sprites attached to an object (IsoObject.AttachedAnimSprite): drawn, cut
+-- and saved with it (DEV_GUIDE, "A picture on a wall is part of the wall").
+-- The list is null until something is attached, as in the engine.
+function IsoObjectMT:AttachExistingAnim(spr, ...)
+    violation("AttachExistingAnim")
+    if select("#", ...) ~= 6 then error("AttachExistingAnim: expected the 7-argument overload") end
+    self.attached = self.attached or List()
+    self.attached:add({ getParentSprite = function() return spr end })
+end
+function IsoObjectMT:getAttachedAnimSprite() return self.attached end
+function IsoObjectMT:isAttachedAnimSprite(spr)
+    for _, a in ipairs(self.attached and self.attached._t or {}) do
+        if a:getParentSprite():getName() == spr:getName() then return true end
+    end
+    return false
+end
+function IsoObjectMT:transmitUpdatedSpriteToClients()
+    if SIM.role == "server" then SIM.outbox[#SIM.outbox + 1] = { "updateSprite", self } end
+end
 function IsoObjectMT:transmitCompleteItemToClients()
     if SIM.role == "server" then SIM.outbox[#SIM.outbox + 1] = { "addObject", self, true } end
 end
@@ -237,14 +266,42 @@ function SquareMT:getChunk() return { getMinLevel = function() return -1 end } e
 -- no rooms and no roofs, so every square is outdoors until a test gives one a
 -- room -- a tunnel included, as in the game.
 function SquareMT:isOutside() return self.room == nil end
+function SquareMT:getAnimals() return self.animals end
+-- A wall between two squares, as the game reads one: WallN / WallNW on the
+-- southern square's north edge, WallW / WallNW on the eastern's west edge,
+-- from the real tile properties. A door frame is walked through; a closed
+-- door blocks. Only neighbours; diagonals are blocked if either way round is.
+local function edgeBlocked(sq, north)
+    for _, o in ipairs(sq.objects._t) do
+        local p = SIM.tiles[o.sprite:getName()] or {}
+        if north and (p.WallN or p.WallNW or p.doorN) then return true end
+        if not north and (p.WallW or p.WallNW or p.doorW) then return true end
+    end
+    return false
+end
+function SquareMT:isBlockedTo(o)
+    local dx, dy = o.x - self.x, o.y - self.y
+    if o.z ~= self.z or math.abs(dx) > 1 or math.abs(dy) > 1 then return true end
+    if dx ~= 0 and dy ~= 0 then
+        local a = SIM.squares[(self.x + dx) .. "," .. self.y .. "," .. self.z]
+        local b = SIM.squares[self.x .. "," .. (self.y + dy) .. "," .. self.z]
+        return not (a and not self:isBlockedTo(a) and not a:isBlockedTo(o))
+            and not (b and not self:isBlockedTo(b) and not b:isBlockedTo(o))
+    end
+    if dy == 1 then return edgeBlocked(o, true) end
+    if dy == -1 then return edgeBlocked(self, true) end
+    if dx == 1 then return edgeBlocked(o, false) end
+    if dx == -1 then return edgeBlocked(self, false) end
+    return false
+end
 function SquareMT:getRoom() return self.room end
 
 local function key(x, y, z) return x .. "," .. y .. "," .. z end
 local function chunkKey(x, y) return math.floor(x / 8) .. "," .. math.floor(y / 8) end
 
 function SIM.newSquare(x, y, z, orphan)
-    local sq = setmetatable({ x = x, y = y, z = z, objects = List(), specials = List(), orphan = orphan },
-                            SquareMT)
+    local sq = setmetatable({ x = x, y = y, z = z, objects = List(), specials = List(), animals = List(),
+                              orphan = orphan }, SquareMT)
     if not orphan then SIM.squares[key(x, y, z)] = sq end
     return sq
 end
@@ -293,7 +350,7 @@ function PlayerMT:setLastX(v) end
 function PlayerMT:setLastY(v) end
 function PlayerMT:setLastZ(v) end
 function PlayerMT:getUsername() return self.name end
-function PlayerMT:getVehicle() return nil end
+function PlayerMT:getVehicle() return self.vehicle end
 function PlayerMT:getInventory() return self.inv end
 function PlayerMT:getCurrentSquare()
     return SIM.squares[key(math.floor(self.x), math.floor(self.y), math.floor(self.z))]
@@ -308,6 +365,18 @@ function PlayerMT:SetVariable() end
 function PlayerMT:isTimedActionInstant() return false end
 function PlayerMT:getPlayerNum() return 0 end
 function PlayerMT:getModData() self.md = self.md or {}; return self.md end
+function PlayerMT:getHoursSurvived() return self.hours or 0 end
+function PlayerMT:getBodyDamage()
+    local p = self
+    p.wounds = p.wounds or {}
+    return { getBodyPart = function(_, t)
+        return {
+            setCut = function(_, v) p.wounds[#p.wounds + 1] = { t, "cut" } end,
+            setScratched = function(_, v, _) p.wounds[#p.wounds + 1] = { t, "scratch" } end,
+            AddDamage = function(_, v) p.damage = (p.damage or 0) + v end,
+        }
+    end }
+end
 
 -- IsoPlayer.isOutside: a square, and no room on it. Not the exterior flag.
 function PlayerMT:isOutside()
@@ -409,6 +478,134 @@ function addZombiesInOutfit(x, y, z, count, outfit, female, ...)
 end
 
 ---------------------------------------------------------------------------
+-- Animals
+---------------------------------------------------------------------------
+-- The game's definitions are Lua tables its own files fill (shared/Definitions/
+-- animal); the engine reads them once, after every mod's Lua has loaded
+-- (AnimalDefinitions.getAnimalDefs, first from IsoWorld.init).
+function copyTable(t)
+    local out = {}
+    for k, v in pairs(t) do out[k] = type(v) == "table" and copyTable(v) or v end
+    return out
+end
+AnimalDefinitions = { animals = {}, breeds = {}, stages = {}, genome = {} }
+AnimalAvatarDefinition = { rat = { zoom = 21 } }
+AnimalPartsDefinitions = { animals = {} }
+if SIM.pzLua then
+    local f = assert(io.open(SIM.pzLua .. "/shared/Definitions/animal/RatDefinitions.lua", "rb"))
+    local src = f:read("*a")
+    f:close()
+    assert(load(src, "RatDefinitions"))()
+end
+
+local function exists(path)
+    local f = io.open(path, "rb")
+    if f then f:close() return true end
+    return false
+end
+local frozen = nil
+local function defs()
+    if frozen then return frozen end
+    frozen = {}
+    for name, d in pairs(AnimalDefinitions.animals) do
+        -- The action group of its animset, in the game or the mod.
+        local ag = "/actiongroups/" .. tostring(d.animset) .. "/actionGroup.xml"
+        if exists(SIM.root .. "/.." .. ag) or (SIM.pzLua and exists(SIM.pzLua .. "/.." .. ag)) then
+            frozen[name] = d
+        end
+    end
+    return frozen
+end
+SIM.animalDefs = defs
+
+function AnimalDefinitions.getDef(kind)
+    local d = defs()[kind]
+    if not d then return nil end
+    return { def = d, getBreedByName = function(_, name)
+        local b = d.breeds and d.breeds[name]
+        return b and { name = name, def = b } or nil
+    end }
+end
+
+local AnimalMT = {}
+AnimalMT.__index = AnimalMT
+function AnimalMT:getAnimalType() return self.kind end
+function AnimalMT:isDead() return self.dead end
+function AnimalMT:getX() return self.x end
+function AnimalMT:getY() return self.y end
+function AnimalMT:getZ() return self.z end
+function AnimalMT:addToWorld() self.inWorld = true end
+local function relink(a)
+    local sq = SIM.squares[key(math.floor(a.x), math.floor(a.y), a.z)]
+    if sq == a.square then return end
+    if a.square then a.square.animals:remove(a) end
+    a.square = sq
+    if sq then sq.animals:add(a) end
+end
+function AnimalMT:setX(v) self.x = v; relink(self) return v end
+function AnimalMT:setY(v) self.y = v; relink(self) return v end
+function AnimalMT:setLastX(v) return v end
+function AnimalMT:setLastY(v) return v end
+function AnimalMT:setNextX(v) return v end
+function AnimalMT:setNextY(v) return v end
+function AnimalMT:getCurrentSquare() return self.square end
+function AnimalMT:getHealth() return self.dead and 0 or 1 end
+function AnimalMT:stopAllMovementNow() self.stopped = (self.stopped or 0) + 1 end
+function AnimalMT:faceThisObject(o) self.facing = o end
+function AnimalMT:pathToCharacter(p)
+    self.pathed = (self.pathed or 0) + 1
+    if self.z >= 0 then self.x, self.y = p.x, p.y; relink(self) end
+end
+function AnimalMT:removeFromWorld()
+    self.removed = true
+    if self.square then self.square.animals:remove(self) end
+    self.square = nil
+end
+function AnimalMT:randomizeAge() self.aged = true end
+function AnimalMT:setDebugStress(v) self.stress = v end
+function AnimalMT:setCustomName(n) self.name = n end
+function AnimalMT:getData()
+    local a = self
+    return { setSizeForced = function(_, v) a.size = v end }
+end
+function AnimalMT:getBehavior()
+    local a = self
+    return { goAttack = function(_, p) a.target = p end }
+end
+
+function addAnimal(_, x, y, z, kind, breed)
+    violation("addAnimal")
+    if not breed then error("addAnimal: breed is nil") end
+    if not defs()[kind] then error("addAnimal: no animal " .. tostring(kind)) end
+    local sq = SIM.squares[key(math.floor(x), math.floor(y), z)]
+    if not sq then error("addAnimal onto no square " .. x .. "," .. y .. "," .. z) end
+    -- As given: a whole number is the square's corner (IsoPlayer.<init>).
+    local a = setmetatable({ x = x, y = y, z = z, kind = kind, breed = breed.name, dead = false,
+                             def = defs()[kind] }, AnimalMT)
+    a.square = sq
+    sq.animals:add(a)
+    SIM.animals[#SIM.animals + 1] = a
+    return a
+end
+
+function cell:getAnimals()
+    local out = {}
+    for _, a in ipairs(SIM.animals) do if not a.removed then out[#out + 1] = a end end
+    return List(out)
+end
+
+BodyPartType = {}
+for _, n in ipairs({ "Hand_L", "Hand_R", "ForeArm_L", "ForeArm_R", "UpperArm_L", "UpperArm_R", "Torso_Upper",
+                     "Torso_Lower", "Head", "Neck", "Groin", "UpperLeg_L", "UpperLeg_R", "LowerLeg_L",
+                     "LowerLeg_R", "Foot_L", "Foot_R" }) do BodyPartType[n] = n end
+setmetatable(BodyPartType, { __index = function(_, k) error("no BodyPartType " .. tostring(k)) end })
+SIM.synced = 0
+function syncBodyPart(part, mask)
+    if SIM.role ~= "server" then error("syncBodyPart off a server") end
+    SIM.synced = SIM.synced + 1
+end
+
+---------------------------------------------------------------------------
 -- Network
 ---------------------------------------------------------------------------
 function sendClientCommand(player, module, cmd, args)
@@ -476,7 +673,30 @@ UIFont = { Small = "Small", Medium = "Medium", Large = "Large" }
 Keyboard = { KEY_N = 49, KEY_M = 50, KEY_K = 37 }
 Joypad = { AButton = 0, BButton = 1, XButton = 2, YButton = 3, LBumper = 4, RBumper = 5 }
 JoypadState = { players = {} }
-PZAPI = nil
+-- PZAPI.ModOptions: key binds only, loaded the way vanilla's
+-- client/PZAPI/ModOptions.lua loads ModOptions.ini -- a line whose mod and
+-- option id are both known sets the key; any other line is kept, unread.
+-- The file as a 0.3.1 player left it: the map on N, under the old id.
+SIM.modOptionsIni = { "keybind|Sewars|sewerMap|49" }
+PZAPI = { ModOptions = { Dict = {} } }
+function PZAPI.ModOptions:create(id, name)
+    local o = { id = id, name = name, dict = {} }
+    function o:addKeyBind(oid, oname, key, tip)
+        local opt = { type = "keybind", id = oid, name = oname, key = key, tooltip = tip }
+        function opt:getValue() return self.key end
+        self.dict[oid] = opt
+        return opt
+    end
+    self.Dict[id] = o
+    return o
+end
+function PZAPI.ModOptions:load()
+    for _, line in ipairs(SIM.modOptionsIni) do
+        local t, mod, oid, v = line:match("^([^|]*)|([^|]*)|([^|]*)|(.*)$")
+        local o = self.Dict[mod] and self.Dict[mod].dict[oid]
+        if o and t == "keybind" and tonumber(v) then o.key = tonumber(v) end
+    end
+end
 function getTimestampMs() return SIM.tick * 16 end
 function getJoypadMovementAxisX() return 0 end
 function getJoypadMovementAxisY() return 0 end

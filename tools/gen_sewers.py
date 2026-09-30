@@ -79,8 +79,37 @@ ROAD_RUN = 80       # how far a dead end is carried on under painted road to mee
 CHAMBER_GAP = 45    # squares between brick vaults
 SHELTER_GAP = 40    # squares between shelters
 SEED = 1993
+CAVE_PER_SHAFTS = 8   # one cave for so many shafts in a town (at least one where one fits)
+CAVE_GAP = 50         # squares between breaches
+CAVE_CLEAR = 4        # squares a breach keeps from a shaft or a shelter's door
+# Houses with a way down (ROADMAP 0.4): a hatch in the floor of a room like
+# these, joined to the network by a short culvert.
+HATCH_ROOMS = ("garage", "garagestorage", "laundry", "kitchen", "shed", "storage", "storageunit", "janitor")
+HATCH_PER_SHAFTS = 6  # one hatch for so many shafts in a town
+HATCH_GAP = 40        # squares between hatches
+HATCH_REACH = 30      # the longest culvert from a hatch to the network
+HATCH_UNDER = 8       # the most squares of it under the house (and its margin)
+# Towns the map gives few covers (ROADMAP 0.4: Louisville has 13 for ten times
+# Muldraugh's buildings). A cell with this many street-level building squares
+# is built up; built-up cells that touch are a district; a district with at
+# least DISTRICT_MIN building squares and fewer than SPARSE vanilla covers per
+# 10,000 of them gets covers of our own. The towns with covers have 10-30.
+URBAN_CELL = 1500
+DISTRICT_MIN = 5000
+SPARSE = 5
+COVER_GAP = 45        # squares between the covers we add, at junctions first
+COVER_RUN = 70        # and along a long run of street with no junction
 
 KINDS = ("maintenance", "pump", "squat", "laststand")
+# The rats' nest (dig_lair): one, under Louisville's district, nearest this
+# point with room for it -- the park south of downtown. LAIR_ORIGIN is the
+# town's own origin (its x0, y0), checked when it is dug.
+LAIR_TOWN = "louisville_3"
+LAIR_NEAR = (12950, 2290)
+LAIR_ORIGIN = (11776, 1024)
+LAIR_CLEAR = 14       # rock round the nest's middle, clear of everything by two squares
+LAIR_NEST_R = 6
+LAIR_ROUS = 4
 N4 = [(0, -1), (-1, 0), (1, 0), (0, 1)]
 
 
@@ -113,6 +142,137 @@ def cell_facts(cx, cy):
                 keep[max(0, y - oy):max(0, y - oy + h), max(0, x - ox):max(0, x - ox + w)] = True
     np.savez_compressed(path, road=road, keep=keep, holes=np.array(holes, int).reshape(-1, 2))
     return road, keep, holes
+
+
+def clear_floor(cx, cy):
+    """256x256 bool [y, x] for one cell, cached: squares at street level that
+    hold floor and nothing else -- no wall, fixture, furniture or stairs --
+    where a hatch can lie."""
+    os.makedirs(CACHE, exist_ok=True)
+    path = os.path.join(CACHE, "clear_%d_%d.npz" % (cx, cy))
+    if os.path.exists(path):
+        return np.load(path)["clear"]
+    clear = np.zeros((CELL, CELL), bool)
+    if os.path.exists(os.path.join(pzmap.MAP, "%d_%d.lotheader" % (cx, cy))):
+        for (x, y), ts in pzmap.cell_squares(cx, cy, 0).items():
+            if ts and all(t.startswith("floors_") for t in ts):
+                clear[y - cy * CELL, x - cx * CELL] = True
+    np.savez_compressed(path, clear=clear)
+    return clear
+
+
+def under_map(x0, y0, x1, y1):
+    """bool [y, x] for a world rectangle: squares the map itself has below
+    street level (vanilla basements, the bunker), cached per cell."""
+    os.makedirs(CACHE, exist_ok=True)
+    out = np.zeros((y1 - y0 + 1, x1 - x0 + 1), bool)
+    for cx in range(x0 // CELL, x1 // CELL + 1):
+        for cy in range(y0 // CELL, y1 // CELL + 1):
+            path = os.path.join(CACHE, "under_%d_%d.npz" % (cx, cy))
+            if os.path.exists(path):
+                u = np.load(path)["under"]
+            else:
+                u = np.zeros((CELL, CELL), bool)
+                if os.path.exists(os.path.join(pzmap.MAP, "%d_%d.lotheader" % (cx, cy))):
+                    for z, sq in pzmap.cell_levels(cx, cy, want=lambda lz: lz < 0).items():
+                        for (x, y) in sq:
+                            u[y - cy * CELL, x - cx * CELL] = True
+                np.savez_compressed(path, under=u)
+            ax0, ay0 = max(x0, cx * CELL), max(y0, cy * CELL)
+            ax1, ay1 = min(x1, cx * CELL + CELL - 1), min(y1, cy * CELL + CELL - 1)
+            if ax0 <= ax1 and ay0 <= ay1:
+                out[ay0 - y0:ay1 - y0 + 1, ax0 - x0:ax1 - x0 + 1] = \
+                    u[ay0 - cy * CELL:ay1 - cy * CELL + 1, ax0 - cx * CELL:ax1 - cx * CELL + 1]
+    return out
+
+
+def room_mask(x0, y0, x1, y1):
+    """bool [y, x]: every room rectangle, any level, over a world rectangle --
+    **including rooms listed by a neighbouring cell** that reach into this
+    one. cell_facts marks a room only in the cell whose header lists it, so a
+    building across a cell edge is half missing from `keep`; the 0.3 tunnels
+    never met one, but the first caves and hatches did (found by
+    test_layout, 0.4). The 0.3 layout keeps its own keep so nothing in a
+    save moves; everything laid since plans against this."""
+    out = np.zeros((y1 - y0 + 1, x1 - x0 + 1), bool)
+    for cx in range(x0 // CELL - 1, x1 // CELL + 2):
+        for cy in range(y0 // CELL - 1, y1 // CELL + 2):
+            if not os.path.exists(os.path.join(pzmap.MAP, "%d_%d.lotheader" % (cx, cy))):
+                continue
+            for _name, _level, rects in pzmap.rooms(cx, cy):
+                for rx, ry, w, h in rects:
+                    a, b, c, d = max(rx, x0), max(ry, y0), min(rx + w - 1, x1), min(ry + h - 1, y1)
+                    if a <= c and b <= d:
+                        out[b - y0:d - y0 + 1, a - x0:c - x0 + 1] = True
+    return out
+
+
+def hatch_rooms(x0, y0, x1, y1):
+    """[(name, [(x, y, w, h)])] of the street-level rooms a hatch may be in,
+    within a world rectangle."""
+    out = []
+    for cx in range(x0 // CELL, x1 // CELL + 1):
+        for cy in range(y0 // CELL, y1 // CELL + 1):
+            if not os.path.exists(os.path.join(pzmap.MAP, "%d_%d.lotheader" % (cx, cy))):
+                continue
+            for name, level, rects in pzmap.rooms(cx, cy):
+                if level == 0 and name in HATCH_ROOMS:
+                    out.append((name, rects))
+    return out
+
+
+def clear_road(cx, cy):
+    """256x256 bool [y, x] for one cell, cached: painted road at street level
+    with nothing on it but road and its markings -- where a cover of ours can
+    go. Not a kerb drain or a cover already there."""
+    os.makedirs(CACHE, exist_ok=True)
+    path = os.path.join(CACHE, "road_%d_%d.npz" % (cx, cy))
+    if os.path.exists(path):
+        return np.load(path)["clear"]
+    clear = np.zeros((CELL, CELL), bool)
+    if os.path.exists(os.path.join(pzmap.MAP, "%d_%d.lotheader" % (cx, cy))):
+        not_ok = set(pzmap.DRAINS) | {pzmap.MANHOLE}
+        for (x, y), ts in pzmap.cell_squares(cx, cy, 0).items():
+            if (ts and any(t.startswith(pzmap.ROAD) for t in ts)
+                    and all((t.startswith(pzmap.ROAD) or t.startswith("street_decoration_01_")) and t not in not_ok
+                            for t in ts)):
+                clear[y - cy * CELL, x - cx * CELL] = True
+    np.savez_compressed(path, clear=clear)
+    return clear
+
+
+def sparse_districts(holes, names):
+    """[(name, (cx0, cy0, cx1, cy1), set of cells)] -- built-up districts the
+    map gives few covers, each a town of covers of our own."""
+    built = {}
+    for cx, cy, _h in pzmap.cells():
+        built[(cx, cy)] = sum(w * h for _n, level, rects in pzmap.rooms(cx, cy) if level == 0
+                              for _x, _y, w, h in rects)
+    urban = {c for c, n in built.items() if n >= URBAN_CELL}
+    per_cell = collections.Counter((x // CELL, y // CELL) for x, y in holes)
+    seen, out = set(), []
+    for start in sorted(urban):
+        if start in seen:
+            continue
+        group, todo = set(), [start]
+        while todo:
+            c = todo.pop()
+            if c in seen:
+                continue
+            seen.add(c)
+            group.add(c)
+            todo += [(c[0] + dx, c[1] + dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)
+                     if (c[0] + dx, c[1] + dy) in urban]
+        b = sum(built[c] for c in group)
+        covers = sum(per_cell[c] for c in group)
+        if b < DISTRICT_MIN or covers * 10000 / b >= SPARSE:
+            continue
+        xs, ys = [c[0] for c in group], [c[1] for c in group]
+        mx = (sum(xs) / len(xs) + 0.5) * CELL
+        my = (sum(ys) / len(ys) + 0.5) * CELL
+        near = min(names, key=lambda n: (n[1] - mx) ** 2 + (n[2] - my) ** 2)
+        out.append((near[0], (min(xs), min(ys), max(xs), max(ys)), group))
+    return sorted(out, key=lambda d: -len(d[2]))
 
 
 def all_manholes():
@@ -367,14 +527,81 @@ def bridge(tunnel, channel, shafts):
 
 # --- one town --------------------------------------------------------------------------------
 
-def lay_out(tid, holes, streets_all):
-    xs, ys = [h[0] for h in holes], [h[1] for h in holes]
-    x0, y0 = min(xs) - MARGIN, min(ys) - MARGIN
-    x1, y1 = max(xs) + MARGIN, max(ys) + MARGIN
+def pick_covers(tid, x0, y0, sk, tunnel, keep):
+    """Covers of our own for a district the map gives none: on the street's
+    centre line, over clear painted road, at junctions first (COVER_GAP apart)
+    and then along any run left with none for COVER_RUN squares. Local coords."""
+    H, W = sk.shape
+    clear = np.zeros((H, W), bool)
+    for cx in range(x0 // CELL, (x0 + W - 1) // CELL + 1):
+        for cy in range(y0 // CELL, (y0 + H - 1) // CELL + 1):
+            c = clear_road(cx, cy)
+            ax0, ay0 = max(x0, cx * CELL), max(y0, cy * CELL)
+            ax1, ay1 = min(x0 + W - 1, cx * CELL + CELL - 1), min(y0 + H - 1, cy * CELL + CELL - 1)
+            if ax0 <= ax1 and ay0 <= ay1:
+                clear[ay0 - y0:ay1 - y0 + 1, ax0 - x0:ax1 - x0 + 1] = \
+                    c[ay0 - cy * CELL:ay1 - cy * CELL + 1, ax0 - cx * CELL:ax1 - cx * CELL + 1]
+    # On the tunnel's edge, within two squares of the street's centre: a shaft
+    # needs a side with rock behind it for its ladder, and in a trunk the centre
+    # line has none.
+    edge = tunnel & ~ndi.binary_erosion(tunnel)
+    ok = edge & ndi.binary_dilation(sk, iterations=2) & clear & ~keep
+    # Not on the frame of the district: a shaft there has half a tunnel.
+    ok[:3, :] = ok[-3:, :] = ok[:, :3] = ok[:, -3:] = False
+    rng = random.Random(SEED * 31337 + h32("covers", tid))
+    near_junction = np.zeros((H, W), bool)
+    near_any = np.zeros((H, W), bool)
+    out = []
+    ys, xs = np.nonzero(ok)
+    pts = list(zip(xs.tolist(), ys.tolist()))
+    rng.shuffle(pts)
+    jy, jx = np.nonzero(sk)
+    jmask = np.zeros((H, W), bool)
+    for x, y in zip(jx.tolist(), jy.tolist()):
+        if degree4(sk, x, y) >= 3:
+            jmask[y, x] = True
+    jmask = ndi.binary_dilation(jmask, iterations=2)
+    junctions = [(x, y) for x, y in pts if jmask[y, x]]
+    for x, y in junctions:
+        if not near_junction[y, x]:
+            out.append((x, y))
+            near_junction[max(0, y - COVER_GAP):y + COVER_GAP + 1, max(0, x - COVER_GAP):x + COVER_GAP + 1] = True
+            near_any[max(0, y - COVER_RUN):y + COVER_RUN + 1, max(0, x - COVER_RUN):x + COVER_RUN + 1] = True
+    for x, y in pts:
+        if not near_any[y, x]:
+            out.append((x, y))
+            near_any[max(0, y - COVER_RUN):y + COVER_RUN + 1, max(0, x - COVER_RUN):x + COVER_RUN + 1] = True
+    return sorted(out)
+
+
+def lay_out(tid, holes, streets_all, district=None, forbid=frozenset()):
+    """One town's tunnels. `holes` are its manholes (world coords); or, for a
+    district the map gives few (`district`: (box of cells, set of cells)),
+    none, and the covers are chosen here (pick_covers). `forbid` is chunks
+    already another town's: never entered, so no chunk has two towns."""
+    if district:
+        (cx0, cy0, cx1, cy1), cells = district
+        x0, y0, x1, y1 = cx0 * CELL, cy0 * CELL, cx1 * CELL + CELL - 1, cy1 * CELL + CELL - 1
+    else:
+        xs, ys = [h[0] for h in holes], [h[1] for h in holes]
+        x0, y0 = min(xs) - MARGIN, min(ys) - MARGIN
+        x1, y1 = max(xs) + MARGIN, max(ys) + MARGIN
     road, keep = region(x0, y0, x1, y1)
     H, W = road.shape
     rng = random.Random(SEED * 7919 + h32(tid))
     keep = ndi.binary_dilation(keep, iterations=KEEP_OUT)
+    if district:
+        # Only under the district's own cells, and every room counts, whichever
+        # cell lists it (room_mask): nothing here is in a save to keep still.
+        keep |= ndi.binary_dilation(room_mask(x0, y0, x1, y1), iterations=KEEP_OUT)
+        inside = np.zeros((H, W), bool)
+        for cx, cy in cells:
+            inside[cy * CELL - y0:cy * CELL - y0 + CELL, cx * CELL - x0:cx * CELL - x0 + CELL] = True
+        keep |= ~inside
+    for kx, ky in forbid:
+        lx, ly = kx * 8 - x0, ky * 8 - y0
+        if -8 < lx < W and -8 < ly < H:
+            keep[max(0, ly):ly + 8, max(0, lx):lx + 8] = True
 
     # Centre lines from the streets above, and how wide each tunnel is.
     sk = np.zeros((H, W), bool)
@@ -442,6 +669,9 @@ def lay_out(tid, holes, streets_all):
         if r == 2:
             trunk |= grown
     tunnel &= ~keep
+
+    if district:
+        holes = [(x0 + x, y0 + y) for x, y in pick_covers(tid, x0, y0, sk, tunnel, keep)]
 
     # Shafts: the square under each manhole, joined to the network.
     shafts, dropped = [], []
@@ -522,6 +752,32 @@ def lay_out(tid, holes, streets_all):
             near[py, px] = True
         channel &= ~ndi.binary_dilation(near, iterations=3)
 
+    # Caves, last of all and from a generator of their own: nothing above
+    # moves for them, so a save's shelters, ladders and journals stay put.
+    # Both plan against every room, whichever cell lists it (room_mask).
+    keep_all = keep | ndi.binary_dilation(room_mask(x0, y0, x1, y1), iterations=KEEP_OUT)
+    caves, cave_id = dig_caves(tid, tunnel, channel, keep_all, room_id, rooms, shafts)
+    # Houses with a way down, after the caves and from a generator of their
+    # own again: the culverts they add are new squares, nothing else moves.
+    hatches = house_links(tid, x0, y0, tunnel, channel, keep_all, room_id, rooms, cave_id, caves, shafts)
+    # The rats' nest, in one town only, last again: nothing above moves for it.
+    lair, lair_id = None, np.zeros((H, W), int)
+    if tid == LAIR_TOWN:
+        if (x0, y0) != LAIR_ORIGIN:
+            raise SystemExit("%s starts at %d,%d, not LAIR_ORIGIN %s" % (tid, x0, y0, LAIR_ORIGIN))
+        lair, lair_id = dig_lair(tid, tunnel, channel, keep_all, room_id, rooms, cave_id, caves, hatches, shafts,
+                                 chamber, trunk)
+        if not lair:
+            raise SystemExit("%s: no room for the rats' nest near %s" % (tid, LAIR_NEAR))
+    if district:
+        # A dead end that stops against the channel had the walkway across in
+        # sight and out of reach (one in Louisville's grid, test_layout): the
+        # channel gives way round it. Only here, so no older town moves.
+        walk = tunnel & ~channel
+        deg = sum(np.roll(walk, s, a) for s, a in ((1, 0), (-1, 0), (1, 1), (-1, 1)))
+        dead = walk & (deg == 1) & ndi.binary_dilation(channel)
+        channel &= ~ndi.binary_dilation(dead, iterations=3)
+
     # The street each shaft is under, for the note on the way down.
     street_of = {}
     if names:
@@ -534,7 +790,402 @@ def lay_out(tid, holes, streets_all):
 
     return dict(snapped=t_snapped, x0=x0, y0=y0, W=W, H=H, road=road, keep=keep, tunnel=tunnel, chamber=chamber,
                 trunk=trunk, channel=channel, sk=sk, shafts=shafts, dropped=dropped,
-                rooms=rooms, room_id=room_id, junctions=placed, street_of=street_of)
+                rooms=rooms, room_id=room_id, junctions=placed, street_of=street_of,
+                caves=caves, cave_id=cave_id, hatches=hatches, made=bool(district), tid=tid,
+                lair=lair, lair_id=lair_id)
+
+
+def house_links(tid, x0, y0, tunnel, channel, keep, room_id, rooms, cave_id, caves, shafts):
+    """Hatches in the floors of some houses near the network (ROADMAP 0.4),
+    each a ladder down to a culvert that runs out from under the house to the
+    tunnel. Mutates `tunnel` (the culverts join it).
+
+    Tunnels never go under a building, because B42 stamps random basements
+    under buildings when a world is made. These few squares do, on purpose;
+    so the server checks them in game and opens the hatch only if nothing is
+    there (SEW_Server, surface pass). Returns [{hatch: (x, y), under: [squares
+    under the house or its margin], path: [...]}], local coords.
+    """
+    H, W = tunnel.shape
+    rng = random.Random(SEED * 15485863 + h32("hatches", tid))
+    want = max(1, round(len(shafts) / HATCH_PER_SHAFTS))
+    # The network is met on plain walkway: not the channel or near it (a
+    # culvert that came out onto sludge), not a shaft's walls (its ladder), not
+    # a shelter's door, not a cave's breach.
+    target = tunnel & ~ndi.binary_dilation(channel, iterations=3)
+    for (x, y) in list(shafts) + [r["door"] for r in rooms] + [r["inside"] for r in rooms] + \
+            [c["breach"] for c in caves]:
+        target[max(0, y - 3):y + 4, max(0, x - 3):x + 4] = False
+    if not target.any():
+        return []
+    dist = ndi.distance_transform_cdt(~target, metric="taxicab")
+    blocked = (room_id > 0) | ndi.binary_dilation(cave_id > 0, iterations=2)
+    for (x, y) in shafts:
+        blocked[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = True
+    lab, _ = ndi.label(keep)
+    # A house the map already gives a basement is left alone, and no culvert
+    # passes within a square of anything the map has below ground.
+    under = under_map(x0, y0, x0 + W - 1, y0 + H - 1)
+    blocked |= ndi.binary_dilation(under)
+    has_basement = set(np.unique(lab[under & (lab > 0)]).tolist())
+    clear = {}
+    cands = []
+    for name, rects in hatch_rooms(x0, y0, x0 + W - 1, y0 + H - 1):
+        best = None
+        for rx, ry, rw, rh in rects:
+            for wy in range(ry, ry + rh):
+                for wx in range(rx, rx + rw):
+                    lx, ly = wx - x0, wy - y0
+                    if not (1 <= lx < W - 1 and 1 <= ly < H - 1) or tunnel[ly, lx] or blocked[ly, lx]:
+                        continue
+                    if lab[ly, lx] in has_basement:
+                        continue
+                    ck = (wx // CELL, wy // CELL)
+                    if ck not in clear:
+                        clear[ck] = clear_floor(*ck)
+                    if not clear[ck][wy % CELL, wx % CELL]:
+                        continue
+                    d = int(dist[ly, lx])
+                    if d <= HATCH_REACH and (best is None or d < best[0]):
+                        best = (d, lx, ly)
+        if best:
+            cands.append((name,) + best)
+    cands.sort(key=lambda c: (c[1], c[2], c[3]))
+    rng.shuffle(cands)
+    out = []
+    for name, _d, hx, hy in cands:
+        if len(out) >= want:
+            break
+        if any(abs(hx - o["hatch"][0]) + abs(hy - o["hatch"][1]) < HATCH_GAP for o in out):
+            continue
+        home = lab[hy, hx]
+        # Cheapest way to the network: out from under this house as soon as it
+        # can (a square under it costs four), never under another building.
+        best = {(hx, hy): 0}
+        prev = {(hx, hy): None}
+        q = [(0, hx, hy)]
+        end = None
+        while q:
+            d, x, y = heapq.heappop(q)
+            if d > best.get((x, y), 1e9):
+                continue
+            if target[y, x] and (x, y) != (hx, hy):
+                end = (x, y)
+                break
+            if d > HATCH_REACH * 4:
+                continue
+            for dx, dy in N4:
+                nx, ny = x + dx, y + dy
+                if not (1 <= nx < W - 1 and 1 <= ny < H - 1) or blocked[ny, nx]:
+                    continue
+                if tunnel[ny, nx] and not target[ny, nx]:
+                    continue
+                if keep[ny, nx] and lab[ny, nx] != home:
+                    continue
+                nd = d + (4 if keep[ny, nx] else 1)
+                if nd < best.get((nx, ny), 1e9):
+                    best[(nx, ny)] = nd
+                    prev[(nx, ny)] = (x, y)
+                    heapq.heappush(q, (nd, nx, ny))
+        if not end:
+            continue
+        path, cur = [], prev[end]
+        while cur:
+            path.append(cur)
+            cur = prev[cur]
+        path.reverse()                                   # hatch first, the tunnel's square excluded
+        under = [p for p in path if keep[p[1], p[0]]]
+        # Only into the tunnel at its end: a culvert running alongside it would
+        # open its wall all the way (and onto whatever hangs there).
+        side = [p for p in path[:-1] if any(tunnel[p[1] + dy, p[0] + dx] for dx, dy in N4)]
+        if len(path) > HATCH_REACH or len(under) > HATCH_UNDER or side:
+            continue
+        for x, y in path:
+            tunnel[y, x] = True
+        out.append(dict(hatch=(hx, hy), under=under, path=path, room=name))
+    return out
+
+
+def dig_caves(tid, tunnel, channel, keep, room_id, rooms, shafts):
+    """Broken walls into dug-out caves (ROADMAP 0.4): somebody broke through a
+    tunnel wall and dug. A winding dirt passage from the breach, maybe a short
+    side branch, and a hideout at the end.
+
+    Returns (caves, cave_id): cave_id is 0 outside a cave, else its number;
+    each cave is {id, breach: tunnel square, entry: the first cave square,
+    hideout: [squares], centre, mouth: the hideout square the passage enters}.
+    A cave keeps a square of rock between itself and any other space, except
+    where it breaks through, so it meets the sewer only at its breach.
+    """
+    H, W = tunnel.shape
+    rng = random.Random(SEED * 104729 + h32("caves", tid))
+    space = tunnel | (room_id > 0)
+    cave_id = np.zeros((H, W), int)
+    near_space = ndi.binary_dilation(space, structure=np.ones((5, 5), bool))
+    want = max(1, round(len(shafts) / CAVE_PER_SHAFTS))
+    avoid = [(x, y) for x, y in shafts] + [r["door"] for r in rooms] + [r["inside"] for r in rooms]
+    walk = tunnel & ~channel
+    cand = []
+    for y, x in zip(*np.nonzero(walk)):
+        x, y = int(x), int(y)
+        if any(abs(x - a) + abs(y - b) <= CAVE_CLEAR for a, b in avoid):
+            continue
+        for dx, dy in N4:
+            ox, oy = x + dx, y + dy
+            if 3 <= ox < W - 3 and 3 <= oy < H - 3 and not space[oy, ox] and not keep[oy, ox]:
+                cand.append((x, y, dx, dy))
+    rng.shuffle(cand)
+    caves = []
+
+    def free(x, y, early):
+        if not (2 <= x < W - 2 and 2 <= y < H - 2) or keep[y, x] or space[y, x] or cave_id[y, x]:
+            return False
+        if early:
+            return True
+        # A square of rock from the sewer and from every other cave.
+        if near_space[y, x]:
+            return False
+        others = cave_id[max(0, y - 2):y + 3, max(0, x - 2):x + 3]
+        return not ((others > 0) & (others != len(caves) + 1)).any()
+
+    for bx, by, dx, dy in cand:
+        if len(caves) >= want:
+            break
+        if any(abs(bx - c["breach"][0]) + abs(by - c["breach"][1]) < CAVE_GAP for c in caves):
+            continue
+        k = len(caves) + 1
+        dug = []
+        # Straight out through the wall for three squares, the lateral squares
+        # rock, then winding.
+        x, y, ok = bx, by, True
+        for step in range(3):
+            x, y = x + dx, y + dy
+            lat = [(x + dy, y + dx), (x - dy, y - dx)]
+            if not free(x, y, True) or any(space[ly, lx] for lx, ly in lat if 0 <= lx < W and 0 <= ly < H):
+                ok = False
+                break
+            if step == 2 and not free(x, y, False):
+                ok = False
+                break
+            dug.append((x, y))
+        if not ok:
+            continue
+        for p in dug:
+            cave_id[p[1], p[0]] = k
+        length = rng.randint(18, 40)
+        hx, hy = dx, dy
+        branch_at = rng.randint(6, 14) if rng.random() < 0.5 else -1
+        path = list(dug)
+        for step in range(length):
+            if rng.random() < 0.3:
+                hx, hy = rng.choice([(hy, hx), (-hy, -hx)])     # a turn, left or right
+            moved = False
+            for tx, ty in ((hx, hy), (hy, hx), (-hy, -hx)):
+                nx, ny = x + tx, y + ty
+                if free(nx, ny, False):
+                    x, y, hx, hy, moved = nx, ny, tx, ty, True
+                    break
+            if not moved:
+                break
+            cave_id[y, x] = k
+            path.append((x, y))
+            # Dug by hand: a square wider here and there.
+            if rng.random() < 0.35:
+                sx, sy = rng.choice([(hy, hx), (-hy, -hx)])
+                if free(x + sx, y + sy, False):
+                    cave_id[y + sy, x + sx] = k
+            if step == branch_at:
+                bhx, bhy = rng.choice([(hy, hx), (-hy, -hx)])
+                cx_, cy_ = x, y
+                for _ in range(rng.randint(5, 10)):
+                    nx, ny = cx_ + bhx, cy_ + bhy
+                    if not free(nx, ny, False):
+                        break
+                    cx_, cy_ = nx, ny
+                    cave_id[cy_, cx_] = k
+                    if rng.random() < 0.3:
+                        bhx, bhy = rng.choice([(bhy, bhx), (-bhy, -bhx), (bhx, bhy)])
+        # The hideout: a rough chamber grown out from the end of the passage,
+        # a square at a time, so it stays in one piece.
+        rx, ry = rng.randint(2, 3), rng.randint(2, 3)
+        ex, ey = x, y
+        hide = []
+        frontier = [(ex, ey)]
+        seen = {(ex, ey)}
+        while frontier:
+            px, py = frontier.pop(0)
+            for tx, ty in N4:
+                nx, ny = px + tx, py + ty
+                if (nx, ny) in seen:
+                    continue
+                seen.add((nx, ny))
+                d = ((nx - ex) / (rx + 0.5)) ** 2 + ((ny - ey) / (ry + 0.5)) ** 2
+                if d <= 1.0 + (h32("hide", tid, nx, ny) % 100) / 400 and free(nx, ny, False):
+                    cave_id[ny, nx] = k
+                    hide.append((nx, ny))
+                    frontier.append((nx, ny))
+        if len(path) < 14 or len(hide) < 10:
+            cave_id[cave_id == k] = 0
+            continue
+        hide.append((ex, ey))
+        caves.append(dict(id=k, breach=(bx, by), entry=dug[0], hideout=sorted(hide), centre=(ex, ey),
+                          mouth=path[-2] if len(path) > 1 else (ex, ey)))
+    return caves, cave_id
+
+
+def dig_lair(tid, tunnel, channel, keep, room_id, rooms, cave_id, caves, hatches, shafts, chamber, trunk):
+    """The rats' nest under Louisville (ROADMAP 0.5): one per world, hidden.
+
+    A plain tunnel wall that is not a wall -- loose brickwork with a gnawed
+    hole at its foot, pulled away by hand (a false wall, `x` concrete / `y`
+    brick) -- then a winding rat run through the rock, a great round nest of
+    bones and litter where the rodents of unusual size live, and at the far
+    side of it a bricked-up room, older than the sewer, holding a hoard. Its
+    one way in from the nest is a wall they have gnawed half through (`z`),
+    and it gives only once the last of them is dead (SEW_Server.pry).
+
+    Made last, from a generator of its own, so nothing else in the town moves.
+    Returns (lair, lair_id): lair_id 1 on the run and the nest, 2 in the
+    hoard; lair is {entry: tunnel square, first: the run's first square,
+    centre, gate: (nest square, hoard square), hoard: rect, rous: [squares],
+    furniture spots...}, local coords, or (None, zeros) if nothing fits.
+    """
+    H, W = tunnel.shape
+    lair_id = np.zeros((H, W), int)
+    space = tunnel | (room_id > 0) | (cave_id > 0)
+    margin2 = keep | ndi.binary_dilation(space, structure=np.ones((5, 5), bool))
+    clear = ndi.distance_transform_edt(~margin2)
+    # Where the run may come off the sewer: plain walkway, away from ladders,
+    # doors, breaches, hatches and the channel.
+    target = tunnel & ~ndi.binary_dilation(channel, iterations=2)
+    for (x, y) in list(shafts) + [r["door"] for r in rooms] + [r["inside"] for r in rooms] + \
+            [c["breach"] for c in caves] + [h["hatch"] for h in hatches] + \
+            [h["path"][-1] for h in hatches if h["path"]]:
+        target[max(0, y - 4):y + 5, max(0, x - 4):x + 5] = False
+    # Never off a hatch's culvert: part of it is under a house the game may
+    # have given a basement, and all of it is somebody's way home.
+    for h in hatches:
+        for (x, y) in h["path"] + [h["hatch"]]:
+            target[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = False
+    if not target.any():
+        return None, lair_id
+    to_target = ndi.distance_transform_edt(~target)
+    ox, oy = LAIR_NEAR[0] - LAIR_ORIGIN[0], LAIR_NEAR[1] - LAIR_ORIGIN[1]
+    ys, xs = np.nonzero((clear >= LAIR_CLEAR) & (to_target >= 18) & (to_target <= 34))
+    if not len(xs):
+        return None, lair_id
+    # Near a house with a way down (the dev build starts a character there),
+    # and of those, nearest LAIR_NEAR.
+    hs = [h["hatch"] for h in hatches] or [(ox, oy)]
+    near_h = np.min([np.hypot(xs - hx, ys - hy) for hx, hy in hs], axis=0)
+    k = int(np.argmin(near_h + 0.05 * np.hypot(xs - ox, ys - oy)))
+    cx, cy = int(xs[k]), int(ys[k])
+
+    # The hoard lies on the far side of the nest from the sewer.
+    ty, tx = np.unravel_index(np.argmin(np.where(target, (np.indices((H, W))[1] - cx) ** 2
+                                                  + (np.indices((H, W))[0] - cy) ** 2, 1 << 30)), (H, W))
+    vx, vy = cx - int(tx), cy - int(ty)
+    # And north or west of it: from inside a square only its north and west
+    # walls face the camera, so the gnawed wall's claw marks are seen only
+    # from the nest square south or east of it (found in play, 0.5: both
+    # walls were on the south, their pictures on the far side of them).
+    d = (-1, 0) if -vx >= -vy else (0, -1)
+    R = LAIR_NEST_R
+    for y in range(cy - R - 1, cy + R + 2):
+        for x in range(cx - R - 1, cx + R + 2):
+            wob = (h32("nest", tid, x, y) % 100) / 160.0
+            if ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5 <= R + 0.3 - wob:
+                lair_id[y, x] = 1
+    # The row (or column) through the centre runs out to R, so the gate is
+    # where the nest meets the hoard's wall square-on.
+    gx, gy = cx + d[0] * R, cy + d[1] * R
+    for s in range(R + 1):
+        lair_id[cy + d[1] * s, cx + d[0] * s] = 1
+    hw, hd = 7, 5                                   # across the gate, and deep
+    if d[0]:
+        rx = gx + 1 if d[0] > 0 else gx - hd
+        ry, rw, rh = gy - hw // 2, hd, hw
+    else:
+        ry = gy + 1 if d[1] > 0 else gy - hd
+        rx, rw, rh = gx - hw // 2, hw, hd
+    # Where the nest presses against the hoard elsewhere, the old room's brick
+    # stands between them (encode walls any edge between the two).
+    lair_id[ry:ry + rh, rx:rx + rw] = 2
+    hoard_ring = ndi.binary_dilation(lair_id == 2, structure=np.ones((5, 5), bool))
+
+    # The run: from the sewer wall to the nest, a square of rock either side,
+    # winding (a noisy cost), never along the hoard.
+    near1 = ndi.binary_dilation(space, structure=np.ones((3, 3), bool))
+    nest = lair_id == 1
+    ok = ~keep & ~near1 & ~hoard_ring & ~nest
+    starts = []
+    for y, x in zip(*np.nonzero(target)):
+        x, y = int(x), int(y)
+        # Through the tunnel square's own north or west wall only: the one
+        # whose face, cracks and all, is seen from the sewer (as the gate).
+        for dx, dy in ((0, -1), (-1, 0)):
+            ex, ey = x + dx, y + dy
+            if not (2 <= ex < W - 2 and 2 <= ey < H - 2) or space[ey, ex] or keep[ey, ex] or lair_id[ey, ex]:
+                continue
+            # The square through the wall touches the sewer at the hole only.
+            if any(space[ey + a, ex + b] for b, a in N4 if (ex + b, ey + a) != (x, y)):
+                continue
+            if space[ey + dx, ex + dy] or space[ey - dx, ex - dy]:
+                continue
+            starts.append((x, y, ex, ey))
+    if not starts:
+        return None, lair_id
+    best, prev, q = {}, {}, []
+    for x, y, ex, ey in starts:
+        best[(ex, ey)] = 0
+        prev[(ex, ey)] = ("sewer", x, y)
+        heapq.heappush(q, (0, ex, ey))
+    end = None
+    while q:
+        dd, x, y = heapq.heappop(q)
+        if dd > best.get((x, y), 1e9):
+            continue
+        if any(nest[y + b, x + a] for a, b in N4):
+            end = (x, y)
+            break
+        for a, b in N4:
+            nx, ny = x + a, y + b
+            if not (2 <= nx < W - 2 and 2 <= ny < H - 2) or not ok[ny, nx]:
+                continue
+            nd = dd + 1 + (h32("run", tid, nx, ny) % 7) / 3.0
+            if nd < best.get((nx, ny), 1e9):
+                best[(nx, ny)] = nd
+                prev[(nx, ny)] = (x, y)
+                heapq.heappush(q, (nd, nx, ny))
+    if not end:
+        return None, lair_id
+    run, cur = [], end
+    while not (isinstance(prev[cur], tuple) and prev[cur][0] == "sewer"):
+        run.append(cur)
+        cur = prev[cur]
+    run.append(cur)
+    entry = (prev[cur][1], prev[cur][2])
+    run.reverse()                                        # the first square through the wall first
+    if len(run) < 10:
+        return None, lair_id
+    for x, y in run:
+        lair_id[y, x] = 1
+
+    # The nest's own: the rodents where they sleep, round the middle; bones
+    # and litter everywhere else (encode); the hoard's crates round its walls.
+    rng = random.Random(SEED * 31337 + h32("lair", tid))
+    nest_sq = sorted((int(x), int(y)) for y, x in zip(*np.nonzero(lair_id == 1))
+                     if ((int(x) - cx) ** 2 + (int(y) - cy) ** 2) <= (R - 1) ** 2)
+    rng.shuffle(nest_sq)
+    rous = []
+    for p in nest_sq:
+        if len(rous) >= LAIR_ROUS:
+            break
+        if all(abs(p[0] - r[0]) + abs(p[1] - r[1]) >= 3 for r in rous):
+            rous.append(p)
+    return dict(entry=entry, first=run[0], run=run, centre=(cx, cy), gate=((gx, gy), (gx + d[0], gy + d[1])),
+                hoard=(rx, ry, rw, rh), facing=d, rous=rous, trunk=bool(trunk[entry[1], entry[0]]
+                                                                          or chamber[entry[1], entry[0]])), lair_id
 
 
 def shelters(tid, tunnel, keep, shafts, rng):
@@ -581,9 +1232,12 @@ def shelters(tid, tunnel, keep, shafts, rng):
 #
 # Legend (SEW_Data.lua decodes it):
 #   floor    . none  t tunnel  k vault  s shelter  g grating  w channel (sludge, not walkable)  r rock (outside, under a wall)
-#   walls    . none  c concrete  b brick  d a door frame, with its steel door
+#            m cave (dug earth)
+#   walls    . none  c concrete  b brick  d a door frame, with its steel door  e earth (a cave's)
+#            o a breach, broken through concrete  q a breach, broken through brick (both walked through)
 #   fixture  . none  L ladder on the N edge  l ladder on the W edge  P pillar (concrete)  Q pillar (brick)
 #   dressing . none  p pipe  e EXIT stencil  a-g graffiti  h SAFE stencil  i grime  u puddle  v debris  x light pool  y smear
+#            z loose stones (rubble)
 
 GRAFFITI = "abcdefg"
 
@@ -592,8 +1246,13 @@ def encode(t):
     """({(cx, cy): {(x, y): record}}, ladders) for every square the town touches, world coords."""
     x0, y0, W, H = t["x0"], t["y0"], t["W"], t["H"]
     tunnel, chamber, trunk, channel, room_id = t["tunnel"], t["chamber"], t["trunk"], t["channel"], t["room_id"]
-    space = tunnel | (room_id > 0)
-    group = np.where(tunnel, -1, room_id)
+    cave_id = t["cave_id"]
+    lair_id = t.get("lair_id")
+    if lair_id is None:
+        lair_id = np.zeros_like(cave_id)
+    lair = t.get("lair")
+    space = tunnel | (room_id > 0) | (cave_id > 0) | (lair_id > 0)
+    group = np.where(tunnel, -1, np.where(cave_id > 0, -100 - cave_id, np.where(lair_id > 0, -1000 - lair_id, room_id)))
     sq = {}
 
     def rec(x, y):
@@ -604,15 +1263,30 @@ def encode(t):
 
     for y, x in zip(*np.nonzero(space)):
         r = rec(x0 + x, y0 + y)
-        r[2] = "s" if room_id[y, x] else "w" if channel[y, x] else "k" if chamber[y, x] else "t"
+        r[2] = ("s" if room_id[y, x] else "m" if cave_id[y, x] else "n" if lair_id[y, x] == 1
+                else "v" if lair_id[y, x] == 2 else "w" if channel[y, x] else "k" if chamber[y, x] else "t")
 
     # Walls, on the N or W edge of the square south or east of each boundary.
     pad = lambda a, v: np.pad(a, 1, constant_values=v)  # noqa: E731
     sp, gp, br = pad(space, False), pad(group, 0), pad(chamber | trunk, False)
+    cv = pad(cave_id > 0, False)
     doors = {}
     for rm in t["rooms"]:
         (tx, ty), (ix, iy) = rm["door"], rm["inside"]
         doors[(tx, max(ty, iy), "N") if tx == ix else (max(tx, ix), ty, "W")] = rm
+    breaches = {}
+    for c in t["caves"]:
+        (tx, ty), (ix, iy) = c["breach"], c["entry"]
+        breaches[(tx, max(ty, iy), "N") if tx == ix else (max(tx, ix), ty, "W")] = "q" if br[ty + 1, tx + 1] else "o"
+    # The rats' nest: the false wall into it from the sewer (x concrete, y
+    # brick, as the tunnel's own wall there), and the gnawed wall between the
+    # nest and the hoard (z).
+    gates = {}
+    if lair:
+        for (tx, ty), (ix, iy), code in ((lair["entry"], lair["first"], "y" if lair["trunk"] else "x"),
+                                         (lair["gate"][0], lair["gate"][1], "z")):
+            gates[(tx, max(ty, iy), "N") if tx == ix else (max(tx, ix), ty, "W")] = code
+    nest, hoard = pad(lair_id == 1, False), pad(lair_id == 2, False)
     for edge, (dx, dy), col in (("N", (0, -1), 3), ("W", (-1, 0), 4)):
         # Every (x, y) in 0..W x 0..H against its neighbour across the edge; the
         # padding makes x = -1 and y = -1 read as outside.
@@ -627,6 +1301,14 @@ def encode(t):
                 r = rec(x0 + x, y0 + y)
                 if (x, y, edge) in doors:
                     r[col] = "d"
+                elif (x, y, edge) in breaches:
+                    r[col] = breaches[(x, y, edge)]
+                elif (x, y, edge) in gates:
+                    r[col] = gates[(x, y, edge)]
+                elif hoard[y + 1, x + 1] or hoard[y + 1 + dy, x + 1 + dx]:
+                    r[col] = "b"
+                elif cv[y + 1, x + 1] or cv[y + 1 + dy, x + 1 + dx] or nest[y + 1, x + 1] or nest[y + 1 + dy, x + 1 + dx]:
+                    r[col] = "e"
                 else:
                     brick = br[y + 1, x + 1] or br[y + 1 + dy, x + 1 + dx]
                     r[col] = "b" if brick else "c"
@@ -635,22 +1317,22 @@ def encode(t):
 
     # Pillars where a north wall and a west wall end at the same corner from the north-west.
     for (wx, wy), r in list(sq.items()):
-        if r[3] not in "cbd":
+        if r[3] not in "cbdxyz":
             continue
         px, py = wx + 1, wy
         north = sq.get((px, py - 1))
         here = sq.get((px, py))
-        if north and north[4] in "cbd" and not (here and (here[3] != "." or here[4] != ".")):
+        if north and north[4] in "cbdxyz" and not (here and (here[3] != "." or here[4] != ".")):
             if r[5] == ".":
-                r[5] = "Q" if "b" in (r[3], north[4]) else "P"
+                r[5] = "Q" if (r[3] in "byz" or north[4] in "byz") else "P"
 
     # Ladders, one per shaft, on a wall of (or beside) the square under the cover.
-    ladders = []
-    for sx, sy in t["shafts"]:
+    def hang(sx, sy, light):
         wx, wy = x0 + sx, y0 + sy
         here = rec(wx, wy)
         here[2] = "g"
-        here[6] = "x"
+        if light:
+            here[6] = "x"
         lx, ly = wx, wy
         if here[3] in "cb" and here[5] == ".":
             here[5], edge = "L", "N"
@@ -662,9 +1344,39 @@ def encode(t):
                 east[5], edge, lx = "l", "W", wx + 1
             elif south and south[3] in "cb" and south[5] == ".":
                 south[5], edge, ly = "L", "N", wy + 1
+            elif t.get("made"):
+                # No wall to hang it on: build one, but only on a side with rock
+                # behind it. The old fallback walled the north edge whatever was
+                # there, and at a cover of ours on a junction that cut off the
+                # street running north (131 squares stranded in Louisville).
+                # Vanilla's covers keep the old fallback, so their towns do not move.
+                def open_(x, y):
+                    return 0 <= x < W and 0 <= y < H and bool(space[y, x])
+                if not open_(sx, sy - 1):
+                    here[3], here[5], edge = "c", "L", "N"
+                elif not open_(sx - 1, sy):
+                    here[4], here[5], edge = "c", "l", "W"
+                elif not open_(sx + 1, sy):
+                    east = rec(wx + 1, wy)
+                    east[4], east[5], edge, lx = "c", "l", "W", wx + 1
+                    if east[2] == ".":
+                        east[2] = "r"
+                elif not open_(sx, sy + 1):
+                    south = rec(wx, wy + 1)
+                    south[3], south[5], edge, ly = "c", "L", "N", wy + 1
+                    if south[2] == ".":
+                        south[2] = "r"
+                else:
+                    # Open all round (a vault was laid over it after the cover
+                    # was chosen): a wall on one edge cuts nothing off here.
+                    here[3], here[5], edge = "c", "L", "N"
             else:
                 here[3], here[5], edge = "c", "L", "N"
-        ladders.append((wx, wy, lx, ly, edge, t["street_of"].get((sx, sy), "")))
+        return wx, wy, lx, ly, edge
+
+    ladders = [hang(sx, sy, True) + (t["street_of"].get((sx, sy), ""),) for sx, sy in t["shafts"]]
+    # A hatch's ladder: the same, but no daylight through a wooden hatch.
+    t["hatch_ladders"] = [hang(h["hatch"][0], h["hatch"][1], False) + (h,) for h in t["hatches"]]
 
     # Dressing, deterministic by position.
     near_shaft = set()
@@ -677,12 +1389,24 @@ def encode(t):
     def near_ladder(x, y, reach=12):
         return any(abs(x - a) + abs(y - b) <= reach for a, b in shaft_pts)
 
+    hideouts = set((x0 + x, y0 + y) for c in t["caves"] for x, y in c["hideout"])
     for (wx, wy), r in sq.items():
         if r[6] != "." or r[5] != ".":
             continue
         roll = h32("dress", wx, wy) % 1000
         walled = r[3] in "cb" or r[4] in "cb"
-        if walled and r[2] in "tk":
+        if r[2] == "m":
+            # Dug earth: stones that came down, bones, standing water. The
+            # hideout is kept clear for its furniture.
+            if (wx, wy) in hideouts:
+                continue
+            if roll < 110:
+                r[6] = "z"
+            elif roll < 140:
+                r[6] = "v"
+            elif roll < 170:
+                r[6] = "u"
+        elif walled and r[2] in "tk":
             if (wx, wy) in near_shaft and roll < 450:
                 r[6] = "e"
             elif roll < 60:
@@ -710,6 +1434,43 @@ def encode(t):
             if s and s[2] in "tk" and (s[3] in "cb" or s[4] in "cb") and s[5] == ".":
                 s[6] = "h"
                 break
+    # What came out of the wall lies either side of the hole.
+    for c in t["caves"]:
+        for px, py in (c["breach"], c["entry"]):
+            s = sq.get((x0 + px, y0 + py))
+            if s and s[5] == ".":
+                s[6] = "z"
+    # The rats' nest: bones and litter over its floor (never under where they
+    # sleep), claw marks on its walls, and the only signs in the sewer that
+    # anything is there -- the gnawed hole at the foot of the false wall, and
+    # somebody's warning a few squares along.
+    if lair:
+        rous = set((x0 + x, y0 + y) for x, y in lair["rous"])
+        for (wx, wy), r in sq.items():
+            if r[2] != "n" or (wx, wy) in rous or r[5] != ".":
+                continue
+            roll = h32("nest", wx, wy) % 1000
+            walled = r[3] == "e" or r[4] == "e"
+            if walled and roll < 260:
+                r[6] = "l"
+            elif roll < 180:
+                r[6] = "j"
+            elif roll < 330:
+                r[6] = "k"
+            elif roll < 380:
+                r[6] = "z"
+            else:
+                r[6] = "."
+        for (tx, ty), (ix, iy), code in ((lair["entry"], lair["first"], "n"), (lair["gate"][0], lair["gate"][1], "l")):
+            s = sq[(x0 + tx, y0 + max(ty, iy))] if tx == ix else sq[(x0 + max(tx, ix), y0 + ty)]
+            s[6] = code
+        # The warning: on a tunnel wall 2-6 squares from the false wall.
+        ex, ey = x0 + lair["entry"][0], y0 + lair["entry"][1]
+        spots = sorted(((abs(wx - ex) + abs(wy - ey), wx, wy) for (wx, wy), r in sq.items()
+                        if r[2] in "tk" and (r[3] in "cb" or r[4] in "cb") and r[5] == "."
+                        and 2 <= abs(wx - ex) + abs(wy - ey) <= 6))
+        if spots:
+            sq[(spots[0][1], spots[0][2])][6] = "o"
 
     by_chunk = collections.defaultdict(dict)
     for (wx, wy), r in sq.items():
@@ -783,6 +1544,110 @@ def furnish(t, extras=None):
             x, y = free[h32("z", rx, ry, j) % len(free)]
             dead.append((x0 + x, y0 + y, ("Survivalist", "Hobbo", "Bandit")[h32("o", x, y) % 3]))
     return out, dead
+
+
+def furnish_caves(t):
+    """The hideouts' furniture and their dead, world coords, kept apart from the
+    shelters' (SEW_Build furnishes a cave the first time its chunk is visited
+    with caves in it, even a chunk built before caves existed).
+
+    A bedroll, a crate of food, a crate of whatever kept them going; against
+    the earth walls, off the square the passage comes in by."""
+    x0, y0 = t["x0"], t["y0"]
+    out, dead = [], []
+    cave_id = t["cave_id"]
+    H, W = cave_id.shape
+    for c in t["caves"]:
+        hide = set(c["hideout"])
+        ex, ey = c["centre"]
+        mx, my = c["mouth"]
+        # The way in stays clear: the square the passage enters by and those round it.
+        used = {(ex, ey), (mx, my)} | {(ex + dx, ey + dy) for dx, dy in N4}
+
+        def walled(p):
+            return any(not (0 <= p[0] + dx < W and 0 <= p[1] + dy < H) or cave_id[p[1] + dy, p[0] + dx] != c["id"]
+                       for dx, dy in N4)
+        spots = sorted((p for p in hide if p not in used and walled(p)),
+                       key=lambda p: (-(abs(p[0] - mx) + abs(p[1] - my)), p))
+        bag = next(((px, py) for px, py in spots if (px + 1, py) in spots), None)
+        if bag:
+            a, b, _dx, _dy = SPRITES["bag"]["S"]
+            out.append((x0 + bag[0], y0 + bag[1], a, None, None))
+            out.append((x0 + bag[0] + 1, y0 + bag[1], b, None, None))
+            used |= {bag, (bag[0] + 1, bag[1])}
+        for loot in ("food", "survival"):
+            free = [p for p in spots if p not in used and all(abs(p[0] - u[0]) + abs(p[1] - u[1]) > 1 for u in used)]
+            if not free:
+                break
+            px, py = free[0]
+            out.append((x0 + px, y0 + py, SPRITES["crate_wood"]["S"], loot, None))
+            used.add((px, py))
+        if h32("cave-claim", t["x0"], c["id"]) % 2 == 0:
+            rest = sorted(p for p in hide if p not in used)
+            if rest:
+                x, y = rest[h32("cz", x0, y0, c["id"]) % len(rest)]
+                dead.append((x0 + x, y0 + y, ("Hobbo", "Survivalist", "Grunge")[h32("co", x, y) % 3]))
+    return out, dead
+
+
+LAIR_HOARD = [("crate_metal", "hoardArms"), ("crate_metal", "hoardAmmo"), ("shelves", "hoardMedical"),
+              ("crate_metal", "hoardTools"), ("crate_wood", "hoardFood"), ("shelves", "hoardSurvival"),
+              ("crate_metal", "hoardValuables"), ("crate_wood", "hoardFood")]
+
+
+def furnish_lair(t):
+    """The hoard's crates and shelves round the walls of its room, world coords,
+    with the caves' (SEW_Build furnishes them the first time the chunk is
+    built with its caves), and the way in from the gate kept clear."""
+    lair = t.get("lair")
+    if not lair:
+        return []
+    x0, y0 = t["x0"], t["y0"]
+    rx, ry, w, h = lair["hoard"]
+    ix, iy = lair["gate"][1]
+    used = {(ix, iy)} | {(ix + dx, iy + dy) for dx, dy in N4}
+    walls = {"S": [(x, ry) for x in range(rx, rx + w)],
+             "N": [(x, ry + h - 1) for x in range(rx, rx + w)],
+             "E": [(rx, y) for y in range(ry, ry + h)],
+             "W": [(rx + w - 1, y) for y in range(ry, ry + h)]}
+    out = []
+    pending = list(LAIR_HOARD)
+    order = sorted(walls, key=lambda f: -min(abs(px - ix) + abs(py - iy) for px, py in walls[f]))
+    for facing in order:
+        for px, py in walls[facing]:
+            if not pending:
+                break
+            if (px, py) in used:
+                continue
+            piece, loot = pending.pop(0)
+            out.append((x0 + px, y0 + py, SPRITES[piece][facing], loot, None))
+            used.add((px, py))
+    return out
+
+
+def lair_access(t, ladders):
+    """The hatch and the street cover nearest the false wall by walking the
+    tunnels, for the index (the dev build starts a character by that hatch)."""
+    lair = t["lair"]
+    walk = t["tunnel"] & ~t["channel"]
+    H, W = walk.shape
+    sx, sy = lair["entry"]
+    dist = {(sx, sy): 0}
+    q = collections.deque([(sx, sy)])
+    while q:
+        x, y = q.popleft()
+        for dx, dy in N4:
+            n = (x + dx, y + dy)
+            if 0 <= n[0] < W and 0 <= n[1] < H and walk[n[1], n[0]] and n not in dist:
+                dist[n] = dist[(x, y)] + 1
+                q.append(n)
+    x0, y0 = t["x0"], t["y0"]
+    hatch = min(((dist[h["hatch"]], h["hatch"]) for h in t["hatches"] if h["hatch"] in dist), default=None)
+    cover = min(((dist[(a - x0, b - y0)], (a - x0, b - y0)) for a, b, *_ in ladders if (a - x0, b - y0) in dist),
+                default=None)
+    if not hatch or not cover:
+        raise SystemExit("the rats' nest is walked to from no hatch or no cover")
+    return hatch, cover
 
 
 # --- the story: journals and plans ------------------------------------------------------------
@@ -862,30 +1727,37 @@ def lua_str(s):
     return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def write_town(tid, name, chunks, furniture, dead):
+def write_town(tid, name, chunks, furniture, dead, cave_furniture=(), cave_dead=()):
     os.makedirs(DATA, exist_ok=True)
-    fx = collections.defaultdict(list)
-    for x, y, spr, loot, extra in furniture:
-        fx[(x // 8, y // 8)].append("{%d,%d,%s,%s,%s}" % (x, y, lua_str(spr), lua_str(loot) if loot else "nil",
-                                                         lua_str(extra) if extra else "nil"))
-    zx = collections.defaultdict(list)
-    for x, y, outfit in dead:
-        zx[(x // 8, y // 8)].append("{%d,%d,%s}" % (x, y, lua_str(outfit)))
+
+    def furn(items):
+        out = collections.defaultdict(list)
+        for x, y, spr, loot, extra in items:
+            out[(x // 8, y // 8)].append("{%d,%d,%s,%s,%s}" % (x, y, lua_str(spr), lua_str(loot) if loot else "nil",
+                                                              lua_str(extra) if extra else "nil"))
+        return out
+
+    def zeds(items):
+        out = collections.defaultdict(list)
+        for x, y, outfit in items:
+            out[(x // 8, y // 8)].append("{%d,%d,%s}" % (x, y, lua_str(outfit)))
+        return out
+    fx, zx, vx, ux = furn(furniture), zeds(dead), furn(cave_furniture), zeds(cave_dead)
     lines = [
         "-- GENERATED by tools/gen_sewers.py -- do not edit. %s: the squares, by chunk." % name,
         "if isClient() then return end",
         "SEW = SEW or {}",
         "SEW.Data = SEW.Data or {}",
-        "local T = { id = %s, name = %s, chunks = {}, furniture = {}, claimed = {} }" % (lua_str(tid), lua_str(name)),
+        "local T = { id = %s, name = %s, chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, "
+        "caveClaimed = {} }" % (lua_str(tid), lua_str(name)),
         "SEW.Data[%s] = T" % lua_str(tid),
-        "local c, f, z = T.chunks, T.furniture, T.claimed",
+        "local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed",
     ]
     for (cx, cy), squares in sorted(chunks.items()):
         lines.append('c["%d,%d"]=%s' % (cx, cy, lua_str("".join(v for _, v in sorted(squares.items())))))
-    for (cx, cy), items in sorted(fx.items()):
-        lines.append('f["%d,%d"]={%s}' % (cx, cy, ",".join(items)))
-    for (cx, cy), items in sorted(zx.items()):
-        lines.append('z["%d,%d"]={%s}' % (cx, cy, ",".join(items)))
+    for letter, table in (("f", fx), ("z", zx), ("v", vx), ("u", ux)):
+        for (cx, cy), items in sorted(table.items()):
+            lines.append('%s["%d,%d"]={%s}' % (letter, cx, cy, ",".join(items)))
     lines.append("return T")
     path = os.path.join(DATA, "SEW_Town_%s.lua" % tid)
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
@@ -900,9 +1772,10 @@ def write_index(towns, rev, journals=(), plans=()):
         "-- loaded everywhere: the client lights the shafts and names the street, the",
         "-- server knows which manhole leads where. The squares are server-only (Data/).",
         "SEW = SEW or {}",
-        "local I = { rev = %s, towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {} }" % lua_str(rev),
+        "local I = { rev = %s, towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil }"
+        % lua_str(rev),
         "SEW.Index = I",
-        "local S, H, J, P = I.shafts, I.shelters, I.journals, I.plans",
+        "local S, H, J, P, V = I.shafts, I.shelters, I.journals, I.plans, I.caves",
     ]
     for j in journals:
         lines.append("J[#J+1]={town=%s,x=%d,y=%d,kind=%s,text=%s,street=%s,dir=%s}"
@@ -915,13 +1788,50 @@ def write_index(towns, rev, journals=(), plans=()):
         lines.append("I.towns[%s] = { name = %s, x0 = %d, y0 = %d, x1 = %d, y1 = %d, tw = %d, th = %d, chunks = %d }"
                      % (lua_str(tid), lua_str(name), t["x0"], t["y0"], t["x0"] + t["W"] - 1, t["y0"] + t["H"] - 1,
                         tw, th, t["n_chunks"]))
+        # `made`: a cover of ours, in a district the map gives few; the server
+        # puts it into the road when a player first comes near (SEW_Build.cover).
+        made = ",made=true" if t.get("made") else ""
         for sx, sy, lx, ly, edge, street in ladders:
-            lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="%s",street=%s}'
-                         % (sx, sy, lua_str(tid), sx, sy, lx, ly, edge, lua_str(street)))
+            lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="%s",street=%s%s}'
+                         % (sx, sy, lua_str(tid), sx, sy, lx, ly, edge, lua_str(street), made))
+        # Hatches: shafts too, up through a house's floor rather than a street's
+        # cover. `under` is every square of the culvert under the house (x, y,
+        # x, y, ...): the server opens the hatch only if none holds a basement.
+        for sx, sy, lx, ly, edge, h in t.get("hatch_ladders", []):
+            under = ",".join("%d,%d" % (t["x0"] + x, t["y0"] + y) for x, y in h["under"])
+            lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="%s",street="",hatch=%s,under={%s}}'
+                         % (sx, sy, lua_str(tid), sx, sy, lx, ly, edge, lua_str(h["room"]), under))
         for r in t["rooms"]:
             rx, ry, w, h = r["rect"]
             lines.append("H[#H+1]={town=%s,kind=%s,x=%d,y=%d,w=%d,h=%d}"
                          % (lua_str(tid), lua_str(r["kind"]), t["x0"] + rx, t["y0"] + ry, w, h))
+        # Each cave: its hideout, its breach, and the shaft nearest the breach
+        # (the way to it from the street; the dev build starts a character there).
+        for c in t["caves"]:
+            bx, by = c["breach"]
+            sx, sy = min(t["shafts"], key=lambda s: abs(s[0] - bx) + abs(s[1] - by))
+            (hx, hy) = c["centre"]
+            lines.append("V[#V+1]={town=%s,x=%d,y=%d,bx=%d,by=%d,sx=%d,sy=%d}"
+                         % (lua_str(tid), t["x0"] + hx, t["y0"] + hy, t["x0"] + bx, t["y0"] + by,
+                            t["x0"] + sx, t["y0"] + sy))
+    # The rats' nest (dig_lair): the tunnel square at its false wall (tx, ty)
+    # and the first square through it (ex, ey), the middle of the nest, the
+    # gnawed wall into the hoard (nest side gx, gy; hoard side vx, vy), where
+    # its rodents sleep, and the hatch and cover nearest it by the tunnels.
+    for tid, name, t, ladders in towns:
+        L = t.get("lair")
+        if not L:
+            continue
+        o = lambda p: (t["x0"] + p[0], t["y0"] + p[1])  # noqa: E731
+        (tx, ty), (ex, ey), (cx, cy) = o(L["entry"]), o(L["first"]), o(L["centre"])
+        (gx, gy), (vx, vy) = o(L["gate"][0]), o(L["gate"][1])
+        rx, ry, w, h = L["hoard"]
+        (hx, hy), (sx, sy) = o(t["lair_access"][0][1]), o(t["lair_access"][1][1])
+        rous = ",".join("%d,%d" % o(p) for p in L["rous"])
+        lines.append("I.lair={town=%s,tx=%d,ty=%d,ex=%d,ey=%d,x=%d,y=%d,gx=%d,gy=%d,vx=%d,vy=%d,"
+                     "hx=%d,hy=%d,cx=%d,cy=%d,hoard={%d,%d,%d,%d},rous={%s}}"
+                     % (lua_str(tid), tx, ty, ex, ey, cx, cy, gx, gy, vx, vy, hx, hy, sx, sy,
+                        t["x0"] + rx, t["y0"] + ry, w, h, rous))
     lines.append("return I")
     with open(INDEX, "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(lines) + "\n")
@@ -942,7 +1852,7 @@ def map_images(tid, t):
     """
     from PIL import Image
     W, H = t["W"], t["H"]
-    space = t["tunnel"] | (t["room_id"] > 0)
+    space = t["tunnel"] | (t["room_id"] > 0) | (t["cave_id"] > 0)
     rgba = np.zeros((H, W, 4), np.uint8)
     rgba[t["road"] & ~space] = (120, 104, 80, 60)             # the streets above, faint
     outline = ndi.binary_dilation(space) & ~space
@@ -951,6 +1861,7 @@ def map_images(tid, t):
     rgba[t["chamber"]] = (214, 170, 124, 255)
     rgba[t["channel"]] = (104, 140, 112, 255)
     rgba[t["room_id"] > 0] = (190, 180, 150, 255)
+    rgba[t["cave_id"] > 0] = (150, 118, 82, 255)                 # dug earth
     os.makedirs(MAPS_UI, exist_ok=True)
     tw, th = (W + MAP_TILE - 1) // MAP_TILE, (H + MAP_TILE - 1) // MAP_TILE
     for i in range(tw):
@@ -974,6 +1885,16 @@ def plan(t, path):
     im[t["chamber"]] = (180, 90, 60)
     im[t["channel"]] = (60, 120, 60)
     im[t["room_id"] > 0] = (70, 130, 200)
+    im[t["cave_id"] > 0] = (170, 120, 60)
+    for c in t["caves"]:
+        x, y = c["breach"]
+        im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (255, 120, 255)
+    for h in t["hatches"]:
+        x, y = h["hatch"]
+        im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (0, 255, 255)
+    if t.get("lair") is not None:
+        im[t["lair_id"] == 1] = (200, 60, 60)
+        im[t["lair_id"] == 2] = (255, 215, 0)
     for x, y in t["shafts"]:
         im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (255, 210, 0)
     for a, b in t["dropped"]:
@@ -1011,20 +1932,28 @@ def main():
     towns, used, digest, totals = [], collections.Counter(), hashlib.md5(), collections.Counter()
     journals, plans = [], []
     # The biggest cluster near a town takes its plain name; strays get a number.
-    for g in sorted(groups, key=len, reverse=True):
-        cx = sum(h[0] for h in g) / len(g)
-        cy = sum(h[1] for h in g) / len(g)
-        near = min(names, key=lambda n: (n[1] - cx) ** 2 + (n[2] - cy) ** 2)
-        far = ((near[1] - cx) ** 2 + (near[2] - cy) ** 2) ** 0.5
-        name = near[0] if far < 1500 else "Knox County"
+    taken = set()          # chunks some town already has
+
+    def town(name, g, district=None):
         base = slug(name)
         used[base] += 1
         tid = base if used[base] == 1 else "%s_%d" % (base, used[base])
-        t = lay_out(tid, g, streets_all)
+        # A district keeps a chunk clear of every town before it.
+        forbid = {(kx + dx, ky + dy) for kx, ky in taken for dx in (-1, 0, 1) for dy in (-1, 0, 1)} if district else ()
+        t = lay_out(tid, g, streets_all, district, forbid)
+        if district and not t["shafts"]:
+            used[base] -= 1          # no clear road for a cover: no town, and no name used up
+            print("  (%s: no cover of ours fits; left out)" % name)
+            return
         chunks, ladders = encode(t)
+        taken.update(chunks)
         extras = story(tid, t, ladders, journals, plans)
         furniture, dead = furnish(t, extras)
-        write_town(tid, name, chunks, furniture, dead)
+        cave_furniture, cave_dead = furnish_caves(t)
+        if t.get("lair"):
+            cave_furniture = list(cave_furniture) + furnish_lair(t)
+            t["lair_access"] = lair_access(t, ladders)
+        write_town(tid, name, chunks, furniture, dead, cave_furniture, cave_dead)
         t["map_tiles"] = map_images(tid, t)
         t["n_chunks"] = len(chunks)
         towns.append((tid, name, t, ladders))
@@ -1032,17 +1961,32 @@ def main():
         for k in sorted(chunks):
             digest.update(("%s%s" % (k, "".join(v for _, v in sorted(chunks[k].items())))).encode())
         totals["squares"] += squares
-        totals["shafts"] += len(ladders)
+        totals["made" if t["made"] else "shafts"] += len(ladders)
         totals["dropped"] += len(t["dropped"])
         totals["shelters"] += len(t["rooms"])
-        print("  %-18s %3d manholes %7d squares %4d chunks %2d shelters %2d vaults%s"
-              % (tid, len(g), squares, len(chunks), len(t["rooms"]), len(t["junctions"]),
+        totals["caves"] += len(t["caves"])
+        totals["hatches"] += len(t["hatches"])
+        print("  %-18s %3d %s %7d squares %4d chunks %3d shelters %3d vaults %3d caves %3d hatches%s"
+              % (tid, len(ladders), "covers ours" if t["made"] else "manholes   ", squares, len(chunks),
+                 len(t["rooms"]), len(t["junctions"]), len(t["caves"]), len(t["hatches"]),
                  ("  (%d over buildings, left shut)" % len(t["dropped"])) if t["dropped"] else ""))
         if a.plans:
             plan(t, os.path.join(PLANS, "%s.png" % tid))
+
+    for g in sorted(groups, key=len, reverse=True):
+        cx = sum(h[0] for h in g) / len(g)
+        cy = sum(h[1] for h in g) / len(g)
+        near = min(names, key=lambda n: (n[1] - cx) ** 2 + (n[2] - cy) ** 2)
+        far = ((near[1] - cx) ** 2 + (near[2] - cy) ** 2) ** 0.5
+        town(near[0] if far < 1500 else "Knox County", g)
+    # Then the built-up districts the map gives few covers (ROADMAP 0.4), after
+    # every town above so none of those moves, each with covers of our own.
+    for name, box, cells in sparse_districts(holes, names):
+        town(name, [], (box, cells))
     write_index(towns, digest.hexdigest()[:12], journals, plans)
     print("story: %d journals, %d plans" % (len(journals), len(plans)))
-    print("total: %(squares)d squares, %(shafts)d shafts, %(shelters)d shelters, "
+    print("total: %(squares)d squares, %(shafts)d shafts under the map's covers and %(made)d under ours, "
+          "%(shelters)d shelters, %(caves)d caves, %(hatches)d hatches, "
           "%(dropped)d manholes left shut" % totals)
     if totals["shafts"] + totals["dropped"] != len(holes):
         raise SystemExit("a manhole was neither given a shaft nor reported: %d + %d != %d"
