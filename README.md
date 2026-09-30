@@ -2,7 +2,8 @@
 
 A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
-> Status: **0.3.2**, with the sewer map, plans and journals. Every static and
+> Status: **0.5.0**: caves, houses with a way down, Louisville, rats and the
+> nest. Every static and
 > simulated test passes; the in-game checklist is in `DEV_GUIDE.md`,
 > *Current state*.
 
@@ -69,7 +70,7 @@ servers.
 
 31 towns, 1,174 manholes that open (732 of them covers the mod adds where the
 map has few, Louisville above all), 239 shelters, 152 caves, 189 houses with a
-way down, 475,777 walkable squares of tunnel, laid out from the game's own
+way down, 475,972 walkable squares of tunnel, one nest, laid out from the game's own
 street map.
 
 ## For developers
