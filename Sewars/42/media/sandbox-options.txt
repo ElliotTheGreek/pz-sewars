@@ -21,3 +21,8 @@ option Sewars.Rats = {
     type = enum, numValues = 4, default = 3,
     page = Sewars, translation = Sewars.Rats, valueTranslation = Sewars.Rats,
 }
+
+option Sewars.Gas = {
+    type = enum, numValues = 4, default = 3,
+    page = Sewars, translation = Sewars.Gas, valueTranslation = Sewars.Gas,
+}

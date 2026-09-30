@@ -35,4 +35,21 @@ module Sewars
         Weight = 0.2,
         Tooltip = Tooltip_SEW_Journal,
     }
+
+    /* A town's sewer maintenance key (DESIGN.md 7, Locked gates). A key like vanilla's Key1 --
+       base:key, so the engine's haveThisKeyId counts it -- keyed and named for
+       its town by the server (SEW_Keys.make). Deliberately NOT
+       base:buildingkey: loot rolls call takeKeyId() on that tag and would give
+       it a new id. Icon: tools/gen_key_icon.py. */
+    item MaintenanceKey
+    {
+        DisplayCategory = Security,
+        ItemType = base:key,
+        Weight = 0.05,
+        Icon = SEW_Key,
+        MetalValue = 5.0,
+        WorldStaticModel = Key,
+        Tags = base:fitswallet;base:hasmetal,
+        Tooltip = Tooltip_SEW_Key,
+    }
 }

@@ -118,6 +118,8 @@ C.Sprites = {
     -- A manhole cover of ours, in the towns the map gives few (vanilla's
     -- picture as a floor tile: SEW_Build.cover).
     cover = "sewars_01_35",
+    -- A storm-drain outfall's grate, set into a riverbank (DESIGN.md 7c).
+    outfall = "sewars_01_47",
     -- Loose stones: rubble at a breach, and what came down from a cave's roof.
     -- Vanilla's ground stones (CustomName Stone2 / LargeStone, nothing that
     -- blocks). Not boulders_36..39: those names have no picture in the packs,
@@ -135,6 +137,10 @@ C.Sprites = {
     },
     doorFrame    = { N = "location_sewer_01_19", W = "location_sewer_01_18" },
     door         = { N = "fixtures_doors_01_25", W = "fixtures_doors_01_24" },
+    -- A county room's locked grille (0.5; DESIGN.md 7, Locked gates): vanilla's police cell
+    -- door, bars you can see through, in the same concrete frame. Open, the
+    -- engine gives it _6 / _7 itself.
+    gate         = { N = "location_community_police_01_5", W = "location_community_police_01_4" },
     pipes        = { "location_sewer_01_34", "location_sewer_01_35",
                      "location_sewer_01_36", "location_sewer_01_37" },
     ladder       = { N = "sewars_01_1", W = "sewars_01_0" },
@@ -161,6 +167,28 @@ C.Sprites = {
     bones        = "sewars_01_40",
     litter       = "sewars_01_41",
     rousWarning  = { N = "sewars_01_43", W = "sewars_01_42" },
+    -- Sewer gas (0.5): the county's placard at each way in, and the haze on
+    -- the floor of the stretch.
+    gasSign      = { N = "sewars_01_45", W = "sewars_01_44" },
+    haze         = "sewars_01_46",
+}
+
+-- Sewer gas (0.5; DESIGN.md 7b). Every `lookEvery` ticks the server sees who has
+-- walked into a stretch (the note, the map); every game minute a player in
+-- one breathes it. By the sandbox's Sewars.Gas (Off / Mild / Harmful /
+-- Deadly): poison added a game minute, and the most it is raised to --
+-- poison over 10 costs health (BodyDamage.Update), so Mild never does. A mask
+-- or respirator with a filter keeps it out, and `filterDrain` is what each
+-- minute takes off the filter (Clothing.drainGasMask: times the filter's own
+-- UseDelta, 0.01 for a gas mask's). A first guess, for the play-test to tune.
+C.Gas = {
+    lookEvery = 30,
+    dose = { 0, 1, 2, 4 },
+    cap = { 0, 10, 20, 40 },
+    filterDrain = 1.0,
+    -- CharacterStat.POISON's bit for syncPlayerStats (1 << its place in
+    -- CharacterStat.ORDERED_STATS, 14).
+    syncMask = 0x4000,
 }
 
 -- What the dead down here wore when they came down. Every name is in both
@@ -246,6 +274,16 @@ C.LightRange = 34
 -- size of a plan's sheet -- the map's tile, 256 squares (tools/gen_sewers.py MAP_TILE).
 C.PlanItem = "Sewars.SewerPlan"
 C.JournalItem = "Sewars.SewerJournal"
+-- A town's maintenance key (DESIGN.md 7, Locked gates): its id is the town's (SEW.Index.towns
+-- [t].key), it opens every locked grille under that town, and it works from
+-- the main inventory or a key ring only (ItemContainer.haveThisKeyId).
+C.KeyItem = "Sewars.MaintenanceKey"
+-- The dead in sanitation overalls below a town with gates: the share that
+-- carry its key, and the share that carry one of its sewer plans.
+C.Gates = { outfit = "Sanitation", keyChance = 0.35, planChance = 0.2,
+            -- A grille a key-holder shut behind them is locked again this often
+            -- (ticks), when a player below is within this many squares of it.
+            latchEvery = 60, latchRange = 30 }
 C.MapTile = 256
 
 -- The dev build's kit: given once per character, in single player, only when
@@ -253,11 +291,15 @@ C.MapTile = 256
 -- shared/SEW/SEW_Dev.lua into the installed SewarsDev copy. The source tree and
 -- the Workshop package never contain that file.
 C.DevKit = { "Base.HandTorch", "Base.Battery", "Base.Battery", "Base.Crowbar" }
--- And where a new dev character starts (SEW_Client devStart): "lair", in the
+-- 0.5's gas: a mask (vanilla's puts a filter in it when made) and a spare
+-- filter, once, even for a character that had the first kit.
+C.DevKitGas = { "Base.Hat_GasMask", "Base.GasmaskFilter" }
+-- And where a new dev character starts (SEW_Client devStart): "outfall", on
+-- the bank by the first storm-drain outfall of C.DevStartTown; "lair", in the
 -- house whose hatch is nearest the rats' nest under Louisville; "cave", on
--- the cover nearest a cave in C.DevStartTown. SEW_GoCave(n), SEW_GoHatch(n)
--- and SEW_GoLair() in the console hop to any of them.
-C.DevStart = "lair"
+-- the cover nearest a cave in C.DevStartTown. SEW_GoCave(n), SEW_GoHatch(n),
+-- SEW_GoLair(), SEW_GoGas(n) and SEW_GoGate(n) in the console hop to any.
+C.DevStart = "outfall"
 C.DevStartTown = "muldraugh"
 
 -- Rats (0.5): vanilla's own B42 rats, put down with a stretch of tunnel on

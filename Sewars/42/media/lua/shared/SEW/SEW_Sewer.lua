@@ -97,9 +97,11 @@ function S.shelterAt(x, y)
     return nil
 end
 
---- Vanilla's cover, or one of ours (the towns the map gives few).
+--- Vanilla's cover, one of ours (the towns the map gives few), or an
+--- outfall's grate in a riverbank.
 function S.isManhole(sq)
-    return sq ~= nil and (U.findSprite(sq, C.ManholeSprite) ~= nil or U.findSprite(sq, C.Sprites.cover) ~= nil)
+    return sq ~= nil and (U.findSprite(sq, C.ManholeSprite) ~= nil or U.findSprite(sq, C.Sprites.cover) ~= nil
+                          or U.findSprite(sq, C.Sprites.outfall) ~= nil)
 end
 
 --- The manhole cover nearest to x, y at street level within `slack` squares:

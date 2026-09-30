@@ -99,13 +99,120 @@ function Client.offer(playerObj, x, y)
         if h and S.shaftAt(h:getX(), h:getY()) then return "hatch", h end
         return nil
     end
-    if S.shaftAt(sq:getX(), sq:getY()) then return "down", sq end
+    local shaft = S.shaftAt(sq:getX(), sq:getY())
+    if shaft and shaft.outfall then return "outfall", sq end
+    if shaft then return "down", sq end
     return "shut", sq
+end
+
+---------------------------------------------------------------------------
+-- The dev build's menu
+---------------------------------------------------------------------------
+-- The author tests by playing and never types in the debug console, so
+-- everything a test needs is on the right-click menu in the dev build: a
+-- "Sewars (dev)" submenu, only when SEW.Dev is set (the installed SewarsDev
+-- copy) and only in single player, where this process is also the server.
+-- Each stop goes round the dev town's list (C.DevStartTown) in turn.
+Client.devNext = { gas = 0, gate = 0 }
+
+--- The places of one kind in the dev town, in a fixed order: "gas" (index
+--- in SEW.Index.gas) or "gate" (index in SEW.Index.gates).
+function Client.devList(kind)
+    local out = {}
+    local list = kind == "gas" and SEW.Index.gas or SEW.Index.gates
+    for i, g in ipairs(list or {}) do
+        if g.town == C.DevStartTown then out[#out + 1] = i end
+    end
+    return out
+end
+
+-- A dev trip below: { x, y, note, waited }. Never straight down onto a
+-- square far away: its chunk is not loaded yet, so its tunnel is not built,
+-- the player stands on nothing and the rescue sends them to the nearest
+-- ladder (found in play: "it keeps teleporting me away from the gas"). So
+-- the player is put on the street above first, the chunk streams in round
+-- them, the tunnel is built there, and only then do they go down -- the
+-- climb's own order (DEV_GUIDE, "Never build where no player is standing").
+Client.devTravel = nil
+
+--- The square below ground a dev stop takes you to: the middle of a stretch
+--- of gas, or the tunnel side of a locked gate.
+function Client.devTarget(what, i)
+    if what == "gas" then
+        local g = SEW.Index.gas[i]
+        return g.x, g.y
+    end
+    local g = SEW.Index.gates[i]
+    local ox, oy = g.x, g.y
+    if g.edge == "N" then oy = g.y - 1 else ox = g.x - 1 end
+    if S.shelterAt(ox, oy) then return g.x, g.y end
+    return ox, oy
+end
+
+--- Each tick of a dev trip: build round the spot once its chunk is here, and
+--- step down onto the floor once it exists.
+function Client.devArrive(p)
+    local t = Client.devTravel
+    if not t then return end
+    t.waited = t.waited + 1
+    if U.chunkLoaded(t.x, t.y) and SEW.Build then SEW.Build.around(t.x, t.y, 1) end
+    local sq = U.square(t.x, t.y, C.Z, false)
+    if sq and U.floorOf(sq) then
+        Client.devTravel = nil
+        U.teleport(p, t.x, t.y, C.Z)
+        Client.vault(p)
+        U.note(p, t.note, 200, 190, 150)
+    elseif t.waited > C.ArriveTimeout then
+        Client.devTravel = nil
+        U.log("WARN dev build: the tunnel at %d,%d was never built; staying on the street", t.x, t.y)
+    end
+end
+
+--- One dev stop: "gas", "gate", "key", "outfall" or "poison".
+function Client.devGo(p, what)
+    if not SEW.Dev or isClient() then return false end
+    if what == "gas" or what == "gate" then
+        local list = Client.devList(what)
+        if #list == 0 then return false end
+        Client.devNext[what] = Client.devNext[what] % #list + 1
+        local x, y = Client.devTarget(what, list[Client.devNext[what]])
+        Client.devTravel = { x = x, y = y, waited = 0,
+                             note = getText(what == "gas" and "IGUI_SEW_DevAtGas" or "IGUI_SEW_DevAtGate",
+                                            Client.devNext[what], #list) }
+        U.teleport(p, x, y, 0)
+        Client.vault(p)
+        return true
+    elseif what == "key" then
+        SEW_Key(C.DevStartTown)
+        U.note(p, getText("IGUI_SEW_DevKey"), 200, 190, 150)
+        return true
+    elseif what == "outfall" then
+        local o = Client.devOutfall()
+        if not o then return false end
+        U.teleport(p, o.x, o.y, 0)
+        Client.vault(p)
+        return true
+    elseif what == "poison" then
+        local v = U.try("poison", function() return p:getStats():get(CharacterStat.POISON) end) or 0
+        U.note(p, getText("IGUI_SEW_DevPoison", string.format("%.0f", v)), 200, 190, 150)
+        return true
+    end
+    return false
+end
+
+function Client.devMenu(playerObj, context)
+    local top = context:addOption(getText("ContextMenu_SEW_Dev"), nil, nil)
+    local sub = context:getNew(context)
+    context:addSubMenu(top, sub)
+    for _, what in ipairs({ "outfall", "gas", "poison", "gate", "key" }) do
+        sub:addOption(getText("ContextMenu_SEW_Dev_" .. what), playerObj, Client.devGo, what)
+    end
 end
 
 function Client.fillMenu(playerIndex, context, worldobjects, test)
     local playerObj = getSpecificPlayer(playerIndex)
     if not playerObj or playerObj:getVehicle() then return end
+    if SEW.Dev and not isClient() and not test then U.try("devMenu", Client.devMenu, playerObj, context) end
     -- The map, anywhere below ground (and on its key, SEW_Map).
     if S.below(playerObj) and SEW.Map and not test then
         context:addOption(getText("ContextMenu_SEW_Map"), playerObj, SEW.Map.toggle)
@@ -119,6 +226,11 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
         local opt = context:addOption(getText("ContextMenu_SEW_Enter"), playerObj, Client.climbDown, where)
         local tip = ISWorldObjectContextMenu.addToolTip()
         tip.description = getText(S.hasLiftTool(playerObj) and "Tooltip_SEW_EnterTool" or "Tooltip_SEW_Enter")
+        opt.toolTip = tip
+    elseif what == "outfall" then
+        local opt = context:addOption(getText("ContextMenu_SEW_OutfallDown"), playerObj, Client.climbDown, where)
+        local tip = ISWorldObjectContextMenu.addToolTip()
+        tip.description = getText("Tooltip_SEW_Outfall")
         opt.toolTip = tip
     elseif what == "hatch" then
         local opt = context:addOption(getText("ContextMenu_SEW_HatchDown"), playerObj, Client.climbDown, where)
@@ -138,9 +250,14 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
         tip.description = getText(where == "gate" and "Tooltip_SEW_PryGate" or "Tooltip_SEW_PryWall")
         opt.toolTip = tip
     elseif what == "up" then
-        local opt = context:addOption(getText(where.hatch and "ContextMenu_SEW_HatchUp" or "ContextMenu_SEW_Exit"),
-                                      playerObj, Client.climbUp, where)
-        if where.hatch then
+        local label = where.hatch and "ContextMenu_SEW_HatchUp" or where.outfall and "ContextMenu_SEW_OutfallUp"
+            or "ContextMenu_SEW_Exit"
+        local opt = context:addOption(getText(label), playerObj, Client.climbUp, where)
+        if where.outfall then
+            local tip = ISWorldObjectContextMenu.addToolTip()
+            tip.description = getText("Tooltip_SEW_OutfallUp")
+            opt.toolTip = tip
+        elseif where.hatch then
             local tip = ISWorldObjectContextMenu.addToolTip()
             tip.description = getText("Tooltip_SEW_HatchUp")
             opt.toolTip = tip
@@ -160,7 +277,7 @@ local pending = nil        -- { x, y, z, street, mode, waited }
 
 Net.onClient("go", function(args)
     pending = { x = args.x, y = args.y, z = args.z, street = args.street, mode = args.mode, hatch = args.hatch,
-                waited = 0 }
+                outfall = args.outfall, waited = 0 }
 end)
 
 local REFUSED = { shut = "IGUI_SEW_Shut", reach = "IGUI_SEW_Reach", level = "IGUI_SEW_Level",
@@ -181,6 +298,20 @@ Net.onClient("nest", function(args)
         U.note(p, getText(key), 230, 90, 80)
     elseif key then
         U.note(p, getText(key), 210, 190, 150)
+    end
+end)
+
+-- Sewer gas (SEW_Gas): walked into a stretch, with or without a mask on.
+Net.onClient("gas", function(args)
+    local p = getPlayer()
+    if not p then return end
+    local female = U.try("female", function() return p:isFemale() end) == true
+    if args.protected then
+        U.try("gasSound", function() p:playSound(female and "VoiceFemaleMuffledCough" or "VoiceMaleMuffledCough") end)
+        U.note(p, getText("IGUI_SEW_GasMask"), 180, 200, 120)
+    else
+        U.try("gasSound", function() p:playSound(female and "VoiceFemaleCough" or "VoiceMaleCough") end)
+        U.note(p, getText("IGUI_SEW_GasIn"), 200, 210, 90)
     end
 end)
 
@@ -206,14 +337,18 @@ function Client.arrive(p)
     Client.vault(p)
     if m.mode == "down" then
         U.try("sound", function() p:playSound("SEW_Ladder") end)
-        if m.street and m.street ~= "" then
+        if m.outfall then
+            U.note(p, getText("IGUI_SEW_DownOutfall"), 190, 200, 170)
+        elseif m.street and m.street ~= "" then
             U.note(p, getText("IGUI_SEW_DownUnder", m.street), 190, 200, 170)
         else
             U.note(p, getText("IGUI_SEW_Down"), 190, 200, 170)
         end
     elseif m.mode == "up" then
-        U.try("sound", function() p:playSound(m.hatch and "SEW_Ladder" or "SEW_Lid") end)
-        if m.street and m.street ~= "" then
+        U.try("sound", function() p:playSound((m.hatch or m.outfall) and "SEW_Ladder" or "SEW_Lid") end)
+        if m.outfall then
+            U.note(p, getText("IGUI_SEW_UpOutfall"), 200, 200, 170)
+        elseif m.street and m.street ~= "" then
             U.note(p, getText("IGUI_SEW_UpOnto", m.street), 200, 200, 170)
         end
         Client.clearLamps()
@@ -350,6 +485,12 @@ function Client.devKit(p)
             end
         end
     end
+    -- 0.5: a gas mask and a spare filter, once, even for a character that
+    -- had the first kit -- so the gas can be tried both ways.
+    if not md.SEWDevGas then
+        for _, id in ipairs(C.DevKitGas or {}) do U.addItem(inv, id) end
+        md.SEWDevGas = true
+    end
     if md.SEWDevKit then return false end
     local given = 0
     for _, id in ipairs(C.DevKit) do
@@ -375,6 +516,18 @@ function Client.devCave()
     return best
 end
 
+--- The dev build's start by an outfall: the first of C.DevStartTown's, by
+--- position, or nil.
+function Client.devOutfall()
+    local best = nil
+    for _, s in pairs(SEW.Index and SEW.Index.shafts or {}) do
+        if s.outfall and s.town == C.DevStartTown and (not best or s.x < best.x or (s.x == best.x and s.y < best.y)) then
+            best = s
+        end
+    end
+    return best
+end
+
 --- The dev build's start by the nest: the hatch nearest it (the generator
 --- picked it by walking the tunnels), or nil in a build with no nest.
 function Client.devLairHatch()
@@ -392,6 +545,15 @@ function Client.devStart(p, now)
     if now < devStartAt then return false end
     devStartAt = nil
     md.SEWDevStart = true
+    -- On the bank by a storm-drain outfall: the grate goes into the bank
+    -- within a few seconds (SEW_Build.cover).
+    local o = C.DevStart == "outfall" and Client.devOutfall()
+    if o then
+        U.teleport(p, o.x, o.y, 0)
+        U.log("dev build: started on the bank by the outfall %d,%d (%s)", o.x, o.y, o.town)
+        U.note(p, getText("IGUI_SEW_DevOutfall"), 200, 190, 150)
+        return true
+    end
     -- By the rats' nest: on the floor beside the hatch in the house nearest
     -- it. The house is looked at when a player on the street comes near, and
     -- the trapdoor goes into its floor if nothing is under it (SEW_Build.hatch).
@@ -473,6 +635,7 @@ Events.OnTick.Add(function()
     local p = getPlayer()
     if not p then return end
     if pending then U.try("arrive", Client.arrive, p) end
+    if Client.devTravel then U.try("devArrive", Client.devArrive, p) end
     if devStartPlayer then
         if devStartPlayer == p then U.try("devStart", Client.devStart, p, tick) end
         -- Done once no start is waiting for its tick: moved, or refused.

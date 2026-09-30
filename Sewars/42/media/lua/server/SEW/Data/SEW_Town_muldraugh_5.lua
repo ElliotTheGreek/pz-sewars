@@ -2,9 +2,10 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "muldraugh_5", name = "Muldraugh", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {} }
+local T = { id = "muldraugh_5", name = "Muldraugh", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
 SEW.Data["muldraugh_5"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
+local g, p, k = T.gas, T.gasSigns, T.keys
 c["1440,1218"]="02tcc..03rc...12tc...13rc...22tc...23rc...32tc...33rc...42tc...43rc...52tc..i53rc...62tc...63rc...72tc...73rc..."
 c["1440,1250"]="62tcc..63t.c.g64t.c..65t.c..66g.cl.67rc.P.72tc...73rcc..74r.c..75r.c..76r.c.."
 c["1441,1218"]="02tc..i03rc...12tc..i13rc...22tc..i23rc...32tc...33rc...42tc..e43rc...52tc..i53rc...62tc..i63rc...72tc...73rc..."
@@ -114,7 +115,7 @@ c["1486,1241"]="20t.c..21t.c.e22t.c..23t.c..24t.c..25t.c..26t.c..27t.c.i30r.c..3
 c["1486,1242"]="20t.c..21t.c..22t.c..23t.c..24t.c..25t.c.i26t.c.p27t.c..30r.c..31r.c..32r.c..33r.c..34r.c..35r.c..36r.c..37r.c.."
 c["1486,1243"]="20t.c..21t.c.p22t.c..23t.c.a24t.c.i25t.c.i26t.c..27t.c..30r.c..31r.c..32r.c..33r.c..34r.c..35r.c..36r.c..37r.c.."
 c["1486,1244"]="20t.c..21t.c.i22t.c..23t.c..24t.c..25t.c..26t.c.i27t.c..30r.c..31r.c..32r.c..33r.c..34r.c..35r.c..36r.c..37r.c.."
-c["1486,1245"]="20t.c.g21t.c..22t.c.i23t.c.i24t.c..25t.c..26t.c.h27t.c..30r.c..31r.c..32r.c..33r.c..34scc..35s.c..36s.c..37s.d..44sc...45s....46s....47s....54sc...55s....56s....57s....64sc...65s....66s....67s....74sc...75s....76s....77s...."
+c["1486,1245"]="20t.c.g21t.c..22t.c.i23t.c.i24t.c..25t.c..26t.c.h27t.c..30r.c..31r.c..32r.c..33r.c..34scc..35s.c..36s.c..37s.j..44sc...45s....46s....47s....54sc...55s....56s....57s....64sc...65s....66s....67s....74sc...75s....76s....77s...."
 c["1486,1246"]="20t.c.i21t.c..22t.c..23t.c..24t.c.i25t.c..26t.c..27t.c.e30s.c..31s.c..32rcc..33r.c..34r.c..35r.c..36r.c..37r.c..40s....41s....42rc...50s....51s....52rc...60s....61s....62rc...70s....71s....72rc..."
 c["1486,1247"]="20t.c.e21g.clx22t.c.e23t.c..24t.c..25t.c.i26t.c..27t.c.i30r.c..31r.c..32r.c..33r.c..34r.c..35r.c..36r.c..37r.c.."
 c["1486,1248"]="20rc.P."
@@ -167,4 +168,9 @@ f["1487,1246"]={{11898,9969,"carpentry_01_16","fuel",nil}}
 z["1486,1246"]={{11893,9969,"Survivalist"}}
 v["1441,1272"]={{11533,10176,"camping_02_4",nil,nil},{11534,10176,"camping_02_5",nil,nil},{11532,10177,"carpentry_01_16","food",nil},{11532,10181,"carpentry_01_16","survival",nil}}
 u["1441,1272"]={{11533,10182,"Grunge"}}
+g["1490,1216"]="701711721731741751761771"
+g["1490,1217"]="701711721731741751761771"
+g["1490,1218"]="701711721731"
+p["1490,1218"]={{11927,9748,"W"}}
+k["1487,1238"]={{11897,9905}}
 return T

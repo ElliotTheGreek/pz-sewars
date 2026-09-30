@@ -2,9 +2,10 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "riverside_3", name = "Riverside", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {} }
+local T = { id = "riverside_3", name = "Riverside", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
 SEW.Data["riverside_3"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
+local g, p, k = T.gas, T.gasSigns, T.keys
 c["687,826"]="77tccP."
 c["687,827"]="52tccP.53t.c..54t.c..55t.c.i56t.c..57t.c.i61tccP.62t....63t....64t....65t....66t....67t....70t.c..71t....72t....73t....74t....75t....76t....77t...."
 c["687,828"]="50t.c.i51t.c..52t.c..53t.c.i54t.c..55t.c..56t.c..57t.c..60t....61t....62t....63t....64t....65t...v66t....67t....70t....71t....72t....73t....74t...v75t....76t....77t...."
@@ -170,4 +171,12 @@ f["709,814"]={{5679,6517,"camping_02_0",nil,nil}}
 f["710,814"]={{5680,6517,"camping_02_1",nil,nil},{5684,6517,"carpentry_01_16","food","j237"},{5682,6517,"carpentry_02_67","survival",nil}}
 z["710,814"]={{5681,6512,"Bandit"}}
 v["729,820"]={{5834,6560,"camping_02_4",nil,nil},{5835,6560,"camping_02_5",nil,nil},{5836,6561,"carpentry_01_16","food",nil},{5835,6564,"carpentry_01_16","survival",nil}}
+g["729,829"]="061161261361461561661761"
+g["730,829"]="061161261361461561661761"
+g["731,829"]="061161261361461561661761"
+g["732,829"]="061161261361461561661761"
+g["733,829"]="061161261361461561661761"
+g["734,829"]="061161"
+p["728,829"]={{5831,6638,"N"}}
+p["734,829"]={{5874,6638,"N"}}
 return T

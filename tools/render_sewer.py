@@ -39,8 +39,8 @@ def config_sprites():
         return {"N": m.group(1), "W": m.group(2)}
 
     sp = {k: one(k) for k in ("floorTunnel", "floorVault", "floorShelter", "floorRock", "sludge",
-                              "puddle", "debris", "lightpool", "smear", "bones", "litter")}
-    for k in ("doorFrame", "door", "ladder", "exit", "safe", "grime", "cracks", "claws", "rousWarning"):
+                              "puddle", "debris", "lightpool", "smear", "bones", "litter", "haze")}
+    for k in ("doorFrame", "door", "gate", "ladder", "exit", "safe", "grime", "cracks", "claws", "rousWarning", "gasSign"):
         sp[k] = pair(k)
     sp["graffiti"] = {c: {"N": n, "W": w} for c, n, w in
                       re.findall(r"\b([a-g])\s*=\s*\{\s*N\s*=\s*\"([^\"]+)\",\s*W\s*=\s*\"([^\"]+)\"", s)}
@@ -113,6 +113,11 @@ def decode(x, y, rec, sp):
         out += [sp["doorFrame"]["N"], sp["door"]["N"]]
     if w == "d":
         out += [sp["doorFrame"]["W"], sp["door"]["W"]]
+    # A county room's locked grille (DESIGN.md 7, Locked gates), in the same frame.
+    if n == "j":
+        out += [sp["doorFrame"]["N"], sp["gate"]["N"]]
+    if w == "j":
+        out += [sp["doorFrame"]["W"], sp["gate"]["W"]]
     # Ours over vanilla's, as SEW_Build puts them: a breach over a door frame,
     # an earth face over a concrete wall.
     if n in "oq":
@@ -155,7 +160,13 @@ def read_town(tid):
             r = body[i:i + 7]
             sq[(int(cx) * 8 + int(r[0]), int(cy) * 8 + int(r[1]))] = r
     furn = [(int(x), int(y), spr) for x, y, spr in re.findall(r'\{(\d+),(\d+),"([^"]+)",', s)]
-    return sq, furn
+    # Sewer gas (SEW_Gas.dress): the haze on its squares, the placards at its ways in.
+    gas = set()
+    for cx, cy, body in re.findall(r'g\["(-?\d+),(-?\d+)"\]="([^"]*)"', s):
+        for i in range(0, len(body), 3):
+            gas.add((int(cx) * 8 + int(body[i]), int(cy) * 8 + int(body[i + 1])))
+    signs = [(int(x), int(y), e) for x, y, e in re.findall(r'\{(\d+),(\d+),"([NW])"\}', s)]
+    return sq, furn, gas, signs
 
 
 def images(names):
@@ -185,7 +196,7 @@ def images(names):
 
 
 def render(tid, cx=None, cy=None, r=22, dark=0.42, shafts=None):
-    sq, furn = read_town(tid)
+    sq, furn, gas, signs = read_town(tid)
     if cx is None:
         pts = sorted(sq)
         cx, cy = pts[len(pts) // 2]
@@ -196,6 +207,12 @@ def render(tid, cx=None, cy=None, r=22, dark=0.42, shafts=None):
         if (x, y) in area:
             fur.setdefault((x, y), []).append(spr)
     per = {p: decode(p[0], p[1], rec, sp) + fur.get(p, []) for p, rec in area.items()}
+    for p in gas:
+        if p in per:
+            per[p].append(sp["haze"])
+    for x, y, e in signs:
+        if (x, y) in per:
+            per[(x, y)].append(sp["gasSign"][e])
     imgs = images({n for v in per.values() for n in v})
     xs = [64 * (x - y) for x, y in per]
     ys = [32 * (x + y) for x, y in per]

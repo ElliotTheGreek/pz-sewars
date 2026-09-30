@@ -48,5 +48,17 @@
     "IGUI_SEW_NestGate": "The last of the brick gives. There is a room behind it, and it is full.",
     "IGUI_SEW_NestCleared": "The nest is still. Behind the gnawed wall, something catches the light.",
     "IGUI_SEW_DevLair": "Dev build: down this hatch, the false wall into the rats' nest is a short walk away.",
-    "IGUI_SEW_RousBite": "It bites!"
+    "IGUI_SEW_RousBite": "It bites!",
+    "IGUI_SEW_GasIn": "The air here is thick and sour. You can taste it.",
+    "IGUI_SEW_GasMask": "Your mask hisses. You can smell it even through the filter.",
+    "IGUI_SEW_MapGas": "gas",
+    "IGUI_SEW_KeyName": "Sewer Maintenance Key (%1)",
+    "IGUI_SEW_DownOutfall": "Down into the storm drain. The water's roar fades behind you.",
+    "IGUI_SEW_UpOutfall": "Out onto the bank, by the water.",
+    "IGUI_SEW_MapOutfall": "outfall",
+    "IGUI_SEW_DevOutfall": "Dev build: a storm-drain outfall's grate is in this bank. Gas mask and filter in your bag.",
+    "IGUI_SEW_DevAtGas": "Dev build: sewer gas, stretch %1 of %2. Mask off to feel it, mask on to breathe.",
+    "IGUI_SEW_DevAtGate": "Dev build: locked gate %1 of %2. It should not open without the key.",
+    "IGUI_SEW_DevKey": "Dev build: the Sewer Maintenance Key is in your inventory.",
+    "IGUI_SEW_DevPoison": "Dev build: poison %1 (it costs health above 10)."
 }

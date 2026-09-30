@@ -2,9 +2,10 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "valley_station", name = "Valley Station", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {} }
+local T = { id = "valley_station", name = "Valley Station", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
 SEW.Data["valley_station"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
+local g, p, k = T.gas, T.gasSigns, T.keys
 c["1696,714"]="06tcc..07t.c.i16tc...17t....26tc..i27t...u36tc...37t....46tc...47t....52scc..53s.c..54s.c..55s.c..56tc...57t....62sc...63s....64s....65s....66tc..e67t....72sc...73s....74s....75s....76tc...77t...."
 c["1696,715"]="00t.c.i01rc...10t....11rc...20t....21rc...30t....31rc...40t....41rc...50t....51rc...60t....61rc...70t....71rc..."
 c["1697,714"]="02sc...03s....04s....05s....06tc..h07t....12sc...13s....14s....15s....16td...17t...y22sc...23s....24s....25s....26tc...27t....32sc...33s....34s....35s....36tc...37t....42sc...43s....44s....45s....46tc..i47t....52r.c..53r.c..54r.c..55r.c..56tc...57t....66tc...67t....76tc...77t...."
@@ -211,4 +212,9 @@ v["1715,716"]={{13723,5735,"camping_02_4",nil,nil},{13724,5735,"camping_02_5",ni
 v["1716,716"]={{13729,5735,"carpentry_01_16","survival",nil}}
 v["1716,717"]={{13728,5736,"carpentry_01_16","food",nil}}
 u["1716,716"]={{13729,5734,"Grunge"}}
+g["1771,739"]="461561571671"
+g["1771,740"]="601701711"
+g["1772,740"]="011021121131231241341351451461561"
+p["1771,739"]={{14172,5917,"N"}}
+p["1772,740"]={{14180,5926,"W"},{14181,5926,"N"}}
 return T

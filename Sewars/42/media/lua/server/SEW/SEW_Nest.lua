@@ -126,7 +126,11 @@ end
 ---------------------------------------------------------------------------
 -- The rodents of unusual size
 ---------------------------------------------------------------------------
+--- Only an animal is asked: getAnimalType on a zombie or a player throws, and
+--- under -debug every weapon hit on one dumped a stack trace (found in play,
+--- 0.5: OnWeaponHitCharacter hands us whatever was hit).
 local function isRous(a)
+    if not instanceof(a, "IsoAnimal") then return false end
     return U.try("animalType", function() return a:getAnimalType() end) == C.Rous.type
 end
 
@@ -231,7 +235,17 @@ local function chase(a, h, tick)
     local px, py = p:getX(), p:getY()
     local d = U.dist(ax, ay, px, py)
     if d > C.Rous.hunt + 6 then return false end
+    -- Close enough to bite -- and nothing between: a player behind a wall a
+    -- step away was bitten through it (found by a test, 0.5).
+    local walled = false
     if d <= C.Rous.reach then
+        local cell = U.cell()
+        local here = cell and cell:getGridSquare(math.floor(ax), math.floor(ay), C.Z)
+        local there = cell and cell:getGridSquare(math.floor(px), math.floor(py), C.Z)
+        walled = here ~= nil and there ~= nil and here ~= there
+            and U.try("blocked", function() return here:isBlockedTo(there) end) ~= false
+    end
+    if d <= C.Rous.reach and not walled then
         if not h.close then
             U.try("rous.stop", function() a:stopAllMovementNow() end)
             h.close = true

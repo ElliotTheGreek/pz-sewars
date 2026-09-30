@@ -363,6 +363,54 @@ def lair_test(L, p):
     notes = lua_list(sim.notes)
     check(any("bites" in nt for nt in notes), "and the player is told (%s)" % notes[-1:])
 
+    # A wall stops them: a player in the hoard, behind the gnawed wall that is
+    # still shut, draws them straight at it -- and not one goes through. (The
+    # chase above never met a wall; this guard went untested until 0.5's
+    # full mutation run said so.)
+    # At the back of it: right behind the wall they would stop to bite.
+    far = max(((x, y) for x in range(lair.hoard[1], lair.hoard[1] + lair.hoard[3])
+               for y in range(lair.hoard[2], lair.hoard[2] + lair.hoard[4])),
+              key=lambda q: abs(q[0] - gx) + abs(q[1] - gy))
+    p.x, p.y = far[0] + 0.5, far[1] + 0.5
+    through = L.execute("""
+        local hx, hy, hw, hh = ...
+        local n = 0
+        for _ = 1, 400 do
+            SIM.tickN(1)
+            for _, a in ipairs(SIM.animals) do
+                if a.kind == "rous" and a.x >= hx and a.x < hx + hw and a.y >= hy and a.y < hy + hh then n = n + 1 end
+            end
+        end
+        return n
+    """, lair.hoard[1], lair.hoard[2], lair.hoard[3], lair.hoard[4])
+    check(through == 0, "a shut wall stops them: none walks through the gnawed wall into the hoard (%d)" % through)
+    # Every weapon hit in the game comes through the hit logger: a zombie or a
+    # player has no getAnimalType, and asking threw (found in play: a stack
+    # trace under -debug on every swing at a zombie).
+    hits = L.execute("""
+        local before = #SIM.log
+        local z = SIM.newZombie(0, 0, 0, "Hobbo")
+        local weapon = { getType = function() return "Crowbar" end }
+        SIM.fire("OnWeaponHitCharacter", SIM.players[1], z, weapon, 1)
+        SIM.fire("OnWeaponHitCharacter", SIM.players[1], SIM.players[1], weapon, 1)
+        local rous
+        for _, a in ipairs(SIM.animals) do if a.kind == "rous" then rous = a break end end
+        SIM.fire("OnWeaponHitCharacter", SIM.players[1], rous, weapon, 1)
+        local warn, logged = 0, 0
+        for i = before + 1, #SIM.log do
+            if SIM.log[i]:find("WARN") then warn = warn + 1 end
+            if SIM.log[i]:find("a ROUS was hit") then logged = logged + 1 end
+        end
+        return warn, logged
+    """)
+    check(hits[0] == 0 and hits[1] == 1,
+          "a hit on a zombie or a player is let be; a hit on a ROUS is logged (%d WARN, %d logged)" % tuple(hits))
+    # And right behind it, a step away: no bite through brick.
+    p.x, p.y = vx + 0.5, vy + 0.5
+    p.wounds = L.table()
+    sim.tickN(300)
+    check(len(lua_list(p.wounds)) == 0, "nor bites through it (%d wounds)" % len(lua_list(p.wounds)))
+
     # The gnawed wall: not while any of them lives.
     p.x, p.y = gx + 0.5, gy + 0.5
     m = menu(L, 0, vx, vy)
@@ -420,6 +468,562 @@ def lair_test(L, p):
     """)
     check(again == 0, "a nest chunk visited again puts down no rodent twice (%d)" % again)
     L.execute("SandboxVars.Sewars.Rats = nil")
+
+
+def dev_menu_test(L, p):
+    """The dev build's right-click menu: the author never types in the debug
+    console, so every place a test needs is a click away -- and none of it
+    outside the dev build."""
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    C = SEW.Config
+    p.x, p.y, p.z = 10700.5, 9900.5, 0
+    street(L, 10700, 9900, 2, manhole=False)
+    check(TEXT["ContextMenu_SEW_Dev"] not in [n for n, _ in options(menu(L, 0, 10700, 9900))],
+          "no dev menu outside the dev build")
+    SEW.Dev = True
+    m = menu(L, 0, 10700, 9900)
+    top = [o for n, o in options(m) if n == TEXT["ContextMenu_SEW_Dev"]]
+    check(len(top) == 1 and top[0].subMenu is not None, "the dev build's right-click menu has Sewars (dev)")
+    if not top or top[0].subMenu is None:
+        SEW.Dev = None
+        return
+    sub = top[0].subMenu
+    names = [n for n, _ in options(sub)]
+    check(len(names) == 5, "with its five stops (%s)" % names)
+
+    # As the game does it: nothing is loaded where a trip lands until the
+    # player is there (found in play: every trip was rescued to a ladder).
+    L.execute("""
+        for _, key in ipairs({ "gas", "gates" }) do
+            for _, g in ipairs(SEW.Index[key]) do
+                if g.town == SEW.Config.DevStartTown then
+                    for dx = -3, 3 do for dy = -3, 3 do SIM.unload(math.floor(g.x / 8) + dx, math.floor(g.y / 8) + dy) end end
+                end
+            end
+        end
+        SIM.streamRadius = 3
+    """)
+    log0 = len(lua_list(sim.log))
+
+    def pick(key):
+        choose(sub, TEXT["ContextMenu_SEW_Dev_" + key])
+        sim.tickN(120)
+    pick("gas")
+    check(p.z == -1 and L.execute("return SEW.Gas.at(%f, %f) ~= nil" % (p.x, p.y))
+          and L.execute("return SEW.Util.floorOf(SIM.players[1]:getCurrentSquare()) ~= nil"),
+          "Go into sewer gas puts you in a stretch, on its floor (%.1f,%.1f,%.1f)" % (p.x, p.y, p.z))
+    first = (p.x, p.y)
+    pick("gas")
+    check((p.x, p.y) != first and L.execute("return SEW.Gas.at(%f, %f) ~= nil" % (p.x, p.y)),
+          "and again, the next stretch")
+    L.execute("SIM.players[1].stats = { POISON = 7 }")
+    pick("poison")
+    check(any("poison 7" in n for n in lua_list(sim.notes)[-2:]), "How poisoned am I says so (%s)" % lua_list(sim.notes)[-1:])
+    pick("gate")
+    near = L.execute("""
+        local p = SIM.players[1]
+        for _, g in ipairs(SEW.Index.gates) do
+            if math.abs(g.x - p.x) <= 2 and math.abs(g.y - p.y) <= 2 then return true end
+        end
+        return false
+    """)
+    check(p.z == -1 and near, "Go to a locked gate puts you beside one (%.1f,%.1f)" % (p.x, p.y))
+    pick("key")
+    has = L.execute("""
+        for _, it in ipairs(SIM.players[1].inv.items._t) do
+            if it:getFullType() == SEW.Config.KeyItem and it:getKeyId() == SEW.Index.towns[SEW.Config.DevStartTown].key then
+                return true
+            end
+        end
+        return false
+    """)
+    check(has, "Give me this town's key does")
+    pick("outfall")
+    o = L.execute("local o = SEW.Client.devOutfall(); return o.x, o.y")
+    check(p.z == 0 and int(p.x) == o[0] and int(p.y) == o[1], "Go to the outfall puts you on its bank")
+    rescued = [line for line in lua_list(sim.log)[log0:] if "rescue" in line]
+    check(not rescued, "no trip ends in a rescue to some ladder (%s)" % rescued[:1])
+    L.execute("SIM.streamRadius = nil")
+    SEW.Dev = None
+    p.stats = L.table()
+
+
+def gas_test(L, p):
+    """Sewer gas (DESIGN.md 7b): the haze and placards laid once, in a new chunk and
+    in one built before there was gas; breathing it unmasked (poison, to the
+    sandbox's cap), masked (a filter used up instead), not at all when it is
+    off; the note, the cough and the map."""
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    C = SEW.Config
+    stretches = [s for s in lua_list(SEW.Index.gas) if s.town == "muldraugh"]
+    check(len(stretches) >= 3, "Muldraugh has sewer gas in the index (%d stretches)" % len(stretches))
+    if len(stretches) < 3:
+        return
+    load_build = """
+        local x, y, r = ...
+        local B = SEW.Build
+        local keys = {}
+        for kx = math.floor((x - r) / 8), math.floor((x + r) / 8) do
+            for ky = math.floor((y - r) / 8), math.floor((y + r) / 8) do
+                SIM.load(kx, ky)
+                local k = kx .. "," .. ky
+                if B.townOf(k) then keys[#keys + 1] = k end
+            end
+        end
+        for _, k in ipairs(keys) do B.chunk(k) end
+        return keys
+    """
+    count = """
+        local keys, sprite = ...
+        local n = 0
+        for _, k in ipairs(keys) do
+            local cx, cy = k:match("(-?%d+),(-?%d+)")
+            for x = cx * 8, cx * 8 + 7 do for y = cy * 8, cy * 8 + 7 do
+                local sq = SIM.squares[x .. "," .. y .. ",-1"]
+                for _, o in ipairs(sq and sq.objects._t or {}) do
+                    if o.sprite:getName() == sprite then n = n + 1 end
+                    for _, a in ipairs(o.attached and o.attached._t or {}) do
+                        if a:getParentSprite():getName() == sprite then n = n + 1 end
+                    end
+                end
+            end end
+        end
+        return n
+    """
+    want = """
+        local keys = ...
+        local T = SEW.Data.muldraugh
+        local haze, signs = 0, 0
+        for _, k in ipairs(keys) do
+            haze = haze + #(T.gas[k] or "") / 3
+            signs = signs + #(T.gasSigns[k] or {})
+        end
+        return haze, signs
+    """
+    s1 = stretches[0]
+    keys = L.execute(load_build, s1.x, s1.y, 24)
+    haze = L.execute(count, keys, C.Sprites.haze)
+    signs = L.execute(count, keys, C.Sprites.gasSign.N) + L.execute(count, keys, C.Sprites.gasSign.W)
+    w = L.execute(want, keys)
+    check(w[0] >= s1.n and haze == w[0], "the haze lies on every gas square of the chunks built (%d of %d)" % (haze, w[0]))
+    check(w[1] >= 1 and signs == w[1], "a placard hangs on a wall at every way in (%d of %d)" % (signs, w[1]))
+    # A player scrubs a square of it away; a later pass puts none back.
+    L.execute("""
+        local sprite = ...
+        for _, sq in pairs(SIM.squares) do
+            for _, o in ipairs(sq.objects._t) do
+                if o.sprite:getName() == sprite then sq.objects:remove(o) return end
+            end
+        end
+    """, C.Sprites.haze)
+    L.execute("local keys = ...; for _, k in ipairs(keys) do SEW.Build.state().built[k] = 'older' end; "
+              "for _, k in ipairs(keys) do SEW.Build.chunk(k) end", keys)
+    check(L.execute(count, keys, C.Sprites.haze) == haze - 1,
+          "a later pass lays no second haze, nor puts back what a player scrubbed")
+
+    # A save from 0.5.0: its chunks built before there was gas, and here with
+    # the sandbox's gas off -- nothing goes down, and nothing is recorded, so
+    # turning it on later (or the next version's pass) lays it once.
+    s2 = stretches[1]
+    L.execute("SandboxVars.Sewars.Gas = 1")
+    keys2 = L.execute(load_build, s2.x, s2.y, 24)
+    check(L.execute(count, keys2, C.Sprites.haze) == 0, "with the gas off, no haze goes down")
+    L.execute("SandboxVars.Sewars.Gas = nil")
+    L.execute("local keys = ...; for _, k in ipairs(keys) do SEW.Build.state().built[k] = 'old' end; "
+              "for _, k in ipairs(keys) do SEW.Build.chunk(k) end", keys2)
+    w2 = L.execute(want, keys2)
+    check(w2[0] > 0 and L.execute(count, keys2, C.Sprites.haze) == w2[0],
+          "a chunk built before gas gets its haze on the next pass (%d)" % w2[0])
+
+    # Breathing it.
+    p.x, p.y, p.z = s1.x + 0.5, s1.y + 0.5, -1
+    p.stats, p.worn = L.table(), None
+    sim.players = L.table(p)
+    before = len(lua_list(sim.notes))
+    sim.tickN(C.Gas.lookEvery * 2)
+    notes = lua_list(sim.notes)[before:]
+    check(any("thick and sour" in n for n in notes), "walking into it: the note (%s)" % notes[-1:])
+    check("VoiceMaleCough" in lua_list(sim.sounds)[-3:], "and a cough")
+    idx = [i + 1 for i, s in enumerate(lua_list(SEW.Index.gas)) if s.x == s1.x and s.y == s1.y][0]
+    check(SEW.Map.state.g[idx] is not None and L.execute("return SEW.Discovery.record(SIM.players[1]).g[%d]" % idx) == 1,
+          "and it is on the player's sewer map, recorded by the server")
+    sim.tickN(C.Gas.lookEvery * 3)
+    check(not any("thick and sour" in n for n in lua_list(sim.notes)[before + 1:]), "standing in it does not nag")
+    for _ in range(15):
+        sim.fire("EveryOneMinute")
+    poison = L.execute("return SIM.players[1]:getStats():get(CharacterStat.POISON)")
+    check(poison == C.Gas.cap[3], "each game minute adds poison, up to Harmful's cap (%s of %s)" % (poison, C.Gas.cap[3]))
+    # Out of it -- onto a built square of walkway with clean air, not an
+    # unbuilt one (a player below with no floor is rescued) -- nothing more.
+    clean = L.execute("""
+        local keys = ...
+        for _, k in ipairs(keys) do
+            local cx, cy = k:match("(-?%d+),(-?%d+)")
+            for x = cx * 8, cx * 8 + 7 do for y = cy * 8, cy * 8 + 7 do
+                local sq = SIM.squares[x .. "," .. y .. ",-1"]
+                local f = sq and SEW.Util.floorOf(sq)
+                if f and f.sprite:getName() == SEW.Config.Sprites.floorTunnel and not SEW.Gas.at(x, y) then
+                    return x, y
+                end
+            end end
+        end
+    """, keys)
+    check(clean is not None, "clean air near the gas to step out into")
+    L.execute("SIM.players[1].stats.POISON = 5")
+    p.x, p.y = clean[0] + 0.5, clean[1] + 0.5
+    sim.fire("EveryOneMinute")
+    check(L.execute("return SIM.players[1]:getStats():get(CharacterStat.POISON)") == 5,
+          "out of it, the air adds nothing")
+    # Mild never passes 10.
+    p.x, p.y = s1.x + 0.5, s1.y + 0.5
+    L.execute("SIM.players[1].stats.POISON = 0; SandboxVars.Sewars.Gas = 2")
+    for _ in range(30):
+        sim.fire("EveryOneMinute")
+    check(L.execute("return SIM.players[1]:getStats():get(CharacterStat.POISON)") == C.Gas.cap[2],
+          "Mild stops at %d, where poison starts to cost health" % C.Gas.cap[2])
+    L.execute("SIM.players[1].stats.POISON = 0; SandboxVars.Sewars.Gas = 1")
+    sim.fire("EveryOneMinute")
+    check(L.execute("return SIM.players[1]:getStats():get(CharacterStat.POISON)") == 0, "Off does nothing")
+    L.execute("SandboxVars.Sewars.Gas = nil")
+
+    # With a gas mask on: no poison, and the filter is used up.
+    mask = L.execute("local m = SIM.newClothing(true, true); SIM.players[1].worn = { SIM.newClothing(false, false), m }; return m")
+    p.x, p.y = clean[0] + 0.5, clean[1] + 0.5
+    sim.tickN(C.Gas.lookEvery * 2)
+    before = len(lua_list(sim.notes))
+    p.x, p.y = s1.x + 0.5, s1.y + 0.5
+    sim.tickN(C.Gas.lookEvery * 2)
+    notes = lua_list(sim.notes)[before:]
+    check(any("mask hisses" in n for n in notes) and "VoiceMaleMuffledCough" in lua_list(sim.sounds)[-3:],
+          "masked, the note says so and the cough is muffled (%s)" % notes[-1:])
+    for _ in range(10):
+        sim.fire("EveryOneMinute")
+    check(L.execute("return SIM.players[1]:getStats():get(CharacterStat.POISON)") == 0 and mask.usedDelta < 1,
+          "masked, no poison, and the filter is used (%.2f left)" % mask.usedDelta)
+    L.execute("SIM.players[1].worn[2].usedDelta = 0")
+    sim.fire("EveryOneMinute")
+    check(L.execute("return SIM.players[1]:getStats():get(CharacterStat.POISON)") > 0,
+          "a spent filter keeps nothing out")
+    p.worn, p.stats = None, L.table()
+
+    # A plan of the sheet marks the gas on it: the county knew.
+    t = SEW.Index.towns.muldraugh
+    s3 = stretches[2]
+    sheet = ((s3.x - t.x0) // 256, (s3.y - t.y0) // 256)
+    idx3 = [i + 1 for i, s in enumerate(lua_list(SEW.Index.gas)) if s.x == s3.x and s.y == s3.y][0]
+    L.execute("SEW.Discovery.record(SIM.players[1]).g[%d] = nil" % idx3)
+    plan = L.execute("""
+        local i, j = ...
+        local P = SEW.Index.plans
+        P[#P + 1] = { town = "muldraugh", i = i, j = j }
+        local it = instanceItem("Sewars.SewerPlan")
+        it:getModData().SewarsPlan = #P
+        SIM.players[1].inv.items:add(it)
+        return it
+    """, sheet[0], sheet[1])
+    SEW.Story.readPlan(p, plan.getID(plan))
+    L.execute("table.remove(SEW.Index.plans)")
+    check(L.execute("return SEW.Discovery.record(SIM.players[1]).g[%d]" % idx3) == 1 and SEW.Map.state.g[idx3] is not None,
+          "a plan of the sheet marks the gas on it")
+
+
+GATE_DOOR = """
+    local x, y, north = ...
+    local sq = SIM.squares[x .. "," .. y .. ",-1"]
+    local doors, frame = {}, false
+    for _, o in ipairs(sq and sq.specials._t or {}) do
+        if o.class == "IsoDoor" and o.north == north then doors[#doors + 1] = o end
+    end
+    local want = north and SEW.Config.Sprites.doorFrame.N or SEW.Config.Sprites.doorFrame.W
+    for _, o in ipairs(sq and sq.objects._t or {}) do
+        if o.sprite:getName() == want then frame = true end
+    end
+    local d = doors[1]
+    return #doors, d and d.sprite:getName(), d and d:getKeyId(), d and d:isLockedByKey(), d and d.md.CustomLock,
+           d and d.md.sew, frame, d and d.health
+"""
+
+
+def gates_test(L, p):
+    """Locked gates (DESIGN.md 7, Locked gates): the grille on a county room, keyed and locked;
+    the key in an unlocked county room's crate; kept by a revision pass; a
+    0.5.0 save's rooms keep their steel doors; the key and a plan on the
+    county's dead."""
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    C = SEW.Config
+    town = SEW.Index.towns.muldraugh
+    gates = [x for x in lua_list(SEW.Index.gates) if x.town == "muldraugh"]
+    check(town.key is not None and len(gates) >= 2, "Muldraugh has locked gates and a key (%d, %s)" % (len(gates), town.key))
+    if len(gates) < 2:
+        return
+    build = """
+        local x, y, r = ...
+        local B = SEW.Build
+        local keys = {}
+        for kx = math.floor((x - r) / 8), math.floor((x + r) / 8) do
+            for ky = math.floor((y - r) / 8), math.floor((y + r) / 8) do
+                SIM.load(kx, ky)
+                local k = kx .. "," .. ky
+                if B.townOf(k) then keys[#keys + 1] = k end
+            end
+        end
+        for _, k in ipairs(keys) do B.chunk(k) end
+        return keys
+    """
+    g1 = gates[0]
+    north = g1.edge == "N"
+    keys = L.execute(build, g1.x, g1.y, 10)
+    n, sprite, key, locked, custom, ours, frame, health = L.execute(GATE_DOOR, g1.x, g1.y, north)
+    want_sprite = C.Sprites.gate.N if north else C.Sprites.gate.W
+    check(n == 1 and sprite == want_sprite and ours, "a county room's door is a grille of bars (%s)" % sprite)
+    # Not CustomLock: that asks everybody for the key, from inside too.
+    check(key == town.key and locked is True and not custom,
+          "keyed to its town and locked by key -- not CustomLock, which would shut a player in (%s, %s, %s)"
+          % (key, locked, custom))
+    check(health == 2000, "made from its sprite: a steel gate's 2000 health, not a string door's 500 (%s)" % health)
+    # The same frame object, not one taken out and put back: in the game a
+    # door whose frame is removed is left hanging in nothing.
+    same = L.execute("""
+        local x, y, north, keys, door = ...
+        local sq = SIM.squares[x .. "," .. y .. ",-1"]
+        local want = north and SEW.Config.Sprites.doorFrame.N or SEW.Config.Sprites.doorFrame.W
+        local function frame()
+            for _, o in ipairs(sq.objects._t) do if o.sprite:getName() == want then return o end end
+        end
+        local before = frame()
+        for _, k in ipairs(keys) do SEW.Build.state().built[k] = "older" end
+        for _, k in ipairs(keys) do SEW.Build.chunk(k) end
+        return before ~= nil and frame() == before
+    """ + "", g1.x, g1.y, north, keys)
+    n2 = L.execute(GATE_DOOR, g1.x, g1.y, north)[0]
+    check(frame and same is True and n2 == 1,
+          "a revision pass leaves its frame standing (the same one) and puts in no second gate")
+
+    # The latch: a key-holder opened it (the engine unlocks it) and shut it
+    # again; with a player below nearby, it locks itself -- but not while it
+    # stands open, and never a door that is not ours.
+    outside = L.execute("""
+        local x, y, north = ...
+        -- The tunnel side of the edge: the one of the two squares not in a shelter.
+        local ox, oy = x, y
+        if north then oy = y - 1 else ox = x - 1 end
+        if SEW.Sewer.shelterAt(ox, oy) then return x, y, ox, oy end
+        return ox, oy, x, y
+    """, g1.x, g1.y, north)
+    latch = L.execute("""
+        local x, y, north, tx, ty = ...
+        local sq = SIM.squares[x .. "," .. y .. ",-1"]
+        local d
+        for _, o in ipairs(sq.specials._t) do if o.class == "IsoDoor" and o.north == north then d = o end end
+        local p = SIM.players[1]
+        p.x, p.y, p.z = tx + 0.5, ty + 0.5, -1
+        d.lockedByKey, d.locked, d.open = false, false, true
+        SIM.tickN(SEW.Config.Gates.latchEvery * 2)
+        local whileOpen = d:isLockedByKey()
+        d.open = false
+        SIM.tickN(SEW.Config.Gates.latchEvery * 2)
+        local shut = d:isLockedByKey()
+        d.md.sew = nil
+        d.lockedByKey, d.locked = false, false
+        SIM.tickN(SEW.Config.Gates.latchEvery * 2)
+        local theirs = d:isLockedByKey()
+        d.md.sew = 1
+        d.lockedByKey, d.locked = true, true
+        return whileOpen, shut, theirs
+    """, g1.x, g1.y, north, outside[0], outside[1])
+    check(latch[0] is False and latch[1] is True and latch[2] is False,
+          "a grille shut behind a key-holder locks itself again, not while it stands open, and never a door "
+          "that is not ours (%s)" % (tuple(latch),))
+    # The handle on the inside: somebody without the key followed a key-holder
+    # in and the grille was shut behind them. Nobody below is "inside" to the
+    # engine, so the grille must be unlocked while anybody is in the room --
+    # and locked again once they are out and it is shut.
+    handle = L.execute("""
+        local x, y, north, ix, iy, tx, ty = ...
+        local sq = SIM.squares[x .. "," .. y .. ",-1"]
+        local d
+        for _, o in ipairs(sq.specials._t) do if o.class == "IsoDoor" and o.north == north then d = o end end
+        local p = SIM.players[1]
+        d.open = false
+        d.lockedByKey, d.locked = true, true
+        p.x, p.y, p.z = ix + 0.5, iy + 0.5, -1
+        SIM.tickN(SEW.Config.Gates.latchEvery * 2)
+        local free = not d:isLockedByKey()
+        p.x, p.y = tx + 0.5, ty + 0.5
+        SIM.tickN(SEW.Config.Gates.latchEvery * 2)
+        return free, d:isLockedByKey()
+    """, g1.x, g1.y, north, outside[2], outside[3], outside[0], outside[1])
+    check(handle[0] is True and handle[1] is True,
+          "a grille has a handle on the inside: unlocked while anybody is in its room, locked once they are out "
+          "(%s)" % (tuple(handle),))
+    p.x, p.y, p.z = g1.x + 40.5, g1.y + 40.5, 0
+
+    # The key, in an unlocked county room's first crate.
+    spot = L.execute("""
+        for key, list in pairs(SEW.Data.muldraugh.keys) do return list[1][1], list[1][2] end
+    """)
+    check(spot is not None, "Muldraugh leaves its key somewhere")
+    if spot is not None:
+        L.execute(build, spot[0], spot[1], 12)
+        found = L.execute("""
+            local x, y = ...
+            local sq = SIM.squares[x .. "," .. y .. ",-1"]
+            for _, o in ipairs(sq and sq.objects._t or {}) do
+                if o.container then
+                    for _, it in ipairs(o.container.items._t) do
+                        if it:getFullType() == SEW.Config.KeyItem then return it:getKeyId(), it:getName() end
+                    end
+                end
+            end
+        """, spot[0], spot[1])
+        check(found is not None and found[0] == town.key and "Muldraugh" in str(found[1]),
+              "an unlocked county room's crate holds the town's key, named for it (%s)" % (found,))
+
+    # A 0.5.0 save built this room with its steel door: no grille goes in, and
+    # the door the player had is left alone.
+    g2 = gates[1]
+    north2 = g2.edge == "N"
+    L.execute("""
+        local x, y, north = ...
+        local B = SEW.Build
+        local s = B.state()
+        for kx = math.floor(x / 8) - 1, math.floor(x / 8) + 1 do
+            for ky = math.floor(y / 8) - 1, math.floor(y / 8) + 1 do
+                SIM.load(kx, ky)
+                local k = kx .. "," .. ky
+                if B.townOf(k) then s.first[k], s.built[k], s.caves[k] = "old", "old", "old" end
+            end
+        end
+        local sq = getCell():getOrCreateGridSquare(x, y, -1)
+        local door = IsoDoor.new(getCell(), sq, north and SEW.Config.Sprites.door.N or SEW.Config.Sprites.door.W, north)
+        door.md.sew = 1
+        sq:AddSpecialObject(door)
+        for kx = math.floor(x / 8) - 1, math.floor(x / 8) + 1 do
+            for ky = math.floor(y / 8) - 1, math.floor(y / 8) + 1 do
+                local k = kx .. "," .. ky
+                if B.townOf(k) then B.chunk(k) end
+            end
+        end
+    """, g2.x, g2.y, north2)
+    n3, sprite3, _, _, _, _, frame3, _ = L.execute(GATE_DOOR, g2.x, g2.y, north2)
+    check(n3 == 1 and sprite3 in (C.Sprites.door.N, C.Sprites.door.W) and frame3,
+          "a room a 0.5.0 save built keeps its steel door; no grille is forced on it (%s)" % sprite3)
+
+    # The county's dead: a sanitation worker killed below a town with gates
+    # may carry its key, and one of its plans.
+    res = L.execute("""
+        local x, y, tid = ...
+        local keys, plans, good = 0, 0, true
+        for i = 1, 200 do
+            local z = SIM.newZombie(x + 0.5, y + 0.5, -1, SEW.Config.Gates.outfit)
+            SIM.fire("OnZombieDead", z)
+            for _, it in ipairs(z.inv.items._t) do
+                if it:getFullType() == SEW.Config.KeyItem then
+                    keys = keys + 1
+                    good = good and it:getKeyId() == SEW.Index.towns[tid].key
+                elseif it:getFullType() == SEW.Config.PlanItem then
+                    plans = plans + 1
+                    local pl = SEW.Index.plans[it:getModData().SewarsPlan]
+                    good = good and pl ~= nil and pl.town == tid
+                end
+            end
+        end
+        local none = 0
+        for _, case in ipairs({ { 0, SEW.Config.Gates.outfit }, { -1, "Hobbo" } }) do
+            for _ = 1, 40 do
+                local z = SIM.newZombie(x + 0.5, y + 0.5, case[1], case[2])
+                SIM.fire("OnZombieDead", z)
+                none = none + z.inv.items:size()
+            end
+        end
+        return keys, plans, good, none
+    """, g1.x, g1.y, "muldraugh")
+    check(40 <= res[0] <= 110 and 15 <= res[1] <= 70 and res[2],
+          "of 200 sanitation workers killed below: %d carry the key, %d a plan of the town" % (res[0], res[1]))
+    check(res[3] == 0, "one on the street, or in other clothes, carries neither")
+    lone = L.execute("""
+        for tid, t in pairs(SEW.Index.towns) do
+            if not t.key then
+                for key in pairs(SEW.Data[tid].chunks) do
+                    local cx, cy = key:match("(-?%d+),(-?%d+)")
+                    local n = 0
+                    for i = 1, 60 do
+                        local z = SIM.newZombie(cx * 8 + 4.5, cy * 8 + 4.5, -1, SEW.Config.Gates.outfit)
+                        SIM.fire("OnZombieDead", z)
+                        for _, it in ipairs(z.inv.items._t) do
+                            if it:getFullType() == SEW.Config.KeyItem then n = n + 1 end
+                        end
+                    end
+                    return tid, n
+                end
+            end
+        end
+    """)
+    check(lone is not None and lone[1] == 0, "below a town with no gates they carry no key (%s)" % (lone,))
+
+
+def outfall_test(L, p):
+    """Storm-drain outfalls (DESIGN.md 7c): the grate set into the bank as a
+    player comes near; down it, and back up onto the bank; blue on the map."""
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    out = L.execute("""
+        local out = {}
+        for _, s in pairs(SEW.Index.shafts) do if s.outfall then out[#out + 1] = s end end
+        table.sort(out, function(a, b) return a.x < b.x or (a.x == b.x and a.y < b.y) end)
+        return out[1], #out
+    """)
+    o, n = out
+    check(o is not None and n >= 10 and o.made, "the index has outfalls, set in by the server like our covers (%s)" % n)
+    if o is None:
+        return
+    ox, oy = int(o.x), int(o.y)
+    q = sim.newPlayer("bank", ox + 2.5, oy + 0.5, 0)
+    q.hours = 50
+    sim.players = L.table(q)
+    street(L, ox, oy, 3, manhole=False)
+    check(TEXT["ContextMenu_SEW_OutfallDown"] not in [nm for nm, _ in options(menu(L, 0, ox, oy))],
+          "no grate in the bank before the server has set it in")
+    sim.tickN(20)
+    check(L.execute("return SEW.Build.state().covers['%d,%d']" % (ox, oy)) == "placed"
+          and SEW.Config.Sprites.outfall in objects_at(L, ox, oy, 0),
+          "a player on the bank: the grate goes in (%s)" % objects_at(L, ox, oy, 0))
+    m = menu(L, 0, ox, oy)
+    names = [nm for nm, _ in options(m)]
+    check(TEXT["ContextMenu_SEW_OutfallDown"] in names and TEXT["ContextMenu_SEW_Enter"] not in names,
+          "it offers Climb into the storm drain (%s)" % names)
+    before = len(lua_list(sim.notes))
+    choose(m, TEXT["ContextMenu_SEW_OutfallDown"])
+    sim.runActions()
+    sim.tickN(3)
+    check(abs(q.z + 1) < 1e-6 and int(q.x) == ox and int(q.y) == oy,
+          "down to the foot of its ladder (%.1f,%.1f,%.1f)" % (q.x, q.y, q.z))
+    check(any("storm drain" in nt for nt in lua_list(sim.notes)[before:]), "with the outfall's note")
+    check("SEW_Lid" not in lua_list(sim.sounds)[-3:], "and no iron lid scraping")
+    lobjs = objects_at(L, int(o.lx), int(o.ly), -1)
+    check(any(x in ("sewars_01_0", "sewars_01_1") for x in lobjs), "a ladder hangs under the grate (%s)" % lobjs)
+    m = menu(L, 0, ox, oy)
+    check(TEXT["ContextMenu_SEW_OutfallUp"] in [nm for nm, _ in options(m)], "below, it offers Climb out onto the bank")
+    before = len(lua_list(sim.notes))
+    choose(m, TEXT["ContextMenu_SEW_OutfallUp"])
+    sim.runActions()
+    sim.tickN(3)
+    check(q.z == 0 and int(q.x) == ox and int(q.y) == oy and any("bank" in nt for nt in lua_list(sim.notes)[before:]),
+          "and up onto the bank (%.1f,%.1f,%.1f)" % (q.x, q.y, q.z))
+    check(SEW.Map.state.l["%d,%d" % (ox, oy)] is not None, "the outfall used is on the sewer map")
+    win = SEW.Map.open(q)
+    if win is not None:
+        win.tid = o.town
+        win.cx, win.cy = ox, oy
+        sim.draws = L.table()
+        win.prerender(win)
+        win.render(win)
+        blue = [d for d in lua_list(sim.draws) if d.kind == "rect" and d.extra and abs(d.extra[1] - 0.22) < 1e-6]
+        check(len(blue) >= 1, "drawn in the river's blue")
+        win.close(win)
 
 
 def single_player():
@@ -1279,10 +1883,25 @@ def single_player():
     hx, hy = SEW.Index.lair.hx, SEW.Index.lair.hy
     check(SEW.Index.shafts["%d,%d" % (hx, hy)] is not None and SEW.Index.shafts["%d,%d" % (hx, hy)].hatch is not None,
           "the nest names a hatch to start by (%d,%d)" % (hx, hy))
+    fo = L.execute("local o = SEW.Client.devOutfall(); return o and o.x, o and o.y")
+    check(fo is not None and fo[0] is not None, "Muldraugh has an outfall for the dev build to start by")
+    started = SEW.Config.DevStart
+    gas_kit = L.execute("""
+        local p = SIM.newPlayer("kit", 0, 0, 0)
+        SEW.Dev = true
+        SEW.Client.devKit(p)
+        SEW.Client.devKit(p)
+        SEW.Dev = nil
+        local n = 0
+        for _, it in ipairs(p.inv.items._t) do if it:getType() == "Hat_GasMask" then n = n + 1 end end
+        return n
+    """)
+    check(gas_kit == 1, "the dev kit has a gas mask, once (%d)" % gas_kit)
     for hours, dev, moved_wanted, what, start, tx_, ty_ in (
             (0, False, False, "without the dev flag, a new character stays put", "lair", hx, hy),
             (0, True, True, "the dev build puts a new character by the hatch nearest the rats' nest", "lair", hx, hy),
             (0, True, True, "or, set to caves, on the cover over a cave", "cave", sx, sy),
+            (0, True, True, "or, set to outfalls, on the bank by an outfall's grate", "outfall", fo[0], fo[1]),
             (40, True, False, "and leaves a character that has lived where it stands", "lair", hx, hy)):
         SEW.Config.DevStart = start
         sx, sy = tx_, ty_
@@ -1295,10 +1914,19 @@ def single_player():
         moved = abs(q.x - (sx + 0.5)) < 1e-6 and abs(q.y - (sy + 0.5)) < 1e-6 and q.z == 0
         check(moved == moved_wanted, "%s (%.1f,%.1f)" % (what, q.x, q.y))
     SEW.Dev = None
-    SEW.Config.DevStart = "lair"
+    SEW.Config.DevStart = started
     sim.players = L.table(p)
 
     lair_test(L, p)
+    sim.players = L.table(p)
+    gas_test(L, p)
+    p.x, p.y, p.z = mx + 0.5, my + 0.5, 0
+    sim.players = L.table(p)
+    gates_test(L, p)
+    sim.players = L.table(p)
+    outfall_test(L, p)
+    sim.players = L.table(p)
+    dev_menu_test(L, p)
     sim.players = L.table(p)
 
     unknown = [k for k in sim.unknownSprites.keys()]
@@ -1351,13 +1979,15 @@ def multiplayer():
     gc.SIM.tickN(400)
 
     # What an AddItemToMapPacket does on the client: the same object, made there.
-    arrive = Lc.eval('''function(x, y, z, name, north, class, special, sew)
+    arrive = Lc.eval('''function(x, y, z, name, north, class, special, sew, keyId, lockedByKey, customLock)
         local sq = getCell():getOrCreateGridSquare(x, y, z)
         -- Made by the packet, not by the mod: not the client's edit.
         local n = #SIM.violations
         local o = IsoObject.new(sq, name, "")
         while #SIM.violations > n do table.remove(SIM.violations) end
         o.md.sew, o.north, o.class = sew, north, class
+        -- What save() carries (AddItemToMap): a door's key id, its locks, its mod data.
+        o.keyId, o.lockedByKey, o.md.CustomLock = keyId, lockedByKey, customLock
         sq.objects:add(o)
         if special then sq.specials:add(o) end
     end''')
@@ -1385,7 +2015,8 @@ def multiplayer():
         if not gc.SIM.loaded["%d,%d" % (sq.x // 8, sq.y // 8)]:
             return
         if msg[1] == "addObject":
-            arrive(sq.x, sq.y, sq.z, o.sprite.getName(), o.north, o["class"], msg[3], o.md.sew)
+            arrive(sq.x, sq.y, sq.z, o.sprite.getName(), o.north, o["class"], msg[3], o.md.sew,
+                   o.keyId, o.lockedByKey, o.md.CustomLock)
         else:
             names = [o.attached._t[j].getParentSprite().getName() for j in range(1, len(o.attached._t) + 1)]
             resprite(sq.x, sq.y, sq.z, o.sprite.getName(), Lc.table(*names))
@@ -1465,6 +2096,61 @@ def multiplayer():
     pump()
     pump()
     check(abs(pc.z) < 1e-6, "the client's player is back on the street (%.1f)" % pc.z)
+
+    # Sewer gas on a server: the server doses its own copy of the player and
+    # syncs it; the client is told, and gets it on its map -- and writes no
+    # stat of its own (the server's would overwrite it within a second).
+    g0 = lua_list(gs.SEW.Index.gas)[0]
+    ps.x, ps.y, ps.z = g0.x + 0.5, g0.y + 0.5, -1
+    gs.SIM.outbox = Ls.table()
+    gs.SIM.tickN(gs.SEW.Config.Gas.lookEvery * 2)
+    gs.SIM.fire("EveryOneMinute")
+    sent = [m for m in lua_list(gs.SIM.outbox) if m[1] == "serverCommand"]
+    for m in sent:
+        gc.SIM.fire("OnServerCommand", m[3], m[4], copy(Lc, m[5]))
+    check(any(m[4] == "gas" for m in sent) and any("thick and sour" in n for n in lua_list(gc.SIM.notes)),
+          "on a server, the client of a player walking into gas is told")
+    check(gc.SEW.Map.state.g[1] is not None, "and the gas is on the client's map")
+    syncs = lua_list(gs.SIM.statSyncs)
+    check(Ls.execute("return SIM.players[1]:getStats():get(CharacterStat.POISON)") > 0
+          and any(s.mask == gs.SEW.Config.Gas.syncMask for s in syncs),
+          "the server poisons its own copy and syncs the stat (%d syncs)" % len(syncs))
+    check(Lc.execute("return SIM.players[1].stats == nil"), "the client writes no stat")
+    ps.x, ps.y, ps.z = pc.x, pc.y, pc.z
+
+    # A locked grille built on the server reaches the client keyed and locked:
+    # everything is set before transmitCompleteItemToClients, which carries it.
+    gate = [x for x in lua_list(gs.SEW.Index.gates) if x.town == "muldraugh"][0]
+    for cx in range(gate.x // 8 - 1, gate.x // 8 + 2):
+        for cy in range(gate.y // 8 - 1, gate.y // 8 + 2):
+            gs.SIM.load(cx, cy)
+            gc.SIM.load(cx, cy)
+    gs.SIM.outbox = Ls.table()
+    Ls.execute("SEW.Build.around(%d, %d, 1)" % (gate.x, gate.y))
+    for m in lua_list(gs.SIM.outbox):
+        if m[1] in ("addObject", "updateSprite"):
+            land(m)
+    got = Lc.execute(GATE_DOOR, gate.x, gate.y, gate.edge == "N")
+    check(got[0] == 1 and got[2] == gs.SEW.Index.towns.muldraugh.key and got[3] is True,
+          "a locked grille reaches the client as a door, keyed and locked (%s)" % (tuple(got),))
+    # And the latch, on a server, is sent the way vanilla's lock action sends it.
+    latched = Ls.execute("""
+        local x, y, north = ...
+        local sq = SIM.squares[x .. "," .. y .. ",-1"]
+        for _, o in ipairs(sq.specials._t) do
+            if o.class == "IsoDoor" and o.north == north then o.lockedByKey, o.locked = false, false end
+        end
+        local p = SIM.players[1]
+        local px, py, pz = p.x, p.y, p.z
+        p.x, p.y, p.z = x + 0.5, y + 2.5, -1
+        SIM.outbox = {}
+        local n = SEW.Keys.latch()
+        p.x, p.y, p.z = px, py, pz
+        local sent = 0
+        for _, m in ipairs(SIM.outbox) do if m[1] == "syncObject" then sent = sent + 1 end end
+        return n, sent
+    """, gate.x, gate.y, gate.edge == "N")
+    check(latched[0] == 1 and latched[1] == 1, "on a server the latch locks the grille and sends it (%s)" % (tuple(latched),))
 
     check(not warns(Ls), "no WARN on the server (%s)" % warns(Ls)[:3])
     check(not warns(Lc), "no WARN on the client (%s)" % warns(Lc)[:3])

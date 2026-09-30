@@ -26,6 +26,7 @@ import sys
 from collections import deque
 
 import numpy as np
+from scipy import ndimage as ndi
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LUA = os.path.join(ROOT, "Sewars", "42", "media", "lua")
@@ -33,9 +34,10 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import gen_sewers  # noqa: E402
 
 FAILS = []
-REC = re.compile(r'^[0-7][0-7][.tksgwrmnv][.cbdeoqxyz][.cbdeoqxyz][.LlPQ][.peabcdefghijklnouvxyz]$')
+REC = re.compile(r'^[0-7][0-7][.tksgwrmnv][.cbdejoqxyz][.cbdejoqxyz][.LlPQ][.peabcdefghijklnouvxyz]$')
 FLOORS = "tksgmnv"    # stood on (m: a cave's earth; n: the rats' nest and its run; v: their hoard)
-OPEN = ".doqxyz"      # edges walked through: none, a door frame, a breach, the nest's walls once opened
+OPEN = ".djoqxyz"     # edges walked through: none, a door frame (a locked grille: with its key), a breach,
+                      # the nest's walls once opened
 
 
 def check(cond, what):
@@ -76,10 +78,45 @@ def read_index():
             v = [int(n) for n in h[2].split(",") if n]
             sh["hatch"], sh["under"] = h[1], list(zip(v[0::2], v[1::2]))
         sh["made"] = ",made=true" in line
+        sh["outfall"] = ",outfall=true" in line
         shafts.append(sh)
     shelters = [dict(zip(("town", "kind", "x", "y", "w", "h"), (m[0], m[1]) + tuple(int(v) for v in m[2:])))
                 for m in re.findall(r'H\[#H\+1\]=\{town="(\w+)",kind="(\w+)",x=(\d+),y=(\d+),w=(\d+),h=(\d+)\}', s)]
     return shafts, shelters
+
+
+def read_gas():
+    s = open(os.path.join(LUA, "shared", "SEW", "SEW_Index.lua"), encoding="utf-8").read()
+    return [dict(town=m[0], id=m[1], x=int(m[2]), y=int(m[3]), n=int(m[4]))
+            for m in re.findall(r'G\[#G\+1\]=\{town="(\w+)",id="(\w)",x=(\d+),y=(\d+),n=(\d+)\}', s)]
+
+
+def read_gates():
+    """({town: key id}, [gates]) from the index."""
+    s = open(os.path.join(LUA, "shared", "SEW", "SEW_Index.lua"), encoding="utf-8").read()
+    keys = {m[0]: int(m[1]) for m in re.findall(r'I\.towns\["(\w+)"\] = \{[^}]*key = (\d+) \}', s)}
+    gates = [dict(town=m[0], x=int(m[1]), y=int(m[2]), edge=m[3])
+             for m in re.findall(r'K\[#K\+1\]=\{town="(\w+)",x=(\d+),y=(\d+),edge="([NW])"\}', s)]
+    return keys, gates
+
+
+def read_town_keys(path):
+    s = open(path, encoding="utf-8").read()
+    out = []
+    for body in re.findall(r'k\["-?\d+,-?\d+"\]=\{(.*)\}', s):
+        out += [(int(x), int(y)) for x, y in re.findall(r'\{(\d+),(\d+)\}', body)]
+    return out
+
+
+def read_town_gas(path):
+    """({(x, y): stretch id}, [(x, y, edge)]) from a town's g and p tables."""
+    s = open(path, encoding="utf-8").read()
+    gas = {}
+    for cx, cy, body in re.findall(r'g\["(-?\d+),(-?\d+)"\]="([^"]*)"', s):
+        for i in range(0, len(body), 3):
+            gas[(int(cx) * 8 + int(body[i]), int(cy) * 8 + int(body[i + 1]))] = body[i + 2]
+    signs = [(int(x), int(y), e) for x, y, e in re.findall(r'\{(\d+),(\d+),"([NW])"\}', s)]
+    return gas, signs
 
 
 def read_town(path):
@@ -158,8 +195,10 @@ def main():
     check(len(towns) >= 10, "towns generated (%d)" % len(towns))
     total_walk, total_stranded = 0, 0
     caves = read_caves()
-    n_caves, n_hatches, n_made, n_lairs = 0, 0, 0, 0
+    n_caves, n_hatches, n_made, n_lairs, n_gas, n_gates, n_outfalls = 0, 0, 0, 0, 0, 0, 0
     lair = read_lair()
+    gas_index = read_gas()
+    town_keys, gates_index = read_gates()
     for path in towns:
         tid = os.path.basename(path)[9:-4]
         sq, furniture, bad = read_town(path)
@@ -181,8 +220,8 @@ def main():
             for x in range(h["x"] - 1, h["x"] + h["w"] + 1):
                 for y in range(h["y"] - 1, h["y"] + h["h"] + 1):
                     r = sq.get((x, y))
-                    if r and "d" in (r[3], r[4]):
-                        doors += (r[3] == "d") + (r[4] == "d")
+                    if r and ("d" in (r[3], r[4]) or "j" in (r[3], r[4])):
+                        doors += (r[3] in "dj") + (r[4] in "dj")
             one_door &= doors == 1
         on_floor = all(sq.get((x, y), "  .")[2] in "smv" for x, y, _ in furniture)
 
@@ -243,7 +282,7 @@ def main():
 
         # Covers of ours (the towns the map gives few): each on painted road
         # with nothing else on it, a cover's shaft like any other.
-        made = [s for s in mine if s.get("made")]
+        made = [s for s in mine if s.get("made") and not s.get("outfall")]
         if made:
             bad = []
             for s in made:
@@ -253,6 +292,29 @@ def main():
             check(not bad, "%s: %d covers of ours, every one on clear painted road (%d not, e.g. %s)"
                   % (tid, len(made), len(bad), bad[:3]))
             n_made += len(made)
+
+        # Outfalls (DESIGN.md 7c): each grate on dry natural ground beside a
+        # body of water big enough not to be a pool, and walked to from a
+        # street cover -- a way out, not a pocket of its own.
+        outfalls = [s for s in mine if s.get("outfall")]
+        if outfalls:
+            covers = walk(sq, [(s["x"], s["y"]) for s in mine if "hatch" not in s and not s.get("outfall")])
+            bad = []
+            for s in outfalls:
+                # The water round it, wide: a lake cut off at the edge of the
+                # tunnels' extent would count as a pond (the first run of this).
+                R = 300
+                water, ground = gen_sewers.water_region(s["x"] - R, s["y"] - R, s["x"] + R, s["y"] + R)
+                lab, _ = ndi.label(water)
+                sizes = np.bincount(lab.ravel())
+                lx, ly = R, R
+                wet = [lab[ly + dy, lx + dx] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))]
+                if not (ground[ly, lx] and any(w and sizes[w] >= gen_sewers.OUTFALL_WATER for w in wet)
+                        and (s["x"], s["y"]) in covers and sq.get((s["x"], s["y"]), "  .")[2] == "g"):
+                    bad.append((s["x"], s["y"]))
+            check(not bad, "%s: %d outfalls, every grate on dry ground by big water and walked to from a street "
+                  "cover (%d not, e.g. %s)" % (tid, len(outfalls), len(bad), bad[:3]))
+            n_outfalls += len(outfalls)
 
         # No tunnel ends in a wall under a road that runs on to the network: the
         # street list has gaps the painted road does not (Harris St, Muldraugh,
@@ -340,6 +402,64 @@ def main():
                      "ok" if ok_access else "BAD", len(hoard)))
         else:
             check(not nest_sq, "%s: no rats' nest here (%d squares)" % (tid, len(nest_sq)))
+
+        # Sewer gas (DESIGN.md 7b): only on plain walkway, never near a street ladder,
+        # every placard on a wall of ours on its edge, and the index agrees.
+        gas, signs = read_town_gas(path)
+        mine_gas = [g for g in gas_index if g["town"] == tid]
+        ladders = [(s["x"], s["y"]) for s in mine if "hatch" not in s]
+        off_walk = [p for p in gas if sq.get(p, "  .")[2] != "t"]
+        by_ladder = [p for p in gas if any(max(abs(p[0] - a), abs(p[1] - b)) <= gen_sewers.GAS_CLEAR
+                                           for a, b in ladders)]
+        bad_sign = [(x, y, e) for x, y, e in signs
+                    if sq.get((x, y), "  .")[2] not in "tkg" or sq[(x, y)][3 if e == "N" else 4] not in "cb"]
+        ids = set(gas.values())
+        agree = (len(ids) == len(mine_gas)
+                 and all(gas.get((g["x"], g["y"])) == g["id"] and sum(1 for v in gas.values() if v == g["id"]) == g["n"]
+                         for g in mine_gas))
+        signed = all(any(abs(x - a) + abs(y - b) <= 1 for x, y, _ in signs for (a, b), v in gas.items() if v == i)
+                     for i in ids)
+        check(not off_walk and not by_ladder and not bad_sign and agree and signed,
+              "%s: %d stretches of gas, %d squares, %d placards: off plain walkway %d, within %d of a ladder %d, "
+              "placards off a wall %d, index agrees %s, every stretch signed %s"
+              % (tid, len(ids), len(gas), len(signs), len(off_walk), gen_sewers.GAS_CLEAR, len(by_ladder),
+                 len(bad_sign), agree, signed))
+        n_gas += len(ids)
+
+        # Locked gates (DESIGN.md 7, Locked gates): every j edge is the door of a county room,
+        # a town has gates only if it has a key, and then every unlocked county
+        # room's first crate holds it -- and there is at least one.
+        gate_edges = [(p, col) for p, r in sq.items() for col in (3, 4) if r[col] == "j"]
+        mine_gates = [g for g in gates_index if g["town"] == tid]
+
+        def room_of(p):
+            return next((h for h in rooms if h["x"] <= p[0] < h["x"] + h["w"] and h["y"] <= p[1] < h["y"] + h["h"]), None)
+        county_doors = True
+        for (x, y), col in gate_edges:
+            other = (x, y - 1) if col == 3 else (x - 1, y)
+            h = room_of((x, y)) or room_of(other)
+            county_doors &= h is not None and h["kind"] in ("maintenance", "pump")
+        key_spots = read_town_keys(path)
+        crates = {(x, y) for x, y, _ in furniture}
+        unlocked_county = [h for h in rooms if h["kind"] in ("maintenance", "pump")
+                           and not any(room_of((x, y)) is h or room_of((x, y - 1) if col == 3 else (x - 1, y)) is h
+                                       for (x, y), col in gate_edges)]
+        keyed = all(any(h["x"] <= kx < h["x"] + h["w"] and h["y"] <= ky < h["y"] + h["h"] for kx, ky in key_spots)
+                    for h in unlocked_county)
+        ok = (county_doors and len(mine_gates) == len(gate_edges)
+              and (tid in town_keys) == bool(gate_edges)
+              and (not gate_edges or (key_spots and keyed and all(k in crates for k in key_spots)))
+              and all(sq.get(k, "  .")[2] == "s" for k in key_spots))
+        check(ok, "%s: %d locked gates, all on county rooms %s, key %s, the key in %d crates of unlocked county rooms"
+              % (tid, len(gate_edges), county_doors, town_keys.get(tid, "none"), len(key_spots)))
+        n_gates += len(gate_edges)
+    check(n_gas == len(gas_index) and n_gas >= 50,
+          "every stretch of gas in the index is in its town's data (%d of %d)" % (n_gas, len(gas_index)))
+    check(n_gates == len(gates_index) and n_gates >= 30 and len(town_keys) >= 10
+          and len(set(town_keys.values())) == len(town_keys) and all(k >= 100000000 for k in town_keys.values()),
+          "locked gates, all towns: %d (the index lists %d); %d towns with a key, every key its own and clear of "
+          "vanilla's ids" % (n_gates, len(gates_index), len(town_keys)))
+    check(n_outfalls >= 10, "storm-drain outfalls, all towns (%d)" % n_outfalls)
     check(n_lairs == 1, "one rats' nest in the world, under %s (%d)" % (lair and lair["town"], n_lairs))
     check(n_hatches >= 30, "houses with a way down, all towns (%d)" % n_hatches)
     check(n_made >= 400, "covers of ours in the towns the map gives few (%d)" % n_made)
@@ -351,7 +471,7 @@ def main():
     # The walker must not be kind: with every door shut, every shelter floor
     # has to become unreachable. If it does not, walls are not being read.
     sq, _, _ = read_town(os.path.join(LUA, "server", "SEW", "Data", "SEW_Town_muldraugh.lua"))
-    shut = {p: r[:3] + ("c" if r[3] == "d" else r[3]) + ("c" if r[4] == "d" else r[4]) + r[5:] for p, r in sq.items()}
+    shut = {p: r[:3] + ("c" if r[3] in "dj" else r[3]) + ("c" if r[4] in "dj" else r[4]) + r[5:] for p, r in sq.items()}
     reach = walk(shut, [(s["x"], s["y"]) for s in shafts if s["town"] == "muldraugh"])
     rooms = [p for p, r in shut.items() if r[2] == "s"]
     check(rooms and not any(p in reach for p in rooms),

@@ -2,10 +2,15 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "louisville_4", name = "Louisville", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {} }
+local T = { id = "louisville_4", name = "Louisville", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
 SEW.Data["louisville_4"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
-c["1912,415"]="26tcc..27t.c..36tc.P.37t....45tcc..46t....47t....55tc.P.56t....57t....64tcc..65t....66t....67t....74tc...75t....76t....77t...."
+local g, p, k = T.gas, T.gasSigns, T.keys
+c["1908,415"]="03gccLx04rc...13tc...14rc...23tc...24rc...33tc..i34rc...43tc..p44rc...53tc..i54rc...63tc...64rc...73tc...74rc..."
+c["1909,415"]="03tc...04rc...13tc..p14rc...23tc..i24rc...33tc..a34rc...43tc..i44rc...53tc...54rc...63tc...64rc...73tc..i74rc..."
+c["1910,415"]="03tc..i04rc...13tc...14rc...23tc...24rc...33tc...34rc...43tc...44rc...53tc..i54rc...63tc..i64rc...73tc...74rc..."
+c["1911,415"]="03tc...04rc...13tc..i14rc...23tc...24rc...33tc...34rc...43tc...44rc...53tc...54rc...63tc..e64rc...73tc..i74rc..."
+c["1912,415"]="03tc...04rc...13tc...14rc...23tc...24rc...26tcc..27t.c..33tc...34rc...36tc.P.37t....43tc...44t.c..45t.c..46t....47t....53r.c..54r.c..55tc.P.56t....57t....64tcc..65t....66t....67t....74tc...75t....76t....77t...."
 c["1912,416"]="20rc...30rc...40rc...50rc...60rc...70rc.P."
 c["1913,415"]="04tc...05t....06t....07rcc..14tc...15t....16t....17rc...24tc..i25t....26t....27rc...34tc...35t....36t....37rc...44tc..i45t....46t....47rc...54tc...55t....56t....57rc...64tc...65t....66t...v67rc...74tc..i75t....76t....77rc..."
 c["1914,415"]="04tc...05t...u06t....07rc...14tc...15t....16t....17rc...24tc...25t....26t....27rc...34tc..b35t....36t....37rc...44tc...45t....46t...v47rc...54tc...55t....56t....57rc...64tc..p65t....66t....67rc...74tc..i75t....76t....77rc..."
@@ -234,4 +239,10 @@ z["1930,396"]={{15446,3171,"Hobbo"}}
 v["1918,390"]={{15349,3124,"camping_02_4",nil,nil},{15350,3124,"camping_02_5",nil,nil},{15351,3125,"carpentry_01_16","survival",nil}}
 v["1918,391"]={{15350,3130,"carpentry_01_16","food",nil}}
 u["1918,390"]={{15351,3127,"Survivalist"}}
+g["1909,415"]="531631731"
+g["1910,415"]="031131231331431531631731"
+g["1911,415"]="031131231331431531631731"
+g["1912,415"]="031131231331431441"
+p["1909,415"]={{15276,3323,"N"}}
+p["1912,415"]={{15300,3325,"W"}}
 return T

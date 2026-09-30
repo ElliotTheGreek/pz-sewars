@@ -16,6 +16,7 @@
         merged per row and cached until something new is found: there is no
         render-to-texture reachable from Lua, and one rectangle a chunk would
         be fourteen thousand draws a frame for the largest town;
+      the gas -- stretches of sewer gas walked into or read of on a plan;
       markers -- ladders used, shelters found, marks from journals, you.
 
     The server owns what has been found; this file keeps a mirror of this
@@ -57,7 +58,7 @@ M.ZOOMS = { 0.5, 0.75, 1, 1.5, 2, 3, 4, 6 }
 ---------------------------------------------------------------------------
 -- What this player has found (a mirror of the server's record)
 ---------------------------------------------------------------------------
-M.state = { c = {}, s = {}, l = {}, m = {} }
+M.state = { c = {}, s = {}, l = {}, m = {}, g = {} }
 M.version = 0          -- bumped on every change; the fog cache keys on it
 M.asked = false
 
@@ -68,7 +69,7 @@ local function setFrom(list)
 end
 
 Net.onClient("mapState", function(args)
-    M.state = { c = setFrom(args.c), s = setFrom(args.s), l = setFrom(args.l), m = args.m or {} }
+    M.state = { c = setFrom(args.c), s = setFrom(args.s), l = setFrom(args.l), m = args.m or {}, g = setFrom(args.g) }
     M.version = M.version + 1
 end)
 
@@ -297,6 +298,21 @@ function SEWMapWindow:drawMap(t)
         end
     end
 
+    -- Sewer gas this player knows of: a sickly ring at each stretch's middle,
+    -- named when zoomed in.
+    for i in pairs(M.state.g) do
+        local g = SEW.Index.gas and SEW.Index.gas[tonumber(i) or i]
+        if g and g.town == self.tid then
+            local sx, sy = self:toScreen(g.x + 0.5, g.y + 0.5)
+            local r = math.max(5, math.sqrt(g.n) * s)
+            self:drawRect(sx - r, sy - r, r * 2, r * 2, 0.35, 0.62, 0.70, 0.18)
+            self:drawRectBorder(sx - r, sy - r, r * 2, r * 2, 0.9, 0.45, 0.52, 0.10)
+            if s >= 1.5 then
+                self:drawText(getText("IGUI_SEW_MapGas"), sx + r + 2, sy - 7, 0.40, 0.46, 0.08, 1, UIFont.Small)
+            end
+        end
+    end
+
     -- Markers.
     local I = M.INK
     local mk = math.max(3, math.floor(3 * s))
@@ -304,10 +320,16 @@ function SEWMapWindow:drawMap(t)
         local sh = SEW.Index.shafts[key]
         if sh and sh.town == self.tid then
             local sx, sy = self:toScreen(sh.x + 0.5, sh.y + 0.5)
-            self:drawRect(sx - mk, sy - mk, mk * 2, mk * 2, 1, 0.85, 0.66, 0.12)
+            -- An outfall in the river's blue, a ladder to the street in gold.
+            if sh.outfall then
+                self:drawRect(sx - mk, sy - mk, mk * 2, mk * 2, 1, 0.22, 0.48, 0.74)
+            else
+                self:drawRect(sx - mk, sy - mk, mk * 2, mk * 2, 1, 0.85, 0.66, 0.12)
+            end
             self:drawRectBorder(sx - mk, sy - mk, mk * 2, mk * 2, 1, I[1], I[2], I[3])
-            if s >= 3 and sh.street and sh.street ~= "" then
-                self:drawText(sh.street, sx + mk + 2, sy - 7, I[1], I[2], I[3], 1, UIFont.Small)
+            local label = sh.outfall and getText("IGUI_SEW_MapOutfall") or sh.street
+            if s >= 3 and label and label ~= "" then
+                self:drawText(label, sx + mk + 2, sy - 7, I[1], I[2], I[3], 1, UIFont.Small)
             end
         end
     end

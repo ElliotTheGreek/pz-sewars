@@ -2,9 +2,10 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "muldraugh_2", name = "Muldraugh", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {} }
+local T = { id = "muldraugh_2", name = "Muldraugh", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
 SEW.Data["muldraugh_2"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
+local g, p, k = T.gas, T.gasSigns, T.keys
 c["1427,1095"]="42tbb.i43t.b.i44t.b..45t.b..46t.b..47rb...52tb...53t....54w....55t....56t....57rb...62tb..p63t....64w....65t....66t....67rb...72tb...73t....74w....75t....76t....77rb..."
 c["1428,1095"]="02tb...03t...u04w....05t...u06t....07rb...12tb..i13t....14w....15t....16t....17rb...22tb...23t....24w....25t....26t....27rb...32tb...33t....34w....35t....36t....37rb...42tb...43t....44w....45t....46t....47rb...52tb..p53t....54t....55t....56t....57rb...62tb..i63t...v64w....65t....66t....67rb...72tb..i73t....74w....75t....76t....77rb..."
 c["1429,1095"]="02tb..p03t....04w....05t....06t....07rb...12tb...13t....14w....15t....16t....17rb...22tb..i23t....24w....25t....26t...y27rb...32tb..i33t....34w....35t....36t...y37rb...42tb...43t....44w....45t....46t....47rb...52tb..i53t....54w....55t....56t....57rb...62tb..i63t....64t....65t...y66t....67rb...72tb..i73t....74w....75t....76t....77rb..."
@@ -169,4 +170,9 @@ f["1442,1104"]={{11538,8836,"constructedobjects_01_45","tools","j85;p42"},{11538
 v["1480,1097"]={{11845,8782,"camping_02_4",nil,nil},{11846,8782,"camping_02_5",nil,nil},{11847,8783,"carpentry_01_16","food",nil}}
 v["1480,1098"]={{11847,8786,"carpentry_01_16","survival",nil}}
 u["1480,1097"]={{11843,8783,"Survivalist"}}
+g["1467,1103"]="511521531541551561571"
+g["1467,1104"]="501511521531541551561571"
+g["1467,1105"]="501"
+p["1467,1103"]={{11741,8824,"W"}}
+p["1467,1105"]={{11741,8841,"W"}}
 return T

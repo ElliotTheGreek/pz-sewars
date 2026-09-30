@@ -134,6 +134,15 @@ TILES_DEF += [
     # Somebody's warning, a few squares from the false wall.
     ("g_rous_W", "wallW", WALL_W),
     ("g_rous_N", "wallN", WALL_N),
+    # Sewer gas (ROADMAP 0.5): the county's placard at the way into a gassy
+    # stretch, and the haze lying on its floor.
+    ("gas_W", "wallW", WALL_W),
+    ("gas_N", "wallN", WALL_N),
+    ("haze", "floor", FLOOR_DECAL),
+    # Storm-drain outfalls (ROADMAP 0.4; DESIGN.md 7c): the grate at the top of
+    # an outfall's ladder, set into a riverbank -- a concrete apron with iron
+    # bars over the dark, laid on the ground the bank has.
+    ("outfall", "floor", FLOOR_DECAL),
 ]
 
 
@@ -430,6 +439,33 @@ def claws(rnd):
     return weather(tex, rnd, 0.1, 1)
 
 
+def placard(rnd):
+    """The county's warning, screwed to the wall at chest height: a yellow
+    enamel plate, a black hazard triangle with a skull-less exclamation, and
+    DANGER / SEWER GAS / MASK REQUIRED in stencil capitals. Rust at the
+    screws, paint chipped off the edges."""
+    tex = Image.new("RGBA", (TW, TH), (0, 0, 0, 0))
+    d = ImageDraw.Draw(tex)
+    x0, y0, x1, y1 = 34, int(TH * 0.20), TW - 34, int(TH * 0.70)
+    d.rectangle([x0 + 4, y0 + 6, x1 + 4, y1 + 6], fill=(10, 10, 8, 120))             # its shadow
+    d.rectangle([x0, y0, x1, y1], fill=(214, 172, 36, 245), outline=(28, 26, 20, 255), width=5)
+    cx, top = TW // 2, y0 + 18
+    d.polygon([(cx, top), (cx - 40, top + 66), (cx + 40, top + 66)], fill=(24, 22, 18, 255))
+    d.polygon([(cx, top + 14), (cx - 28, top + 58), (cx + 28, top + 58)], fill=(214, 172, 36, 255))
+    d.rectangle([cx - 4, top + 26, cx + 4, top + 46], fill=(24, 22, 18, 255))
+    d.ellipse([cx - 4, top + 50, cx + 4, top + 56], fill=(24, 22, 18, 255))
+    f = ImageFont.truetype(FONT_STENCIL, 38)
+    fs = ImageFont.truetype(FONT_STENCIL, 22)
+    for text, font, y in (("DANGER", f, top + 72), ("SEWER GAS", fs, top + 116), ("MASK REQUIRED", fs, top + 142)):
+        w = d.textlength(text, font=font)
+        d.text(((TW - w) / 2, y), text, font=font, fill=(24, 22, 18, 255))
+    for sx, sy in ((x0 + 12, y0 + 12), (x1 - 12, y0 + 12), (x0 + 12, y1 - 12), (x1 - 12, y1 - 12)):
+        d.ellipse([sx - 5, sy - 5, sx + 5, sy + 5], fill=(90, 52, 26, 255))
+        for _ in range(3):                  # rust run down from the screw
+            d.line([sx, sy, sx + rnd.randint(-2, 2), sy + rnd.randint(8, 26)], fill=(110, 58, 26, 170), width=2)
+    return weather(tex, rnd, 0.18, 1)
+
+
 def grime(rnd):
     """A tide line at knee height, and streaks running down from the vault."""
     tex = Image.new("RGBA", (TW, TH), (0, 0, 0, 0))
@@ -546,6 +582,44 @@ def floor_tex(kind, rnd):
                             (84, 40, 34, 230), (52, 58, 66, 230)])
             d.line([cx, cy, cx + ln * math.cos(ang), cy + ln * math.sin(ang)], fill=c, width=rnd.choice((2, 3, 4)))
         return tex.filter(ImageFilter.GaussianBlur(0.5))
+    if kind == "haze":
+        # A sickly yellow-green mist lying low on the floor: soft blobs, more
+        # at the middle than the edges so neighbouring squares run together.
+        g = Image.new("L", (s, s), 0)
+        gd = ImageDraw.Draw(g)
+        for _ in range(16):
+            cx, cy = rnd.gauss(s / 2, 50), rnd.gauss(s / 2, 50)
+            r = rnd.randint(40, 90)
+            gd.ellipse([cx - r, cy - r * 0.8, cx + r, cy + r * 0.8], fill=rnd.randint(40, 80))
+        g = g.filter(ImageFilter.GaussianBlur(22))
+        # Judged in the dark on a render (render_sewer.py): paler was invisible.
+        tex.paste(Image.new("RGBA", (s, s), (186, 212, 70, 255)), (0, 0), g.point(lambda v: min(190, v * 4)))
+        return tex
+    if kind == "outfall":
+        # A cast concrete apron, stained and chipped, with a barred grate over
+        # the dark of the shaft; mud washed up over one edge from the water.
+        d.rectangle([22, 22, s - 22, s - 22], fill=(118, 116, 106, 255))
+        for _ in range(40):                              # stain and chips
+            x, y = rnd.randint(26, s - 40), rnd.randint(26, s - 40)
+            r = rnd.randint(4, 14)
+            c = rnd.choice([(96, 94, 84, 255), (132, 128, 116, 255), (88, 92, 70, 255)])
+            d.ellipse([x, y, x + r, y + r * 0.7], fill=c)
+        d.rectangle([58, 58, s - 58, s - 58], fill=(12, 12, 12, 255))
+        for k in range(9):                               # the bars
+            bx = 64 + k * 16
+            d.rectangle([bx, 58, bx + 6, s - 58], fill=(70, 50, 36, 255))
+            d.line([bx + 1, 58, bx + 1, s - 58], fill=(120, 84, 56, 255), width=2)
+        for by in (96, s - 96):
+            d.rectangle([58, by - 4, s - 58, by + 4], fill=(62, 44, 32, 255))
+        d.rectangle([58, 58, s - 58, s - 58], outline=(58, 56, 50, 255), width=6)
+        mud = Image.new("L", (s, s), 0)
+        md = ImageDraw.Draw(mud)
+        for _ in range(12):
+            x, y = rnd.randint(0, s), rnd.randint(s - 70, s)
+            r = rnd.randint(20, 50)
+            md.ellipse([x - r, y - r * 0.6, x + r, y + r * 0.6], fill=rnd.randint(120, 200))
+        tex.paste(Image.new("RGBA", (s, s), (72, 58, 40, 255)), (0, 0), mud.filter(ImageFilter.GaussianBlur(8)))
+        return tex.filter(ImageFilter.GaussianBlur(0.6))
     if kind == "smear":
         for k in range(40):
             t = k / 40
@@ -587,6 +661,8 @@ def draw(name, kind, rnd, vanilla):
         tex = cracks(rnd)
     elif base == "claws":
         tex = claws(rnd)
+    elif base == "gas":
+        tex = placard(rnd)
     elif base == "earth":
         # Exactly the shape of the concrete wall it covers, to the last pixel:
         # the projection's soft edge let a line of concrete show round it.

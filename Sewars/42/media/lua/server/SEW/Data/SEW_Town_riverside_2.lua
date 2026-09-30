@@ -2,9 +2,10 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "riverside_2", name = "Riverside", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {} }
+local T = { id = "riverside_2", name = "Riverside", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
 SEW.Data["riverside_2"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
+local g, p, k = T.gas, T.gasSigns, T.keys
 c["663,739"]="61tcc..62t.c.i63t.c..64t.c..65t.c.i66t.c..67t.c.i71tc...72rcc..73r.c..74r.c..75r.c..76r.c..77r.c.."
 c["663,740"]="60t.c..61t.c..62t.c.i63t.c.i64t.c..65t.c.i66t.c.i67t.c..70r.c..71r.c..72r.c..73r.c..74r.c..75r.c..76r.c..77r.c.."
 c["663,741"]="60t.c.i61t.c.g62t.c..63t.c..64t.c.g65t.c..66t.c.i67t.c..70r.c..71r.c..72r.c..73r.c..74r.c..75r.c..76r.c..77r.c.."
@@ -228,4 +229,12 @@ z["683,747"]={{5467,5981,"Bandit"},{5466,5983,"Survivalist"}}
 v["681,751"]={{5453,6012,"camping_02_4",nil,nil},{5454,6012,"camping_02_5",nil,nil},{5452,6013,"carpentry_01_16","food",nil}}
 v["681,752"]={{5452,6017,"carpentry_01_16","survival",nil}}
 u["681,751"]={{5453,6013,"Survivalist"}}
+g["663,741"]="621631641651661671"
+g["663,742"]="601611621631641651661671"
+g["663,743"]="601611621631641651661671"
+g["663,744"]="601611621631641651661671"
+g["663,745"]="601611621631641651661671"
+g["663,746"]="601611621631641651661671"
+p["663,741"]={{5310,5929,"W"}}
+p["663,747"]={{5310,5976,"W"}}
 return T

@@ -22,5 +22,11 @@
     "Sandbox_Sewars.Rats_option1": "None",
     "Sandbox_Sewars.Rats_option2": "Few",
     "Sandbox_Sewars.Rats_option3": "Some",
-    "Sandbox_Sewars.Rats_option4": "Swarming"
+    "Sandbox_Sewars.Rats_option4": "Swarming",
+    "Sandbox_Sewars.Gas": "Sewer gas",
+    "Sandbox_Sewars.Gas_tooltip": "Some narrow culverts, well away from the ladders, hold foul air behind the county's warning placards. Breathe it without a gas mask or respirator and you get sick. Mild: queasy at worst. Harmful: sick, and it costs health while you stay. Deadly: stay and it kills. A mask with a filter keeps it out, and uses the filter up.",
+    "Sandbox_Sewars.Gas_option1": "Off",
+    "Sandbox_Sewars.Gas_option2": "Mild",
+    "Sandbox_Sewars.Gas_option3": "Harmful",
+    "Sandbox_Sewars.Gas_option4": "Deadly"
 }

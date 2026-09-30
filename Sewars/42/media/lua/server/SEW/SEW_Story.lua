@@ -56,6 +56,12 @@ function St.readPlan(player, id)
     local t = SEW.Index.towns[plan.town]
     local x0, y0 = t.x0 + plan.i * C.MapTile, t.y0 + plan.j * C.MapTile
     local n = SEW.Discovery.reveal(player, plan.town, x0, y0, x0 + C.MapTile - 1, y0 + C.MapTile - 1)
+    -- The county knew where the gas lies: every stretch on the sheet.
+    for i, g in ipairs(SEW.Index.gas or {}) do
+        if g.town == plan.town and g.x >= x0 and g.x < x0 + C.MapTile and g.y >= y0 and g.y < y0 + C.MapTile then
+            SEW.Discovery.gas(player, i)
+        end
+    end
     U.log("%s read the sewer plan of %s, sheet %d-%d: %d chunks revealed",
           SEW.Discovery.nameOf(player), plan.town, plan.i, plan.j, n)
     Net.toClient(player, "planRead", { n = n })
