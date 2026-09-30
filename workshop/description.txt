@@ -4,11 +4,15 @@ Vanilla paints 446 manhole covers on its streets and puts nothing under them. Se
 
 - Right-click a manhole cover in the road: Climb down into the sewer. A crowbar or a pipe wrench makes quicker work of the lid.
 - Every cover has a ladder under it. Right-click a ladder: Climb out to the street, and you come up through the cover above it.
+- Louisville too. Vanilla gives all of Louisville 13 covers, and none to Irvington, Brandenburg, March Ridge or Valley Station. Sewars adds its own there, at the junctions and along the long streets, with sewers under every street.
 - It is dark. Daylight comes down through the holes in the covers; bring a torch for the rest.
-- The dead are down here too.
+- The dead are down here too. So are the rats.
 - Shelters: other survivors dug in before you. Maintenance rooms, pump stations, squats and last stands behind steel doors, some stocked, some still occupied.
+- Broken walls and dug caves: somebody knocked through the tunnel wall and kept digging. A winding dirt passage, and a hideout at the end of it.
+- Houses with a way down: a trapdoor in the floor of some garages, kitchens and storerooms, and a ladder down to the sewer under the street.
+- Something under Louisville. People who went down there wrote the same four letters on the walls. Nobody believed them.
 - Build down there. The tunnels are yours to wall off, barricade and furnish; the mod never touches anything you build.
-- 16 towns, 442 shafts, 93 shelters, over 110,000 squares of tunnel.
+- 31 towns, 1,174 manholes that open, 239 shelters, 152 caves, 189 houses with a way down, nearly 476,000 squares of tunnel.
 
 THE SEWER MAP
 The sewers are something you learn. Your map starts black and fills in as you walk: the ladders you have used (with the street above), the shelters you have found. Open it with K (rebindable in Options -> Mods) or Sewer map on the right-click menu below ground. Municipal sewer plans, left in maintenance rooms and pump stations, reveal whole sheets of a town at once, and the journals the shelters' builders left behind point you to the next place worth finding.
@@ -17,4 +21,6 @@ The tunnels sit one level under the real streets, so they are exactly where they
 
 Single player, hosted co-op and dedicated servers. Build 42.
 
-Sandbox: how many of the dead are down there, who they were (ordinary people or survivors with full packs), and how well the shelters are stocked.
+Sandbox: how many of the dead are down there, who they were (ordinary people or survivors with full packs), how many rats, and how well the shelters are stocked.
+
+New in 0.5: caves, houses with a way down, sewers under Louisville and the towns the map gave no covers, rats, and something else. Existing saves keep their sewers; the new parts appear in tunnels as you walk into them.

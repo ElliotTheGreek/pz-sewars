@@ -134,4 +134,5 @@ and so is the next Flying Birds.
 ## Release
 
 - [x] First Workshop upload: 0.3.1, item **3810188405**, public (2026-09-29); `WORKSHOP_ID` set
-- [ ] 0.3.2 update, after its play-test
+- [x] 0.3.2 folded into 0.5.0 (never uploaded on its own)
+- [~] **0.5.0 update**: caves, hatches, Louisville and the sparse towns, rats, the nest; staged with `package --install` (2026-09-30), upload from the game's Workshop screen

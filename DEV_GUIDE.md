@@ -786,7 +786,7 @@ gets verified.
 
 ## Current state
 
-Version **0.3.2** (local, not yet on the Workshop), build revision **5**,
+Version **0.5.0** (staged for the Workshop, 2026-09-30; 0.3.2 never went up), build revision **5**,
 layout from `tools/gen_sewers.py`. 2026-09-29. **Workshop:** item
 **3810188405**, public, 0.3.1 uploaded 2026-09-29; `WORKSHOP_ID` is set in
 `tools/package_workshop.py`.
