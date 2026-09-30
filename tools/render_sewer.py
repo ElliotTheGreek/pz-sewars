@@ -39,8 +39,8 @@ def config_sprites():
         return {"N": m.group(1), "W": m.group(2)}
 
     sp = {k: one(k) for k in ("floorTunnel", "floorVault", "floorShelter", "floorRock", "sludge",
-                              "puddle", "debris", "lightpool", "smear")}
-    for k in ("doorFrame", "door", "ladder", "exit", "safe", "grime"):
+                              "puddle", "debris", "lightpool", "smear", "bones", "litter")}
+    for k in ("doorFrame", "door", "ladder", "exit", "safe", "grime", "cracks", "claws", "rousWarning"):
         sp[k] = pair(k)
     sp["graffiti"] = {c: {"N": n, "W": w} for c, n, w in
                       re.findall(r"\b([a-g])\s*=\s*\{\s*N\s*=\s*\"([^\"]+)\",\s*W\s*=\s*\"([^\"]+)\"", s)}
@@ -55,6 +55,13 @@ def config_sprites():
         m = re.search(r"\b" + style + r" = \{ N = \{([^}]*)\},\s*W = \{([^}]*)\}", block)
         sp["variants"][style] = {"N": re.findall(r'"([^"]+)"', m.group(1)),
                                  "W": re.findall(r'"([^"]+)"', m.group(2))}
+    m = re.search(r"\be\s*=\s*\{\s*N\s*=\s*\"([^\"]+)\",\s*W\s*=\s*\"([^\"]+)\",\s*NW\s*=\s*\"([^\"]+)\"", s)
+    sp["wall"]["e"] = dict(zip(("N", "W", "NW"), m.groups()))
+    sp["earthFace"] = pair("earthFace")
+    sp["breach"] = {k: {"N": n, "W": w} for k, n, w in
+                    re.findall(r"\b([oq])\s*=\s*\{\s*N\s*=\s*\"([^\"]+)\",\s*W\s*=\s*\"([^\"]+)\"", s)}
+    sp["floorCave"] = re.findall(r"\"(floors_exterior_natural_01_\d+)\"", s)
+    sp["stones"] = re.findall(r"\"(boulders_\d+)\"", s)
     sp["grating"] = re.findall(r"\"(location_sewer_01_4[0-2])\"", s)
     sp["pipes"] = re.findall(r"\"(location_sewer_01_3[4-7])\"", s)
     return sp
@@ -65,31 +72,57 @@ def lua_hash(a, b, c=0):
     return -h if h < 0 else h
 
 
+# The nest's walls that open, as a new world has them: shut (SEW_Build GATE).
+GATE_SHUT = {"x": "c", "y": "b", "z": "b"}
+
+
+def lua_rng1(seed, n):
+    """The first roll of SEW.Util.rng(seed)(n): Park-Miller, as the Lua has it."""
+    state = seed % 2147483646 + 1
+    state = (state * 48271) % 2147483647
+    return state % n + 1
+
+
 def decode(x, y, rec, sp):
     """The sprites SEW_Build.square puts on this square, in the order it puts them."""
     f, n, w, fix, dress = rec[2], rec[3], rec[4], rec[5], rec[6]
+    gate_edge = "N" if n in GATE_SHUT else "W" if w in GATE_SHUT else None
+    n, w = GATE_SHUT.get(n, n), GATE_SHUT.get(w, w)
     out = []
     floor = {"t": sp["floorTunnel"], "k": sp["floorVault"], "s": sp["floorShelter"], "r": sp["floorRock"],
-             "w": sp["floorVault"], "g": sp["grating"][lua_hash(x, y) % len(sp["grating"])]}.get(f)
+             "w": sp["floorVault"], "g": sp["grating"][lua_hash(x, y) % len(sp["grating"])],
+             "m": sp["floorCave"][1 if lua_hash(x, y, 5) % 5 == 0 else 0] if f == "m" else None,
+             "n": sp["floorCave"][1 if lua_rng1(lua_hash(x, y, 5), 4) == 1 else 0] if f == "n" else None,
+             "v": sp["floorVault"]}.get(f)
     if floor:
         out.append(floor)
     if f == "w":
         out.append(sp["sludge"])
-    nw = n if n in "cb" else None
-    ww = w if w in "cb" else None
+    nw = n if n in "cbe" else None
+    ww = w if w in "cbe" else None
     if nw and ww and nw == ww:
         out.append(sp["wall"][nw]["NW"])
     else:
         if nw:
-            v = sp["variants"][nw]["N"]
+            v = sp["variants"].get(nw, {}).get("N") or [sp["wall"][nw]["N"]]
             out.append(v[lua_hash(x, y, 11) % len(v)])
         if ww:
-            v = sp["variants"][ww]["W"]
+            v = sp["variants"].get(ww, {}).get("W") or [sp["wall"][ww]["W"]]
             out.append(v[lua_hash(x, y, 13) % len(v)])
     if n == "d":
         out += [sp["doorFrame"]["N"], sp["door"]["N"]]
     if w == "d":
         out += [sp["doorFrame"]["W"], sp["door"]["W"]]
+    # Ours over vanilla's, as SEW_Build puts them: a breach over a door frame,
+    # an earth face over a concrete wall.
+    if n in "oq":
+        out += [sp["doorFrame"]["N"], sp["breach"][n]["N"]]
+    if w in "oq":
+        out += [sp["doorFrame"]["W"], sp["breach"][w]["W"]]
+    if n == "e":
+        out.append(sp["earthFace"]["N"])
+    if w == "e":
+        out.append(sp["earthFace"]["W"])
     out += {"L": [sp["ladder"]["N"]], "l": [sp["ladder"]["W"]], "P": [sp["wall"]["c"]["pillar"]],
             "Q": [sp["wall"]["b"]["pillar"]]}.get(fix, [])
     side = "N" if n in "cb" else "W"
@@ -101,6 +134,16 @@ def decode(x, y, rec, sp):
         out.append(sp["graffiti"][dress][side])
     elif dress in "uvxy":
         out.append({"u": sp["puddle"], "v": sp["debris"], "x": sp["lightpool"], "y": sp["smear"]}[dress])
+    elif dress == "z":
+        out.append(sp["stones"][lua_hash(x, y, 17) % len(sp["stones"])])
+    elif dress in "jk":
+        out.append(sp["bones"] if dress == "j" else sp["litter"])
+    elif dress == "l":
+        out.append(sp["claws"][gate_edge or ("N" if n == "e" else "W")])
+    elif dress == "n":
+        out.append(sp["cracks"][gate_edge or side])
+    elif dress == "o":
+        out.append(sp["rousWarning"][side])
     return out
 
 
@@ -172,6 +215,7 @@ def render(tid, cx=None, cy=None, r=22, dark=0.42, shafts=None):
                 px[col, row] = (0, 0, 0, 0)
         stub[n] = s
     walls = ({v for style in sp["wall"].values() for v in style.values()} | set(sp["doorFrame"].values())
+             | {v for b in sp["breach"].values() for v in b.values()}
              | {v for style in sp["variants"].values() for e in style.values() for v in e})
     for (x, y) in sorted(per, key=lambda p: (p[0] + p[1], p[0])):
         outside = area[(x, y)][2] == "r"

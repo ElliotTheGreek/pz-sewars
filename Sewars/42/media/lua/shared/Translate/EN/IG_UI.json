@@ -8,6 +8,7 @@
     "IGUI_SEW_Unready": "Something is blocking the shaft. Try again.",
     "IGUI_SEW_Refused": "You cannot climb here.",
     "IGUI_SEW_Rescued": "You find your way back to a ladder.",
+    "IGUI_SEW_DevCave": "Dev build: a cave is a climb and a short walk from this cover.",
     "IGUI_SEW_ModName": "Sewars",
     "IGUI_SEW_MapKey": "Sewer map",
     "IGUI_SEW_MapKeyTip": "Open or close your map of the sewers: the tunnels you have walked, the ladders you have used and the shelters you have found.",
@@ -40,5 +41,12 @@
     "IGUI_SEW_PlanRevealed": "The plan fills in %1 stretches of tunnel on your sewer map.",
     "IGUI_SEW_PlanKnown": "Nothing on this sheet you don't already know.",
     "IGUI_SEW_JournalMarked": "Marked on your sewer map.",
-    "IGUI_SEW_UnderUnknown": "an unnamed street"
+    "IGUI_SEW_UnderUnknown": "an unnamed street",
+    "IGUI_SEW_Rous": "Rodent of Unusual Size",
+    "IGUI_SEW_RousAlive": "Not while something in the nest is still breathing.",
+    "IGUI_SEW_NestWall": "The bricks come away. Behind them, a tunnel nobody dug with a shovel.",
+    "IGUI_SEW_NestGate": "The last of the brick gives. There is a room behind it, and it is full.",
+    "IGUI_SEW_NestCleared": "The nest is still. Behind the gnawed wall, something catches the light.",
+    "IGUI_SEW_DevLair": "Dev build: down this hatch, the false wall into the rats' nest is a short walk away.",
+    "IGUI_SEW_RousBite": "It bites!"
 }

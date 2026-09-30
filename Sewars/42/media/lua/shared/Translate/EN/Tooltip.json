@@ -4,5 +4,9 @@
     "Tooltip_SEW_Shut": "Rusted into its seat. Whatever is under this one, nobody is getting to it from here.",
     "Tooltip_SEW_ExitTo": "Up the ladder and out onto %1.",
     "Tooltip_SEW_Plan": "One sheet of the town's storm sewers, drawn by the county. Reading it fills in that part of your sewer map.",
-    "Tooltip_SEW_Journal": "Somebody who was down here before you. Reading it marks what they wrote about on your sewer map."
+    "Tooltip_SEW_Journal": "Somebody who was down here before you. Reading it marks what they wrote about on your sewer map.",
+    "Tooltip_SEW_Hatch": "Somebody cut a trapdoor in this floor. A ladder goes down into the dark.",
+    "Tooltip_SEW_HatchUp": "Up the ladder, through a trapdoor, into somebody's house.",
+    "Tooltip_SEW_PryWall": "This stretch of wall is not like the rest. The mortar is gone, and something has gnawed a hole at its foot the size of a dog. A crowbar or a sledgehammer would be quicker than your hands.",
+    "Tooltip_SEW_PryGate": "Old brickwork, gnawed half through from this side. Whatever made the nest was trying to get at something behind it."
 }

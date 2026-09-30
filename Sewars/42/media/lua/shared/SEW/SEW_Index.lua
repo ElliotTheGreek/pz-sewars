@@ -3,9 +3,9 @@
 -- loaded everywhere: the client lights the shafts and names the street, the
 -- server knows which manhole leads where. The squares are server-only (Data/).
 SEW = SEW or {}
-local I = { rev = "33dd38986420", towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {} }
+local I = { rev = "cc83b339b522", towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil }
 SEW.Index = I
-local S, H, J, P = I.shafts, I.shelters, I.journals, I.plans
+local S, H, J, P, V = I.shafts, I.shelters, I.journals, I.plans, I.caves
 J[#J+1]={town="west_point",x=12055,y=6896,kind="squat",text="squat_2",street="Main St",dir="south"}
 J[#J+1]={town="west_point",x=12132,y=6904,kind="pump",text="pump_1",street="2nd St",dir="west"}
 J[#J+1]={town="west_point",x=11395,y=6787,kind="laststand",text="laststand_2",street="9th St",dir="north"}
@@ -99,6 +99,152 @@ J[#J+1]={town="muldraugh_4",x=10067,y=9792,kind="shaft",text="shaft_2",street="O
 J[#J+1]={town="knox_county",x=10086,y=6682,kind="shaft",text="shaft_2",street="",dir="north"}
 J[#J+1]={town="west_point_3",x=10375,y=7448,kind="shaft",text="shaft_2",street="Raccoon Road",dir="east"}
 J[#J+1]={town="knox_county_2",x=15033,y=820,kind="shaft",text="shaft_1",street="",dir="south"}
+J[#J+1]={town="louisville_3",x=12557,y=3442,kind="maintenance",text="maintenance_2",street="KY-1394",dir="south"}
+J[#J+1]={town="louisville_3",x=13033,y=3068,kind="maintenance",text="maintenance_1",street="Window St",dir="south-east"}
+J[#J+1]={town="louisville_3",x=12464,y=2509,kind="maintenance",text="maintenance_2",street="S 1st St",dir="west"}
+J[#J+1]={town="louisville_3",x=12698,y=2258,kind="pump",text="pump_2",street="Doffcap St",dir="east"}
+J[#J+1]={town="louisville_3",x=12062,y=2028,kind="maintenance",text="maintenance_2",street="Bourbon Way",dir="south"}
+J[#J+1]={town="louisville_3",x=13604,y=2145,kind="laststand",text="laststand_1",street="Swill St",dir="north-west"}
+J[#J+1]={town="louisville_3",x=12464,y=2509,kind="maintenance",text="maintenance_2",street="S 1st St",dir="east"}
+J[#J+1]={town="louisville_3",x=12747,y=1975,kind="squat",text="squat_1",street="William St",dir="east"}
+J[#J+1]={town="louisville_3",x=12295,y=2051,kind="laststand",text="laststand_2",street="3rd St",dir="south-west"}
+J[#J+1]={town="louisville_3",x=12974,y=3326,kind="squat",text="squat_2",street="Sheriff St",dir="north"}
+J[#J+1]={town="louisville_3",x=12519,y=2815,kind="laststand",text="laststand_2",street="S 1st St",dir="north"}
+J[#J+1]={town="louisville_3",x=12593,y=1178,kind="squat",text="squat_1",street="W River Road",dir="south"}
+J[#J+1]={town="louisville_3",x=12994,y=1368,kind="maintenance",text="maintenance_2",street="Jackson St",dir="north"}
+J[#J+1]={town="louisville_3",x=12062,y=2028,kind="maintenance",text="maintenance_1",street="Bourbon Way",dir="north-west"}
+J[#J+1]={town="louisville_3",x=13488,y=2302,kind="squat",text="squat_2",street="Goodboot St",dir="north"}
+J[#J+1]={town="louisville_3",x=13975,y=2959,kind="squat",text="squat_2",street="Sapphire St",dir="north"}
+J[#J+1]={town="louisville_3",x=12773,y=3689,kind="laststand",text="laststand_1",street="Finch St",dir="south-west"}
+J[#J+1]={town="louisville_3",x=13914,y=3069,kind="pump",text="pump_1",street="Opal St",dir="north"}
+J[#J+1]={town="louisville_3",x=13764,y=2928,kind="maintenance",text="maintenance_2",street="Phoenix St",dir="west"}
+J[#J+1]={town="louisville_3",x=13879,y=2395,kind="laststand",text="laststand_2",street="Southside Dr",dir="west"}
+J[#J+1]={town="louisville_3",x=12207,y=2174,kind="maintenance",text="maintenance_1",street="Mary St",dir="west"}
+J[#J+1]={town="louisville_3",x=12747,y=1975,kind="squat",text="squat_1",street="William St",dir="north"}
+J[#J+1]={town="louisville_3",x=14292,y=3003,kind="squat",text="squat_1",street="Carrot St",dir="south"}
+J[#J+1]={town="louisville_3",x=13648,y=2197,kind="squat",text="squat_1",street="Victory St",dir="south-east"}
+J[#J+1]={town="louisville_3",x=12361,y=3449,kind="maintenance",text="maintenance_2",street="Rockford Lane",dir="south-east"}
+J[#J+1]={town="louisville_3",x=14034,y=2422,kind="squat",text="squat_1",street="Woodsedge St",dir="east"}
+J[#J+1]={town="louisville_3",x=12388,y=1782,kind="maintenance",text="maintenance_1",street="2nd St",dir="north-west"}
+J[#J+1]={town="louisville_3",x=12762,y=3743,kind="laststand",text="laststand_2",street="Finch St",dir="east"}
+J[#J+1]={town="louisville_3",x=13549,y=3244,kind="pump",text="pump_1",street="Tulip St",dir="east"}
+J[#J+1]={town="louisville_3",x=13339,y=3195,kind="squat",text="squat_2",street="Spring Cl",dir="north"}
+J[#J+1]={town="louisville_3",x=13177,y=1950,kind="pump",text="pump_1",street="Gods Mercy St",dir="south"}
+J[#J+1]={town="louisville_3",x=13968,y=2998,kind="laststand",text="laststand_2",street="Emerald St",dir="south"}
+J[#J+1]={town="louisville_3",x=12262,y=3104,kind="squat",text="squat_2",street="Nelson St",dir="south"}
+J[#J+1]={town="louisville_3",x=12573,y=2150,kind="maintenance",text="maintenance_1",street="Merciful St",dir="east"}
+J[#J+1]={town="louisville_3",x=12198,y=2575,kind="maintenance",text="maintenance_1",street="Chapelmount Downs",dir="north-east"}
+J[#J+1]={town="louisville_3",x=13804,y=2938,kind="squat",text="squat_1",street="Sapphire St",dir="east"}
+J[#J+1]={town="louisville_3",x=12521,y=2160,kind="squat",text="squat_1",street="Old Seminary Road",dir="west"}
+J[#J+1]={town="louisville_3",x=12748,y=2095,kind="laststand",text="laststand_2",street="Grady St",dir="south"}
+J[#J+1]={town="louisville_3",x=12773,y=3689,kind="laststand",text="laststand_2",street="Finch St",dir="north"}
+J[#J+1]={town="louisville_3",x=12671,y=3461,kind="squat",text="squat_2",street="Jay St",dir="south"}
+J[#J+1]={town="louisville_3",x=13495,y=1546,kind="squat",text="squat_1",street="Goat Race Alley",dir="west"}
+J[#J+1]={town="louisville_3",x=12778,y=1506,kind="laststand",text="laststand_2",street="W Main St",dir="east"}
+J[#J+1]={town="louisville_3",x=12431,y=3442,kind="laststand",text="laststand_1",street="KY-1394",dir="east"}
+J[#J+1]={town="louisville_3",x=13975,y=2880,kind="squat",text="squat_2",street="Ruby St",dir="east"}
+J[#J+1]={town="louisville_3",x=13879,y=2395,kind="laststand",text="laststand_1",street="Southside Dr",dir="east"}
+J[#J+1]={town="louisville_3",x=13637,y=2712,kind="laststand",text="laststand_1",street="Washington St",dir="south"}
+J[#J+1]={town="louisville_3",x=13585,y=2571,kind="maintenance",text="maintenance_1",street="Crow St",dir="north"}
+J[#J+1]={town="louisville_3",x=12587,y=1495,kind="squat",text="squat_2",street="Jefferson St",dir="west"}
+J[#J+1]={town="louisville_3",x=12866,y=1233,kind="maintenance",text="maintenance_2",street="E River Road",dir="west"}
+J[#J+1]={town="louisville_3",x=12593,y=1178,kind="squat",text="squat_2",street="W River Road",dir="north"}
+J[#J+1]={town="louisville_3",x=12327,y=2519,kind="squat",text="squat_2",street="3rd St",dir="north-east"}
+J[#J+1]={town="louisville_3",x=13544,y=2935,kind="squat",text="squat_1",street="S Shelby Road",dir="east"}
+J[#J+1]={town="louisville_3",x=12207,y=2174,kind="maintenance",text="maintenance_2",street="Mary St",dir="north"}
+J[#J+1]={town="louisville_3",x=13940,y=2869,kind="maintenance",text="maintenance_1",street="Ruby St",dir="west"}
+J[#J+1]={town="louisville_3",x=12994,y=1467,kind="pump",text="pump_2",street="Lewis and Clark St",dir="south"}
+J[#J+1]={town="louisville_3",x=13871,y=2789,kind="pump",text="pump_1",street="Diamond St",dir="north"}
+J[#J+1]={town="louisville_3",x=12145,y=2065,kind="squat",text="squat_2",street="Chicasaw St",dir="south-east"}
+J[#J+1]={town="louisville_3",x=14034,y=2422,kind="squat",text="squat_1",street="Woodsedge St",dir="north-east"}
+J[#J+1]={town="louisville_3",x=12980,y=3027,kind="laststand",text="laststand_1",street="Waverly St",dir="north-west"}
+J[#J+1]={town="louisville_3",x=12912,y=1241,kind="pump",text="pump_2",street="E River Road",dir="east"}
+J[#J+1]={town="louisville_3",x=12904,y=2300,kind="laststand",text="laststand_2",street="Ulster St",dir="south-west"}
+J[#J+1]={town="louisville_3",x=14161,y=2946,kind="maintenance",text="maintenance_1",street="Mulefear St",dir="north-west"}
+J[#J+1]={town="louisville_3",x=12782,y=3452,kind="laststand",text="laststand_2",street="KY-1394",dir="east"}
+J[#J+1]={town="louisville_3",x=13549,y=3244,kind="pump",text="pump_1",street="Tulip St",dir="south-west"}
+J[#J+1]={town="louisville_3",x=12698,y=2258,kind="pump",text="pump_2",street="Doffcap St",dir="south"}
+J[#J+1]={town="louisville_3",x=12545,y=2996,kind="pump",text="pump_1",street="Waverly St",dir="south"}
+J[#J+1]={town="louisville_3",x=13648,y=2197,kind="squat",text="squat_1",street="Victory St",dir="north-west"}
+J[#J+1]={town="louisville_3",x=12261,y=2870,kind="laststand",text="laststand_1",street="N Maple Court St",dir="north"}
+J[#J+1]={town="louisville_3",x=12762,y=3743,kind="laststand",text="laststand_1",street="Finch St",dir="south"}
+J[#J+1]={town="louisville_3",x=12671,y=3461,kind="squat",text="squat_2",street="Jay St",dir="west"}
+J[#J+1]={town="louisville_3",x=12594,y=1128,kind="maintenance",text="maintenance_1",street="Clark Memorial Bridge",dir="south"}
+J[#J+1]={town="louisville_3",x=12594,y=1128,kind="maintenance",text="maintenance_1",street="Clark Memorial Bridge",dir="north"}
+J[#J+1]={town="louisville_3",x=13874,y=2836,kind="laststand",text="laststand_2",street="Ruby St",dir="south"}
+J[#J+1]={town="louisville_3",x=13834,y=3069,kind="laststand",text="laststand_1",street="Opal St",dir="west"}
+J[#J+1]={town="louisville_3",x=12587,y=1495,kind="squat",text="squat_1",street="Jefferson St",dir="north-west"}
+J[#J+1]={town="louisville_3",x=13496,y=2337,kind="maintenance",text="maintenance_1",street="S Shelby Road",dir="south"}
+J[#J+1]={town="louisville_3",x=12960,y=2192,kind="laststand",text="laststand_1",street="Wellington Hts",dir="north-east"}
+J[#J+1]={town="louisville_3",x=12388,y=1782,kind="maintenance",text="maintenance_1",street="2nd St",dir="south"}
+J[#J+1]={town="louisville_3",x=13409,y=2935,kind="pump",text="pump_2",street="Hyacinth St",dir="west"}
+J[#J+1]={town="louisville_3",x=13743,y=1635,kind="maintenance",text="maintenance_1",street="Backway St",dir="east"}
+J[#J+1]={town="louisville_3",x=14292,y=3003,kind="squat",text="squat_2",street="Carrot St",dir="south-east"}
+J[#J+1]={town="louisville_3",x=13647,y=3113,kind="squat",text="squat_2",street="Old Market St",dir="north-east"}
+J[#J+1]={town="louisville_3",x=12431,y=3442,kind="laststand",text="laststand_1",street="KY-1394",dir="west"}
+J[#J+1]={town="louisville_3",x=12657,y=2259,kind="laststand",text="laststand_1",street="Doffcap St",dir="west"}
+J[#J+1]={town="louisville_3",x=13194,y=1670,kind="laststand",text="laststand_2",street="Rudy Grady Blvd",dir="north"}
+J[#J+1]={town="louisville_3",x=12202,y=2206,kind="squat",text="squat_2",street="Mary St",dir="south"}
+J[#J+1]={town="louisville_3",x=12294,y=2157,kind="pump",text="pump_2",street="Graduate St",dir="south"}
+J[#J+1]={town="louisville_3",x=13914,y=3069,kind="pump",text="pump_2",street="Opal St",dir="east"}
+J[#J+1]={town="louisville_3",x=12932,y=3365,kind="squat",text="squat_2",street="Sheriff St",dir="south-west"}
+J[#J+1]={town="louisville_3",x=12400,y=1687,kind="laststand",text="laststand_1",street="W Liberty St",dir="north"}
+J[#J+1]={town="louisville_3",x=12361,y=3449,kind="maintenance",text="maintenance_2",street="Rockford Lane",dir="west"}
+J[#J+1]={town="louisville_3",x=12974,y=3326,kind="squat",text="squat_2",street="Sheriff St",dir="north-east"}
+J[#J+1]={town="louisville_3",x=12327,y=2519,kind="squat",text="squat_1",street="3rd St",dir="west"}
+J[#J+1]={town="louisville_3",x=12594,y=1291,kind="laststand",text="laststand_2",street="W River Road",dir="east"}
+J[#J+1]={town="irvington",x=2307,y=14116,kind="pump",text="pump_2",street="Hall Road",dir="north-west"}
+J[#J+1]={town="irvington",x=2725,y=13857,kind="laststand",text="laststand_2",street="3rd St",dir="north"}
+J[#J+1]={town="irvington",x=2594,y=14104,kind="laststand",text="laststand_1",street="Hall Road",dir="east"}
+J[#J+1]={town="irvington",x=2528,y=14506,kind="laststand",text="laststand_1",street="1st Ave",dir="west"}
+J[#J+1]={town="irvington",x=2200,y=14107,kind="maintenance",text="maintenance_2",street="Merino St",dir="west"}
+J[#J+1]={town="irvington",x=1888,y=14605,kind="laststand",text="laststand_2",street="Arkansas Av",dir="north-east"}
+J[#J+1]={town="irvington",x=2333,y=14506,kind="maintenance",text="maintenance_2",street="KY-79",dir="west"}
+J[#J+1]={town="irvington",x=1894,y=14481,kind="squat",text="squat_2",street="N Carl St",dir="north"}
+J[#J+1]={town="irvington",x=2308,y=14236,kind="laststand",text="laststand_2",street="Rant St",dir="north-west"}
+J[#J+1]={town="irvington",x=2307,y=14116,kind="pump",text="pump_2",street="Hall Road",dir="east"}
+J[#J+1]={town="irvington",x=2308,y=14236,kind="laststand",text="laststand_2",street="Rant St",dir="east"}
+J[#J+1]={town="irvington",x=2518,y=14096,kind="maintenance",text="maintenance_1",street="1st Ave",dir="west"}
+J[#J+1]={town="irvington",x=2528,y=14506,kind="laststand",text="laststand_2",street="1st Ave",dir="east"}
+J[#J+1]={town="irvington",x=2703,y=13963,kind="laststand",text="laststand_1",street="Lake St",dir="south"}
+J[#J+1]={town="irvington",x=2258,y=14228,kind="pump",text="pump_2",street="Merino St",dir="west"}
+J[#J+1]={town="irvington",x=2594,y=14104,kind="laststand",text="laststand_2",street="Hall Road",dir="west"}
+J[#J+1]={town="irvington",x=1888,y=14605,kind="laststand",text="laststand_1",street="Arkansas Av",dir="south"}
+J[#J+1]={town="brandenburg_2",x=1755,y=5881,kind="pump",text="pump_2",street="Anvil St",dir="east"}
+J[#J+1]={town="brandenburg_2",x=2159,y=6115,kind="laststand",text="laststand_2",street="Boyd Road",dir="north-west"}
+J[#J+1]={town="brandenburg_2",x=2191,y=6181,kind="maintenance",text="maintenance_2",street="Hill St",dir="north-east"}
+J[#J+1]={town="brandenburg_2",x=1745,y=5927,kind="pump",text="pump_2",street="Anvil St",dir="south"}
+J[#J+1]={town="brandenburg_2",x=2191,y=6181,kind="maintenance",text="maintenance_2",street="Hill St",dir="west"}
+J[#J+1]={town="brandenburg_2",x=2190,y=6079,kind="maintenance",text="maintenance_1",street="Kilree St",dir="east"}
+J[#J+1]={town="brandenburg_2",x=2190,y=6079,kind="maintenance",text="maintenance_1",street="Kilree St",dir="north-east"}
+J[#J+1]={town="brandenburg_2",x=2159,y=6115,kind="laststand",text="laststand_1",street="Boyd Road",dir="south-west"}
+J[#J+1]={town="brandenburg_2",x=2241,y=5982,kind="squat",text="squat_1",street="Meade Road",dir="south"}
+J[#J+1]={town="brandenburg_2",x=1755,y=5881,kind="pump",text="pump_1",street="Anvil St",dir="north"}
+J[#J+1]={town="brandenburg_2",x=1755,y=5881,kind="pump",text="pump_2",street="Anvil St",dir="west"}
+J[#J+1]={town="brandenburg_2",x=2190,y=6079,kind="maintenance",text="maintenance_1",street="Kilree St",dir="south-west"}
+J[#J+1]={town="brandenburg_2",x=2109,y=6263,kind="pump",text="pump_1",street="Armory Road",dir="north-east"}
+J[#J+1]={town="march_ridge",x=9996,y=12909,kind="pump",text="pump_1",street="Sherman St",dir="north-east"}
+J[#J+1]={town="march_ridge",x=10095,y=12829,kind="laststand",text="laststand_1",street="Eisenhower St",dir="south-west"}
+J[#J+1]={town="march_ridge",x=9996,y=12909,kind="pump",text="pump_1",street="Sherman St",dir="south-west"}
+J[#J+1]={town="march_ridge",x=10095,y=12829,kind="laststand",text="laststand_1",street="Eisenhower St",dir="north-east"}
+J[#J+1]={town="march_ridge",x=9996,y=12909,kind="pump",text="pump_2",street="Sherman St",dir="south"}
+J[#J+1]={town="march_ridge",x=10231,y=12745,kind="maintenance",text="maintenance_2",street="Greene St",dir="south-west"}
+J[#J+1]={town="valley_station",x=13577,y=5716,kind="pump",text="pump_2",street="Bearcamp Road",dir="west"}
+J[#J+1]={town="valley_station",x=13710,y=5723,kind="squat",text="squat_1",street="Bearcamp Road",dir="east"}
+J[#J+1]={town="riverside_2",x=5464,y=5984,kind="laststand",text="laststand_1",street="Long Needle Road",dir="east"}
+J[#J+1]={town="riverside_2",x=5343,y=5950,kind="laststand",text="laststand_2",street="Scenic Grove Road",dir="west"}
+J[#J+1]={town="muldraugh_5",x=11894,y=9905,kind="maintenance",text="maintenance_1",street="Tioga Road",dir="north"}
+J[#J+1]={town="muldraugh_5",x=11895,y=9967,kind="pump",text="pump_2",street="Tioga Road",dir="south"}
+J[#J+1]={town="valley_station_2",x=12905,y=4850,kind="maintenance",text="maintenance_1",street="Tinsley Road",dir="south-east"}
+J[#J+1]={town="valley_station_2",x=12813,y=4650,kind="pump",text="pump_2",street="Tinsley Road",dir="north-west"}
+J[#J+1]={town="louisville_4",x=15365,y=3321,kind="laststand",text="laststand_2",street="KY-841",dir="south-west"}
+J[#J+1]={town="louisville_4",x=15444,y=3171,kind="pump",text="pump_1",street="Standiford Road",dir="north-east"}
+J[#J+1]={town="echo_creek",x=2031,y=10992,kind="shaft",text="shaft_1",street="Lakehook Road",dir="south-east"}
+J[#J+1]={town="brandenburg_3",x=4040,y=6547,kind="shaft",text="shaft_1",street="Sunderland Hills Road",dir="south-east"}
+J[#J+1]={town="irvington_2",x=3827,y=14502,kind="shaft",text="shaft_1",street="KY-79",dir="east"}
+J[#J+1]={town="riverside_3",x=5884,y=6638,kind="shaft",text="shaft_2",street="West Maple St",dir="south-east"}
+J[#J+1]={town="muldraugh_6",x=10138,y=10971,kind="shaft",text="shaft_1",street="Inferno Road",dir="south-east"}
+J[#J+1]={town="irvington_3",x=833,y=12847,kind="shaft",text="shaft_1",street="KY-79",dir="north"}
 P[#P+1]={town="west_point",i=3,j=0}
 P[#P+1]={town="west_point",i=5,j=1}
 P[#P+1]={town="west_point",i=5,j=0}
@@ -146,7 +292,69 @@ P[#P+1]={town="louisville_2",i=0,j=0}
 P[#P+1]={town="brandenburg",i=0,j=0}
 P[#P+1]={town="muldraugh_4",i=0,j=0}
 P[#P+1]={town="west_point_3",i=0,j=0}
-I.towns["west_point"] = { name = "West Point", x0 = 10876, y0 = 6648, x1 = 12338, y1 = 7217, tw = 6, th = 3, chunks = 1898 }
+P[#P+1]={town="louisville_3",i=3,j=5}
+P[#P+1]={town="louisville_3",i=7,j=4}
+P[#P+1]={town="louisville_3",i=5,j=1}
+P[#P+1]={town="louisville_3",i=6,j=2}
+P[#P+1]={town="louisville_3",i=9,j=6}
+P[#P+1]={town="louisville_3",i=5,j=8}
+P[#P+1]={town="louisville_3",i=2,j=9}
+P[#P+1]={town="louisville_3",i=4,j=4}
+P[#P+1]={town="louisville_3",i=7,j=1}
+P[#P+1]={town="louisville_3",i=1,j=7}
+P[#P+1]={town="louisville_3",i=9,j=6}
+P[#P+1]={town="louisville_3",i=8,j=7}
+P[#P+1]={town="louisville_3",i=2,j=7}
+P[#P+1]={town="louisville_3",i=2,j=10}
+P[#P+1]={town="louisville_3",i=2,j=6}
+P[#P+1]={town="louisville_3",i=8,j=6}
+P[#P+1]={town="louisville_3",i=1,j=9}
+P[#P+1]={town="louisville_3",i=9,j=7}
+P[#P+1]={town="louisville_3",i=3,j=4}
+P[#P+1]={town="louisville_3",i=2,j=4}
+P[#P+1]={town="louisville_3",i=4,j=3}
+P[#P+1]={town="louisville_3",i=2,j=1}
+P[#P+1]={town="louisville_3",i=2,j=10}
+P[#P+1]={town="louisville_3",i=6,j=1}
+P[#P+1]={town="louisville_3",i=1,j=4}
+P[#P+1]={town="louisville_3",i=2,j=5}
+P[#P+1]={town="louisville_3",i=3,j=1}
+P[#P+1]={town="louisville_3",i=9,j=7}
+P[#P+1]={town="louisville_3",i=3,j=5}
+P[#P+1]={town="louisville_3",i=1,j=6}
+P[#P+1]={town="louisville_3",i=2,j=3}
+P[#P+1]={town="louisville_3",i=2,j=6}
+P[#P+1]={town="louisville_3",i=3,j=5}
+P[#P+1]={town="louisville_3",i=3,j=2}
+P[#P+1]={town="irvington",i=1,j=3}
+P[#P+1]={town="irvington",i=3,j=0}
+P[#P+1]={town="irvington",i=5,j=2}
+P[#P+1]={town="irvington",i=3,j=2}
+P[#P+1]={town="irvington",i=3,j=0}
+P[#P+1]={town="irvington",i=3,j=0}
+P[#P+1]={town="irvington",i=3,j=1}
+P[#P+1]={town="brandenburg_2",i=1,j=1}
+P[#P+1]={town="brandenburg_2",i=2,j=0}
+P[#P+1]={town="brandenburg_2",i=1,j=1}
+P[#P+1]={town="brandenburg_2",i=1,j=1}
+P[#P+1]={town="brandenburg_2",i=2,j=3}
+P[#P+1]={town="brandenburg_2",i=3,j=0}
+P[#P+1]={town="brandenburg_2",i=3,j=1}
+P[#P+1]={town="brandenburg_2",i=3,j=1}
+P[#P+1]={town="march_ridge",i=0,j=1}
+P[#P+1]={town="march_ridge",i=0,j=2}
+P[#P+1]={town="march_ridge",i=1,j=0}
+P[#P+1]={town="valley_station",i=1,j=0}
+P[#P+1]={town="muldraugh_5",i=0,j=1}
+P[#P+1]={town="muldraugh_5",i=0,j=0}
+P[#P+1]={town="valley_station_2",i=0,j=1}
+P[#P+1]={town="valley_station_2",i=0,j=1}
+P[#P+1]={town="louisville_4",i=0,j=1}
+P[#P+1]={town="echo_creek",i=0,j=1}
+P[#P+1]={town="brandenburg_3",i=1,j=1}
+P[#P+1]={town="irvington_2",i=0,j=0}
+P[#P+1]={town="irvington_3",i=0,j=0}
+I.towns["west_point"] = { name = "West Point", x0 = 10876, y0 = 6648, x1 = 12338, y1 = 7217, tw = 6, th = 3, chunks = 2021 }
 S["10916,6902"]={town="west_point",x=10916,y=6902,lx=10916,ly=6902,edge="W",street="Main St"}
 S["10951,6898"]={town="west_point",x=10951,y=6898,lx=10951,ly=6898,edge="N",street="Main St"}
 S["10963,6693"]={town="west_point",x=10963,y=6693,lx=10963,ly=6693,edge="N",street="Oak St"}
@@ -278,6 +486,28 @@ S["12227,7151"]={town="west_point",x=12227,y=7151,lx=12227,ly=7151,edge="N",stre
 S["12234,7043"]={town="west_point",x=12234,y=7043,lx=12235,ly=7043,edge="W",street="Dixie Highway (Route 31W)"}
 S["12277,6968"]={town="west_point",x=12277,y=6968,lx=12277,ly=6968,edge="N",street="Clarke Way"}
 S["12298,6927"]={town="west_point",x=12298,y=6927,lx=12298,ly=6927,edge="N",street="Clarke Way"}
+S["11893,6737"]={town="west_point",x=11893,y=6737,lx=11893,ly=6737,edge="N",street="",hatch="garagestorage",under={11893,6737,11894,6737,11895,6737}}
+S["11595,6716"]={town="west_point",x=11595,y=6716,lx=11595,ly=6716,edge="N",street="",hatch="garagestorage",under={11595,6716,11596,6716,11597,6716}}
+S["11666,6814"]={town="west_point",x=11666,y=6814,lx=11666,ly=6814,edge="N",street="",hatch="garagestorage",under={11666,6814,11666,6815,11666,6816}}
+S["11307,6883"]={town="west_point",x=11307,y=6883,lx=11307,ly=6883,edge="N",street="",hatch="kitchen",under={11307,6883,11307,6884,11307,6885,11307,6886}}
+S["11745,6814"]={town="west_point",x=11745,y=6814,lx=11745,ly=6814,edge="N",street="",hatch="kitchen",under={11745,6814,11744,6814,11743,6814,11742,6814}}
+S["11118,6728"]={town="west_point",x=11118,y=6728,lx=11118,ly=6728,edge="N",street="",hatch="kitchen",under={11118,6728,11117,6728,11116,6728,11115,6728,11114,6728,11113,6728}}
+S["11505,6989"]={town="west_point",x=11505,y=6989,lx=11505,ly=6989,edge="N",street="",hatch="kitchen",under={11505,6989,11505,6990,11505,6991,11505,6992}}
+S["11987,6752"]={town="west_point",x=11987,y=6752,lx=11987,ly=6752,edge="N",street="",hatch="kitchen",under={11987,6752,11987,6753,11987,6754,11987,6755}}
+S["11572,6798"]={town="west_point",x=11572,y=6798,lx=11572,ly=6798,edge="N",street="",hatch="kitchen",under={11572,6798,11571,6798,11570,6798,11569,6798}}
+S["11246,6700"]={town="west_point",x=11246,y=6700,lx=11246,ly=6700,edge="N",street="",hatch="kitchen",under={11246,6700,11246,6701,11246,6702,11246,6703}}
+S["11683,6934"]={town="west_point",x=11683,y=6934,lx=11683,ly=6934,edge="N",street="",hatch="kitchen",under={11683,6934,11683,6935,11683,6936,11683,6937}}
+S["11678,6848"]={town="west_point",x=11678,y=6848,lx=11678,ly=6848,edge="W",street="",hatch="kitchen",under={11678,6848,11678,6847,11678,6846,11678,6845,11681,6845}}
+S["11789,6754"]={town="west_point",x=11789,y=6754,lx=11789,ly=6754,edge="N",street="",hatch="kitchen",under={11789,6754,11790,6754,11791,6754,11792,6754}}
+S["11662,6912"]={town="west_point",x=11662,y=6912,lx=11662,ly=6912,edge="W",street="",hatch="kitchen",under={11662,6912,11662,6911,11662,6910,11662,6909}}
+S["11718,6883"]={town="west_point",x=11718,y=6883,lx=11718,ly=6883,edge="N",street="",hatch="kitchen",under={11718,6883,11717,6883,11716,6883,11715,6883}}
+S["11497,6735"]={town="west_point",x=11497,y=6735,lx=11497,ly=6735,edge="N",street="",hatch="kitchen",under={11497,6735,11497,6736,11497,6737}}
+S["11811,6727"]={town="west_point",x=11811,y=6727,lx=11811,ly=6727,edge="W",street="",hatch="kitchen",under={11811,6727,11811,6726,11811,6725,11811,6724}}
+S["12028,6983"]={town="west_point",x=12028,y=6983,lx=12028,ly=6983,edge="N",street="",hatch="kitchen",under={12028,6983,12029,6983,12030,6983,12031,6983,12032,6983}}
+S["11857,6790"]={town="west_point",x=11857,y=6790,lx=11857,ly=6790,edge="N",street="",hatch="laundry",under={11857,6790,11856,6790,11855,6790,11854,6790}}
+S["11136,6869"]={town="west_point",x=11136,y=6869,lx=11136,ly=6869,edge="N",street="",hatch="laundry",under={11136,6869,11136,6870,11136,6871,11136,6872}}
+S["12149,7039"]={town="west_point",x=12149,y=7039,lx=12149,ly=7039,edge="N",street="",hatch="storageunit",under={12149,7039,12150,7039,12151,7039}}
+S["11460,6884"]={town="west_point",x=11460,y=6884,lx=11460,ly=6884,edge="N",street="",hatch="kitchen",under={11460,6884,11460,6885,11460,6886,11460,6887,11460,6888}}
 H[#H+1]={town="west_point",kind="maintenance",x=12041,y=6831,w=5,h=4}
 H[#H+1]={town="west_point",kind="maintenance",x=12242,y=6895,w=6,h=4}
 H[#H+1]={town="west_point",kind="maintenance",x=11374,y=6850,w=8,h=6}
@@ -304,7 +534,23 @@ H[#H+1]={town="west_point",kind="maintenance",x=11084,y=6753,w=7,h=6}
 H[#H+1]={town="west_point",kind="squat",x=11693,y=6738,w=6,h=6}
 H[#H+1]={town="west_point",kind="squat",x=12099,y=6767,w=8,h=5}
 H[#H+1]={town="west_point",kind="laststand",x=12235,y=7068,w=7,h=5}
-I.towns["muldraugh"] = { name = "Muldraugh", x0 = 10557, y0 = 9198, x1 = 11126, y1 = 10697, tw = 3, th = 6, chunks = 2141 }
+V[#V+1]={town="west_point",x=11666,y=6848,bx=11690,by=6837,sx=11682,sy=6832}
+V[#V+1]={town="west_point",x=11838,y=6795,bx=11847,by=6807,sx=11854,sy=6800}
+V[#V+1]={town="west_point",x=11673,y=6777,bx=11642,by=6774,sx=11626,sy=6759}
+V[#V+1]={town="west_point",x=12323,y=6726,bx=12318,by=6741,sx=12298,sy=6927}
+V[#V+1]={town="west_point",x=11032,y=6895,bx=11045,by=6899,sx=10951,sy=6898}
+V[#V+1]={town="west_point",x=11762,y=6781,bx=11758,by=6774,sx=11729,sy=6770}
+V[#V+1]={town="west_point",x=11689,y=6923,bx=11699,by=6934,sx=11685,sy=6902}
+V[#V+1]={town="west_point",x=11584,y=7031,bx=11600,by=7030,sx=11603,sy=6976}
+V[#V+1]={town="west_point",x=11381,y=7005,bx=11399,by=6998,sx=11402,sy=6955}
+V[#V+1]={town="west_point",x=12136,y=6922,bx=12144,by=6901,sx=12151,sy=6930}
+V[#V+1]={town="west_point",x=11376,y=6721,bx=11371,by=6744,sx=11362,sy=6739}
+V[#V+1]={town="west_point",x=11880,y=6769,bx=11888,by=6772,sx=11907,sy=6783}
+V[#V+1]={town="west_point",x=12202,y=6857,bx=12178,by=6869,sx=12209,sy=6897}
+V[#V+1]={town="west_point",x=11231,y=6737,bx=11249,by=6750,sx=11259,sy=6731}
+V[#V+1]={town="west_point",x=11754,y=6731,bx=11757,by=6709,sx=11750,sy=6710}
+V[#V+1]={town="west_point",x=10938,y=6656,bx=10960,by=6657,sx=10963,sy=6693}
+I.towns["muldraugh"] = { name = "Muldraugh", x0 = 10557, y0 = 9198, x1 = 11126, y1 = 10697, tw = 3, th = 6, chunks = 2215 }
 S["10597,10163"]={town="muldraugh",x=10597,y=10163,lx=10597,ly=10163,edge="N",street="Dixie Highway (Route 31W)"}
 S["10603,9526"]={town="muldraugh",x=10603,y=9526,lx=10603,ly=9526,edge="N",street="Dixie Highway (Route 31W)"}
 S["10604,10235"]={town="muldraugh",x=10604,y=10235,lx=10604,ly=10235,edge="N",street="Dixie Highway (Route 31W)"}
@@ -404,6 +650,22 @@ S["10934,9507"]={town="muldraugh",x=10934,y=9507,lx=10934,ly=9507,edge="N",stree
 S["10937,10015"]={town="muldraugh",x=10937,y=10015,lx=10937,ly=10015,edge="N",street="S Main St"}
 S["11004,9400"]={town="muldraugh",x=11004,y=9400,lx=11004,ly=9400,edge="W",street="Irma Dr"}
 S["11086,9317"]={town="muldraugh",x=11086,y=9317,lx=11086,ly=9317,edge="N",street="Irma Dr"}
+S["10880,10004"]={town="muldraugh",x=10880,y=10004,lx=10880,ly=10004,edge="N",street="",hatch="kitchen",under={10880,10004,10880,10005,10880,10006,10880,10007,10880,10008}}
+S["10907,9668"]={town="muldraugh",x=10907,y=9668,lx=10907,ly=9668,edge="N",street="",hatch="kitchen",under={10907,9668,10906,9668,10905,9668,10904,9668}}
+S["10722,9581"]={town="muldraugh",x=10722,y=9581,lx=10722,ly=9581,edge="N",street="",hatch="kitchen",under={10722,9581,10723,9581,10724,9581,10725,9581}}
+S["10709,9549"]={town="muldraugh",x=10709,y=9549,lx=10709,ly=9549,edge="N",street="",hatch="kitchen",under={10709,9549,10709,9550,10709,9551,10709,9552,10709,9553,10709,9554}}
+S["10769,9671"]={town="muldraugh",x=10769,y=9671,lx=10769,ly=9671,edge="N",street="",hatch="garage",under={10769,9671,10768,9671,10767,9671,10766,9671}}
+S["10787,9804"]={town="muldraugh",x=10787,y=9804,lx=10787,ly=9804,edge="W",street="",hatch="kitchen",under={10787,9804,10787,9803,10787,9802,10787,9801}}
+S["10670,9772"]={town="muldraugh",x=10670,y=9772,lx=10670,ly=9772,edge="N",street="",hatch="kitchen",under={10670,9772,10669,9772,10668,9772,10667,9772}}
+S["10666,9553"]={town="muldraugh",x=10666,y=9553,lx=10666,ly=9553,edge="N",street="",hatch="garage",under={10666,9553,10666,9554,10666,9555}}
+S["10688,9844"]={town="muldraugh",x=10688,y=9844,lx=10688,ly=9844,edge="N",street="",hatch="storageunit",under={10688,9844,10687,9844,10686,9844,10685,9844,10684,9844}}
+S["10690,9929"]={town="muldraugh",x=10690,y=9929,lx=10690,ly=9929,edge="N",street="",hatch="kitchen",under={10690,9929,10690,9930,10690,9931}}
+S["10689,10163"]={town="muldraugh",x=10689,y=10163,lx=10689,ly=10163,edge="W",street="",hatch="garagestorage",under={10689,10163,10689,10162,10689,10161,10689,10160}}
+S["10760,10370"]={town="muldraugh",x=10760,y=10370,lx=10760,ly=10370,edge="N",street="",hatch="storageunit",under={10760,10370,10760,10371,10760,10372}}
+S["10733,9802"]={town="muldraugh",x=10733,y=9802,lx=10733,ly=9802,edge="W",street="",hatch="kitchen",under={10733,9802,10733,9801,10733,9800,10733,9799}}
+S["10750,9551"]={town="muldraugh",x=10750,y=9551,lx=10750,ly=9551,edge="W",street="",hatch="kitchen",under={10750,9551,10750,9550,10750,9549,10750,9548}}
+S["10959,9521"]={town="muldraugh",x=10959,y=9521,lx=10959,ly=9521,edge="N",street="",hatch="kitchen",under={10959,9521,10958,9521,10957,9521,10956,9521}}
+S["10664,10079"]={town="muldraugh",x=10664,y=10079,lx=10664,ly=10079,edge="W",street="",hatch="shed",under={10664,10079,10664,10078,10664,10077,10664,10076}}
 H[#H+1]={town="muldraugh",kind="laststand",x=10829,y=10017,w=7,h=5}
 H[#H+1]={town="muldraugh",kind="pump",x=10960,y=9684,w=8,h=4}
 H[#H+1]={town="muldraugh",kind="laststand",x=10595,y=10402,w=6,h=5}
@@ -424,7 +686,19 @@ H[#H+1]={town="muldraugh",kind="maintenance",x=10850,y=10298,w=8,h=5}
 H[#H+1]={town="muldraugh",kind="laststand",x=10739,y=10442,w=7,h=5}
 H[#H+1]={town="muldraugh",kind="squat",x=10974,y=9711,w=6,h=5}
 H[#H+1]={town="muldraugh",kind="pump",x=10782,y=10355,w=7,h=5}
-I.towns["rosewood"] = { name = "Rosewood", x0 = 7870, y0 = 11341, x1 = 8502, y1 = 12053, tw = 3, th = 3, chunks = 1061 }
+V[#V+1]={town="muldraugh",x=10711,y=9934,bx=10730,by=9943,sx=10672,sy=9946}
+V[#V+1]={town="muldraugh",x=11012,y=9635,bx=11010,by=9660,sx=10924,sy=9646}
+V[#V+1]={town="muldraugh",x=10701,y=9659,bx=10705,by=9643,sx=10677,sy=9629}
+V[#V+1]={town="muldraugh",x=10743,y=10531,bx=10738,by=10503,sx=10736,sy=10457}
+V[#V+1]={town="muldraugh",x=10616,y=9417,bx=10594,by=9407,sx=10610,sy=9392}
+V[#V+1]={town="muldraugh",x=10759,y=9708,bx=10752,by=9702,sx=10741,sy=9677}
+V[#V+1]={town="muldraugh",x=10733,y=10565,bx=10736,by=10560,sx=10763,sy=10565}
+V[#V+1]={town="muldraugh",x=10577,y=10362,bx=10590,by=10365,sx=10624,sy=10349}
+V[#V+1]={town="muldraugh",x=10797,y=10561,bx=10791,by=10545,sx=10763,sy=10565}
+V[#V+1]={town="muldraugh",x=10725,y=9767,bx=10714,by=9773,sx=10762,sy=9772}
+V[#V+1]={town="muldraugh",x=10576,y=9810,bx=10590,by=9800,sx=10617,sy=9781}
+V[#V+1]={town="muldraugh",x=10757,y=9519,bx=10747,by=9509,sx=10777,sy=9508}
+I.towns["rosewood"] = { name = "Rosewood", x0 = 7870, y0 = 11341, x1 = 8502, y1 = 12053, tw = 3, th = 3, chunks = 1106 }
 S["7910,11515"]={town="rosewood",x=7910,y=11515,lx=7910,ly=11515,edge="W",street=""}
 S["7914,11476"]={town="rosewood",x=7914,y=11476,lx=7914,ly=11477,edge="N",street="Quiet St"}
 S["7916,11382"]={town="rosewood",x=7916,y=11382,lx=7916,ly=11382,edge="N",street="Snake St"}
@@ -488,6 +762,16 @@ S["8409,11921"]={town="rosewood",x=8409,y=11921,lx=8409,ly=11921,edge="N",street
 S["8418,12012"]={town="rosewood",x=8418,y=12012,lx=8418,ly=12012,edge="N",street=""}
 S["8451,11921"]={town="rosewood",x=8451,y=11921,lx=8451,ly=11921,edge="N",street=""}
 S["8462,12013"]={town="rosewood",x=8462,y=12013,lx=8462,ly=12013,edge="N",street=""}
+S["8302,11555"]={town="rosewood",x=8302,y=11555,lx=8302,ly=11555,edge="N",street="",hatch="kitchen",under={8302,11555,8301,11555,8300,11555,8299,11555}}
+S["8061,11391"]={town="rosewood",x=8061,y=11391,lx=8061,ly=11391,edge="W",street="",hatch="kitchen",under={8061,11391,8061,11390,8061,11389,8061,11388}}
+S["8283,11693"]={town="rosewood",x=8283,y=11693,lx=8283,ly=11693,edge="W",street="",hatch="kitchen",under={8283,11693,8283,11692,8283,11691,8283,11690,8283,11689,8283,11688}}
+S["8244,11668"]={town="rosewood",x=8244,y=11668,lx=8244,ly=11668,edge="W",street="",hatch="kitchen",under={8244,11668,8244,11667,8244,11666,8244,11665}}
+S["8053,11667"]={town="rosewood",x=8053,y=11667,lx=8053,ly=11667,edge="N",street="",hatch="janitor",under={8053,11667,8052,11667,8051,11667,8050,11667}}
+S["7982,11462"]={town="rosewood",x=7982,y=11462,lx=7982,ly=11462,edge="N",street="",hatch="kitchen",under={7982,11462,7982,11463,7982,11464}}
+S["8216,11720"]={town="rosewood",x=8216,y=11720,lx=8216,ly=11720,edge="N",street="",hatch="kitchen",under={8216,11720,8216,11721,8216,11722,8216,11723}}
+S["8453,11559"]={town="rosewood",x=8453,y=11559,lx=8453,ly=11559,edge="N",street="",hatch="garagestorage",under={8453,11559,8453,11560,8453,11561,8453,11562}}
+S["8163,11595"]={town="rosewood",x=8163,y=11595,lx=8163,ly=11595,edge="N",street="",hatch="kitchen",under={8163,11595,8162,11595,8161,11595,8160,11595}}
+S["8155,11680"]={town="rosewood",x=8155,y=11680,lx=8155,ly=11680,edge="N",street="",hatch="kitchen",under={8155,11680,8154,11680,8153,11680,8152,11680,8151,11680,8150,11680}}
 H[#H+1]={town="rosewood",kind="squat",x=8134,y=11478,w=7,h=6}
 H[#H+1]={town="rosewood",kind="pump",x=8393,y=12036,w=8,h=6}
 H[#H+1]={town="rosewood",kind="squat",x=8164,y=11975,w=6,h=5}
@@ -501,7 +785,15 @@ H[#H+1]={town="rosewood",kind="laststand",x=8199,y=11375,w=7,h=6}
 H[#H+1]={town="rosewood",kind="laststand",x=7948,y=11772,w=8,h=4}
 H[#H+1]={town="rosewood",kind="maintenance",x=7905,y=11425,w=5,h=4}
 H[#H+1]={town="rosewood",kind="pump",x=8148,y=11590,w=8,h=4}
-I.towns["riverside"] = { name = "Riverside", x0 = 5676, y0 = 5170, x1 = 6834, y1 = 5574, tw = 5, th = 2, chunks = 1106 }
+V[#V+1]={town="rosewood",x=8283,y=11904,bx=8274,by=11900,sx=8274,sy=11801}
+V[#V+1]={town="rosewood",x=8250,y=11974,bx=8256,by=11980,sx=8418,sy=12012}
+V[#V+1]={town="rosewood",x=8199,y=11758,bx=8187,by=11776,sx=8169,sy=11739}
+V[#V+1]={town="rosewood",x=8124,y=11901,bx=8107,by=11904,sx=8104,sy=11743}
+V[#V+1]={town="rosewood",x=8128,y=11976,bx=8107,by=11963,sx=8104,sy=11743}
+V[#V+1]={town="rosewood",x=8163,y=11468,bx=8185,by=11475,sx=8126,sy=11478}
+V[#V+1]={town="rosewood",x=7943,y=11418,bx=7941,by=11429,sx=7963,sy=11381}
+V[#V+1]={town="rosewood",x=8243,y=11647,bx=8235,by=11655,sx=8239,sy=11657}
+I.towns["riverside"] = { name = "Riverside", x0 = 5676, y0 = 5170, x1 = 6834, y1 = 5574, tw = 5, th = 2, chunks = 1149 }
 S["5716,5401"]={town="riverside",x=5716,y=5401,lx=5716,ly=5402,edge="N",street="Rag Road"}
 S["5755,5248"]={town="riverside",x=5755,y=5248,lx=5755,ly=5248,edge="N",street="Fern Road"}
 S["5879,5402"]={town="riverside",x=5879,y=5402,lx=5879,ly=5402,edge="W",street="Rock Ridge Road"}
@@ -546,6 +838,13 @@ S["6569,5317"]={town="riverside",x=6569,y=5317,lx=6569,ly=5317,edge="N",street="
 S["6606,5280"]={town="riverside",x=6606,y=5280,lx=6606,ly=5280,edge="N",street="E Main St"}
 S["6794,5214"]={town="riverside",x=6794,y=5214,lx=6795,ly=5214,edge="W",street="Riverbreeze Lane"}
 S["6794,5285"]={town="riverside",x=6794,y=5285,lx=6794,ly=5285,edge="N",street="E Main St"}
+S["6442,5559"]={town="riverside",x=6442,y=5559,lx=6442,ly=5559,edge="W",street="",hatch="kitchen",under={6442,5559,6442,5558,6442,5557,6442,5556,6442,5555,6442,5554,6442,5553}}
+S["6291,5494"]={town="riverside",x=6291,y=5494,lx=6291,ly=5494,edge="N",street="",hatch="kitchen",under={6291,5494,6292,5494,6293,5494,6294,5494}}
+S["6370,5465"]={town="riverside",x=6370,y=5465,lx=6370,ly=5465,edge="W",street="",hatch="kitchen",under={6370,5465,6370,5464,6370,5463,6370,5462}}
+S["6642,5425"]={town="riverside",x=6642,y=5425,lx=6642,ly=5425,edge="N",street="",hatch="garagestorage",under={6642,5425,6642,5426,6642,5427}}
+S["6056,5377"]={town="riverside",x=6056,y=5377,lx=6056,ly=5377,edge="W",street="",hatch="kitchen",under={6056,5377,6056,5376,6056,5375,6056,5374,6056,5373,6056,5372,6056,5371}}
+S["6023,5364"]={town="riverside",x=6023,y=5364,lx=6023,ly=5364,edge="N",street="",hatch="kitchen",under={6023,5364,6024,5364,6025,5364,6026,5364,6027,5364,6028,5364,6029,5364}}
+S["6307,5560"]={town="riverside",x=6307,y=5560,lx=6307,ly=5560,edge="N",street="",hatch="kitchen",under={6307,5560,6306,5560,6305,5560,6304,5560}}
 H[#H+1]={town="riverside",kind="maintenance",x=5976,y=5276,w=7,h=6}
 H[#H+1]={town="riverside",kind="maintenance",x=6331,y=5286,w=8,h=4}
 H[#H+1]={town="riverside",kind="squat",x=6514,y=5402,w=8,h=4}
@@ -555,7 +854,13 @@ H[#H+1]={town="riverside",kind="laststand",x=6645,y=5441,w=7,h=5}
 H[#H+1]={town="riverside",kind="laststand",x=6378,y=5359,w=8,h=6}
 H[#H+1]={town="riverside",kind="squat",x=6727,y=5275,w=6,h=6}
 H[#H+1]={town="riverside",kind="laststand",x=6677,y=5539,w=6,h=6}
-I.towns["ekron"] = { name = "Ekron", x0 = 263, y0 = 9522, x1 = 886, y1 = 10024, tw = 3, th = 2, chunks = 721 }
+V[#V+1]={town="riverside",x=6495,y=5476,bx=6480,by=5479,sx=6459,sy=5366}
+V[#V+1]={town="riverside",x=5807,y=5410,bx=5790,by=5401,sx=5716,sy=5401}
+V[#V+1]={town="riverside",x=6649,y=5367,bx=6638,by=5354,sx=6569,sy=5317}
+V[#V+1]={town="riverside",x=6221,y=5310,bx=6222,by=5285,sx=6244,sy=5281}
+V[#V+1]={town="riverside",x=5789,y=5244,bx=5802,by=5248,sx=5755,sy=5248}
+V[#V+1]={town="riverside",x=6662,y=5547,bx=6655,by=5538,sx=6389,sy=5534}
+I.towns["ekron"] = { name = "Ekron", x0 = 263, y0 = 9522, x1 = 886, y1 = 10024, tw = 3, th = 2, chunks = 764 }
 S["303,9851"]={town="ekron",x=303,y=9851,lx=303,ly=9852,edge="N",street="Hutchins Dr"}
 S["309,9811"]={town="ekron",x=309,y=9811,lx=309,ly=9811,edge="N",street="Hutchins Dr"}
 S["384,9678"]={town="ekron",x=384,y=9678,lx=384,ly=9678,edge="N",street="Broad St"}
@@ -597,6 +902,13 @@ S["791,9771"]={town="ekron",x=791,y=9771,lx=791,ly=9771,edge="W",street=""}
 S["799,9860"]={town="ekron",x=799,y=9860,lx=799,ly=9860,edge="N",street=""}
 S["837,9810"]={town="ekron",x=837,y=9810,lx=837,ly=9811,edge="N",street="Parkway Ave"}
 S["846,9856"]={town="ekron",x=846,y=9856,lx=846,ly=9856,edge="N",street="Parkway Ave"}
+S["503,9793"]={town="ekron",x=503,y=9793,lx=503,ly=9793,edge="N",street="",hatch="garagestorage",under={503,9793,503,9794,503,9795}}
+S["681,9699"]={town="ekron",x=681,y=9699,lx=681,ly=9699,edge="W",street="",hatch="garagestorage",under={681,9699,681,9698,681,9697,681,9696}}
+S["416,9692"]={town="ekron",x=416,y=9692,lx=416,ly=9692,edge="W",street="",hatch="garagestorage",under={416,9692,416,9691,416,9690,416,9689}}
+S["628,9759"]={town="ekron",x=628,y=9759,lx=628,ly=9759,edge="W",street="",hatch="kitchen",under={628,9759,628,9758,628,9757,628,9756,628,9755,628,9754}}
+S["574,9824"]={town="ekron",x=574,y=9824,lx=574,ly=9824,edge="W",street="",hatch="laundry",under={574,9824,574,9823,574,9822,574,9821}}
+S["527,9613"]={town="ekron",x=527,y=9613,lx=527,ly=9613,edge="N",street="",hatch="kitchen",under={527,9613,528,9613,529,9613}}
+S["510,9664"]={town="ekron",x=510,y=9664,lx=510,ly=9664,edge="N",street="",hatch="kitchen",under={510,9664,510,9665,510,9666,510,9667}}
 H[#H+1]={town="ekron",kind="pump",x=709,y=9737,w=5,h=6}
 H[#H+1]={town="ekron",kind="maintenance",x=388,y=9647,w=8,h=5}
 H[#H+1]={town="ekron",kind="maintenance",x=675,y=9670,w=7,h=6}
@@ -605,7 +917,12 @@ H[#H+1]={town="ekron",kind="squat",x=589,y=9790,w=6,h=6}
 H[#H+1]={town="ekron",kind="squat",x=312,y=9897,w=8,h=4}
 H[#H+1]={town="ekron",kind="pump",x=470,y=9771,w=5,h=5}
 H[#H+1]={town="ekron",kind="pump",x=380,y=9774,w=5,h=4}
-I.towns["fallas_lake"] = { name = "Fallas Lake", x0 = 7065, y0 = 8111, x1 = 7438, y1 = 8570, tw = 2, th = 2, chunks = 404 }
+V[#V+1]={town="ekron",x=609,y=9801,bx=625,by=9808,sx=595,sy=9807}
+V[#V+1]={town="ekron",x=470,y=9699,bx=475,by=9709,sx=475,sy=9678}
+V[#V+1]={town="ekron",x=513,y=9685,bx=515,by=9678,sx=511,sy=9677}
+V[#V+1]={town="ekron",x=526,y=9839,bx=547,by=9824,sx=595,sy=9807}
+V[#V+1]={town="ekron",x=849,y=9872,bx=846,by=9894,sx=846,sy=9856}
+I.towns["fallas_lake"] = { name = "Fallas Lake", x0 = 7065, y0 = 8111, x1 = 7438, y1 = 8570, tw = 2, th = 2, chunks = 442 }
 S["7105,8256"]={town="fallas_lake",x=7105,y=8256,lx=7105,ly=8257,edge="N",street="Victoria St"}
 S["7106,8342"]={town="fallas_lake",x=7106,y=8342,lx=7106,ly=8342,edge="W",street="Victoria St"}
 S["7106,8386"]={town="fallas_lake",x=7106,y=8386,lx=7106,ly=8386,edge="W",street="Victoria St"}
@@ -636,13 +953,22 @@ S["7316,8266"]={town="fallas_lake",x=7316,y=8266,lx=7316,ly=8266,edge="N",street
 S["7317,8393"]={town="fallas_lake",x=7317,y=8393,lx=7317,ly=8393,edge="W",street=""}
 S["7385,8273"]={town="fallas_lake",x=7385,y=8273,lx=7385,ly=8273,edge="N",street="Fallas Way"}
 S["7398,8373"]={town="fallas_lake",x=7398,y=8373,lx=7398,ly=8373,edge="N",street="Lakehead Dr"}
+S["7291,8390"]={town="fallas_lake",x=7291,y=8390,lx=7291,ly=8390,edge="W",street="",hatch="janitor",under={7291,8390,7291,8389,7291,8388,7291,8387}}
+S["7296,8134"]={town="fallas_lake",x=7296,y=8134,lx=7296,ly=8134,edge="N",street="",hatch="garagestorage",under={7296,8134,7296,8135,7296,8136,7296,8137}}
+S["7134,8393"]={town="fallas_lake",x=7134,y=8393,lx=7134,ly=8393,edge="N",street="",hatch="kitchen",under={7134,8393,7135,8393,7136,8393,7137,8393,7138,8393,7139,8393}}
+S["7211,8203"]={town="fallas_lake",x=7211,y=8203,lx=7211,ly=8203,edge="W",street="",hatch="kitchen",under={7211,8203,7211,8202,7211,8201,7211,8200}}
+S["7338,8538"]={town="fallas_lake",x=7338,y=8538,lx=7338,ly=8538,edge="N",street="",hatch="kitchen",under={7338,8538,7338,8539,7338,8540,7338,8541}}
 H[#H+1]={town="fallas_lake",kind="squat",x=7137,y=8164,w=6,h=5}
 H[#H+1]={town="fallas_lake",kind="pump",x=7212,y=8320,w=6,h=4}
 H[#H+1]={town="fallas_lake",kind="squat",x=7327,y=8156,w=6,h=5}
 H[#H+1]={town="fallas_lake",kind="maintenance",x=7364,y=8149,w=8,h=4}
 H[#H+1]={town="fallas_lake",kind="laststand",x=7279,y=8325,w=6,h=5}
 H[#H+1]={town="fallas_lake",kind="laststand",x=7269,y=8481,w=7,h=5}
-I.towns["louisville"] = { name = "Louisville", x0 = 12860, y0 = 2398, x1 = 13009, y1 = 2961, tw = 1, th = 3, chunks = 315 }
+V[#V+1]={town="fallas_lake",x=7370,y=8285,bx=7380,by=8276,sx=7385,sy=8273}
+V[#V+1]={town="fallas_lake",x=7131,y=8312,bx=7108,by=8304,sx=7106,sy=8342}
+V[#V+1]={town="fallas_lake",x=7199,y=8272,bx=7191,by=8275,sx=7191,sy=8300}
+V[#V+1]={town="fallas_lake",x=7183,y=8535,bx=7194,by=8561,sx=7266,sy=8530}
+I.towns["louisville"] = { name = "Louisville", x0 = 12860, y0 = 2398, x1 = 13009, y1 = 2961, tw = 1, th = 3, chunks = 325 }
 S["12900,2438"]={town="louisville",x=12900,y=2438,lx=12900,ly=2438,edge="N",street="Ulster St"}
 S["12900,2540"]={town="louisville",x=12900,y=2540,lx=12900,ly=2540,edge="N",street="Ulster St"}
 S["12900,2640"]={town="louisville",x=12900,y=2640,lx=12900,ly=2640,edge="N",street="Ulster St"}
@@ -652,9 +978,12 @@ S["12934,2823"]={town="louisville",x=12934,y=2823,lx=12934,ly=2824,edge="N",stre
 S["12934,2921"]={town="louisville",x=12934,y=2921,lx=12934,ly=2921,edge="W",street="Angel St"}
 S["12937,2887"]={town="louisville",x=12937,y=2887,lx=12937,ly=2887,edge="N",street="Angel St"}
 S["12969,2439"]={town="louisville",x=12969,y=2439,lx=12969,ly=2439,edge="N",street="Quarantine Lane"}
+S["12986,2595"]={town="louisville",x=12986,y=2595,lx=12986,ly=2595,edge="W",street="",hatch="kitchen",under={12986,2595,12986,2594,12986,2593,12986,2592}}
+S["12874,2936"]={town="louisville",x=12874,y=2936,lx=12874,ly=2936,edge="N",street="",hatch="kitchen",under={12874,2936,12874,2937,12874,2938,12874,2939,12874,2940}}
 H[#H+1]={town="louisville",kind="maintenance",x=12892,y=2531,w=7,h=5}
 H[#H+1]={town="louisville",kind="maintenance",x=12936,y=2491,w=5,h=4}
-I.towns["muldraugh_2"] = { name = "Muldraugh", x0 = 11420, y0 = 8755, x1 = 11870, y1 = 8896, tw = 2, th = 1, chunks = 154 }
+V[#V+1]={town="louisville",x=12924,y=2636,bx=12923,by=2640,sx=12900,sy=2640}
+I.towns["muldraugh_2"] = { name = "Muldraugh", x0 = 11420, y0 = 8755, x1 = 11870, y1 = 8896, tw = 2, th = 1, chunks = 159 }
 S["11460,8836"]={town="muldraugh_2",x=11460,y=8836,lx=11460,ly=8836,edge="W",street=""}
 S["11482,8798"]={town="muldraugh_2",x=11482,y=8798,lx=11482,ly=8798,edge="N",street=""}
 S["11526,8814"]={town="muldraugh_2",x=11526,y=8814,lx=11526,ly=8814,edge="N",street="Frank Road"}
@@ -662,39 +991,1153 @@ S["11642,8856"]={town="muldraugh_2",x=11642,y=8856,lx=11642,ly=8856,edge="N",str
 S["11678,8804"]={town="muldraugh_2",x=11678,y=8804,lx=11678,ly=8804,edge="N",street="Forest View Lane"}
 S["11761,8795"]={town="muldraugh_2",x=11761,y=8795,lx=11761,ly=8796,edge="N",street="Dixie Loop N St"}
 S["11830,8848"]={town="muldraugh_2",x=11830,y=8848,lx=11830,ly=8848,edge="N",street="Dixie Loop S St"}
+S["11730,8822"]={town="muldraugh_2",x=11730,y=8822,lx=11730,ly=8822,edge="N",street="",hatch="kitchen",under={11730,8822,11731,8822,11732,8822,11733,8822}}
 H[#H+1]={town="muldraugh_2",kind="maintenance",x=11533,y=8834,w=6,h=4}
-I.towns["muldraugh_3"] = { name = "Muldraugh", x0 = 10274, y0 = 9197, x1 = 10397, y1 = 9461, tw = 1, th = 2, chunks = 45 }
+V[#V+1]={town="muldraugh_2",x=11845,y=8785,bx=11851,by=8791,sx=11830,sy=8848}
+I.towns["muldraugh_3"] = { name = "Muldraugh", x0 = 10274, y0 = 9197, x1 = 10397, y1 = 9461, tw = 1, th = 2, chunks = 48 }
 S["10314,9421"]={town="muldraugh_3",x=10314,y=9421,lx=10314,ly=9421,edge="N",street=""}
 S["10322,9383"]={town="muldraugh_3",x=10322,y=9383,lx=10322,ly=9383,edge="W",street=""}
 S["10333,9283"]={town="muldraugh_3",x=10333,y=9283,lx=10334,ly=9283,edge="W",street=""}
 S["10344,9341"]={town="muldraugh_3",x=10344,y=9341,lx=10344,ly=9341,edge="N",street=""}
 S["10357,9237"]={town="muldraugh_3",x=10357,y=9237,lx=10357,ly=9237,edge="N",street=""}
 H[#H+1]={town="muldraugh_3",kind="laststand",x=10320,y=9420,w=5,h=4}
-I.towns["west_point_2"] = { name = "West Point", x0 = 11557, y0 = 8190, x1 = 11730, y1 = 8383, tw = 1, th = 1, chunks = 85 }
+V[#V+1]={town="muldraugh_3",x=10372,y=9250,bx=10357,by=9248,sx=10357,sy=9237}
+I.towns["west_point_2"] = { name = "West Point", x0 = 11557, y0 = 8190, x1 = 11730, y1 = 8383, tw = 1, th = 1, chunks = 91 }
 S["11597,8310"]={town="west_point_2",x=11597,y=8310,lx=11597,ly=8310,edge="N",street="Riverside Road"}
 S["11602,8230"]={town="west_point_2",x=11602,y=8230,lx=11602,ly=8230,edge="N",street=""}
 S["11688,8343"]={town="west_point_2",x=11688,y=8343,lx=11688,ly=8343,edge="W",street="Tioga Road"}
 S["11690,8267"]={town="west_point_2",x=11690,y=8267,lx=11690,ly=8267,edge="N",street=""}
+S["11609,8247"]={town="west_point_2",x=11609,y=8247,lx=11609,ly=8247,edge="W",street="",hatch="janitor",under={11609,8247,11609,8246,11609,8245,11609,8244,11609,8243,11609,8242,11609,8241}}
 H[#H+1]={town="west_point_2",kind="maintenance",x=11661,y=8321,w=6,h=6}
-I.towns["louisville_2"] = { name = "Louisville", x0 = 13165, y0 = 1863, x1 = 13400, y1 = 1944, tw = 1, th = 1, chunks = 81 }
+V[#V+1]={town="west_point_2",x=11623,y=8339,bx=11612,by=8329,sx=11597,sy=8310}
+I.towns["louisville_2"] = { name = "Louisville", x0 = 13165, y0 = 1863, x1 = 13400, y1 = 1944, tw = 1, th = 1, chunks = 85 }
 S["13205,1903"]={town="louisville_2",x=13205,y=1903,lx=13205,ly=1903,edge="N",street="W Market St"}
 S["13250,1903"]={town="louisville_2",x=13250,y=1903,lx=13250,ly=1903,edge="N",street="W Market St"}
 S["13312,1903"]={town="louisville_2",x=13312,y=1903,lx=13312,ly=1903,edge="N",street="W Market St"}
 S["13360,1904"]={town="louisville_2",x=13360,y=1904,lx=13360,ly=1904,edge="N",street="W Market St"}
+S["13224,1934"]={town="louisville_2",x=13224,y=1934,lx=13224,ly=1934,edge="W",street="",hatch="kitchen",under={13224,1934,13224,1933,13224,1932,13224,1931}}
 H[#H+1]={town="louisville_2",kind="pump",x=13215,y=1906,w=7,h=5}
-I.towns["brandenburg"] = { name = "Brandenburg", x0 = 3490, y0 = 6010, x1 = 3570, y1 = 6090, tw = 1, th = 1, chunks = 21 }
+V[#V+1]={town="louisville_2",x=13337,y=1898,bx=13319,by=1903,sx=13312,sy=1903}
+I.towns["brandenburg"] = { name = "Brandenburg", x0 = 3490, y0 = 6010, x1 = 3570, y1 = 6090, tw = 1, th = 1, chunks = 27 }
 S["3530,6050"]={town="brandenburg",x=3530,y=6050,lx=3530,ly=6050,edge="N",street="KY-60"}
 H[#H+1]={town="brandenburg",kind="maintenance",x=3516,y=6076,w=6,h=6}
-I.towns["muldraugh_4"] = { name = "Muldraugh", x0 = 10027, y0 = 9752, x1 = 10107, y1 = 9832, tw = 1, th = 1, chunks = 28 }
+V[#V+1]={town="brandenburg",x=3545,y=6066,bx=3526,by=6058,sx=3530,sy=6050}
+I.towns["muldraugh_4"] = { name = "Muldraugh", x0 = 10027, y0 = 9752, x1 = 10107, y1 = 9832, tw = 1, th = 1, chunks = 31 }
 S["10067,9792"]={town="muldraugh_4",x=10067,y=9792,lx=10067,ly=9793,edge="N",street="Old Mill Road"}
 H[#H+1]={town="muldraugh_4",kind="pump",x=10066,y=9808,w=7,h=6}
+V[#V+1]={town="muldraugh_4",x=10077,y=9795,bx=10090,by=9790,sx=10067,sy=9792}
 I.towns["knox_county"] = { name = "Knox County", x0 = 10046, y0 = 6642, x1 = 10126, y1 = 6722, tw = 1, th = 1, chunks = 4 }
 S["10086,6682"]={town="knox_county",x=10086,y=6682,lx=10086,ly=6682,edge="N",street=""}
 H[#H+1]={town="knox_county",kind="pump",x=10084,y=6684,w=5,h=6}
-I.towns["west_point_3"] = { name = "West Point", x0 = 10335, y0 = 7408, x1 = 10415, y1 = 7488, tw = 1, th = 1, chunks = 13 }
+I.towns["west_point_3"] = { name = "West Point", x0 = 10335, y0 = 7408, x1 = 10415, y1 = 7488, tw = 1, th = 1, chunks = 19 }
 S["10375,7448"]={town="west_point_3",x=10375,y=7448,lx=10375,ly=7448,edge="N",street="Raccoon Road"}
 H[#H+1]={town="west_point_3",kind="maintenance",x=10344,y=7454,w=5,h=6}
+V[#V+1]={town="west_point_3",x=10376,y=7440,bx=10386,by=7449,sx=10375,sy=7448}
 I.towns["knox_county_2"] = { name = "Knox County", x0 = 14993, y0 = 780, x1 = 15073, y1 = 860, tw = 1, th = 1, chunks = 4 }
 S["15033,820"]={town="knox_county_2",x=15033,y=820,lx=15033,ly=820,edge="N",street=""}
 H[#H+1]={town="knox_county_2",kind="pump",x=15031,y=814,w=5,h=5}
+I.towns["louisville_3"] = { name = "Louisville", x0 = 11776, y0 = 1024, x1 = 14335, y1 = 3839, tw = 10, th = 11, chunks = 13647 }
+S["12061,3287"]={town="louisville_3",x=12061,y=3287,lx=12061,ly=3287,edge="W",street="KY-1394",made=true}
+S["12064,3174"]={town="louisville_3",x=12064,y=3174,lx=12064,ly=3174,edge="W",street="KY-1394",made=true}
+S["12065,2069"]={town="louisville_3",x=12065,y=2069,lx=12065,ly=2069,edge="N",street="Bourbon Way",made=true}
+S["12065,2317"]={town="louisville_3",x=12065,y=2317,lx=12065,ly=2317,edge="W",street="Bourbon Way",made=true}
+S["12065,2399"]={town="louisville_3",x=12065,y=2399,lx=12065,ly=2399,edge="W",street="Bourbon Way",made=true}
+S["12065,2471"]={town="louisville_3",x=12065,y=2471,lx=12065,ly=2471,edge="N",street="Bourbon Way",made=true}
+S["12065,2571"]={town="louisville_3",x=12065,y=2571,lx=12065,ly=2571,edge="N",street="Bourbon Way",made=true}
+S["12065,2819"]={town="louisville_3",x=12065,y=2819,lx=12065,ly=2819,edge="N",street="Bourbon Way",made=true}
+S["12065,3000"]={town="louisville_3",x=12065,y=3000,lx=12065,ly=3000,edge="N",street="Bourbon Way",made=true}
+S["12065,3081"]={town="louisville_3",x=12065,y=3081,lx=12065,ly=3081,edge="W",street="Bourbon Way",made=true}
+S["12069,1744"]={town="louisville_3",x=12069,y=1744,lx=12070,ly=1744,edge="W",street="Bourbon Way",made=true}
+S["12069,1825"]={town="louisville_3",x=12069,y=1825,lx=12070,ly=1825,edge="W",street="Bourbon Way",made=true}
+S["12069,1919"]={town="louisville_3",x=12069,y=1919,lx=12070,ly=1919,edge="W",street="Bourbon Way",made=true}
+S["12069,1996"]={town="louisville_3",x=12069,y=1996,lx=12070,ly=1996,edge="W",street="Bourbon Way",made=true}
+S["12069,2243"]={town="louisville_3",x=12069,y=2243,lx=12070,ly=2243,edge="W",street="Bourbon Way",made=true}
+S["12069,2647"]={town="louisville_3",x=12069,y=2647,lx=12070,ly=2647,edge="W",street="Bourbon Way",made=true}
+S["12069,2720"]={town="louisville_3",x=12069,y=2720,lx=12070,ly=2720,edge="W",street="Bourbon Way",made=true}
+S["12069,2902"]={town="louisville_3",x=12069,y=2902,lx=12070,ly=2902,edge="W",street="Bourbon Way",made=true}
+S["12115,3379"]={town="louisville_3",x=12115,y=3379,lx=12115,ly=3379,edge="W",street="KY-1394",made=true}
+S["12128,2071"]={town="louisville_3",x=12128,y=2071,lx=12128,ly=2071,edge="N",street="Chicasaw St",made=true}
+S["12128,2171"]={town="louisville_3",x=12128,y=2171,lx=12128,ly=2172,edge="N",street="Francis St",made=true}
+S["12136,3001"]={town="louisville_3",x=12136,y=3001,lx=12136,ly=3002,edge="N",street="Waverly St",made=true}
+S["12138,2570"]={town="louisville_3",x=12138,y=2570,lx=12138,ly=2570,edge="N",street="Chapelmount Downs",made=true}
+S["12155,1298"]={town="louisville_3",x=12155,y=1298,lx=12155,ly=1298,edge="N",street="5th St",made=true}
+S["12155,1409"]={town="louisville_3",x=12155,y=1409,lx=12155,ly=1409,edge="W",street="5th St",made=true}
+S["12155,1499"]={town="louisville_3",x=12155,y=1499,lx=12155,ly=1499,edge="N",street="5th St",made=true}
+S["12155,1655"]={town="louisville_3",x=12155,y=1655,lx=12155,ly=1655,edge="N",street="5th St",made=true}
+S["12157,1236"]={town="louisville_3",x=12157,y=1236,lx=12157,ly=1236,edge="N",street="W River Road",made=true}
+S["12157,1728"]={town="louisville_3",x=12157,y=1728,lx=12157,ly=1728,edge="N",street="Bourbon Way",made=true}
+S["12159,1575"]={town="louisville_3",x=12159,y=1575,lx=12160,ly=1575,edge="W",street="5th St",made=true}
+S["12159,1801"]={town="louisville_3",x=12159,y=1801,lx=12159,ly=1802,edge="N",street="Broadway Close",made=true}
+S["12163,2400"]={town="louisville_3",x=12163,y=2400,lx=12163,ly=2400,edge="W",street="De Valera St",made=true}
+S["12163,2472"]={town="louisville_3",x=12163,y=2472,lx=12163,ly=2472,edge="W",street="De Valera St",made=true}
+S["12164,2306"]={town="louisville_3",x=12164,y=2306,lx=12164,ly=2306,edge="N",street="De Valera St",made=true}
+S["12180,1872"]={town="louisville_3",x=12180,y=1872,lx=12180,ly=1872,edge="N",street="Kenmare St",made=true}
+S["12180,1944"]={town="louisville_3",x=12180,y=1944,lx=12180,ly=1944,edge="W",street="Kenmare St",made=true}
+S["12180,2017"]={town="louisville_3",x=12180,y=2017,lx=12180,ly=2017,edge="N",street="Kenmare St",made=true}
+S["12180,2070"]={town="louisville_3",x=12180,y=2070,lx=12180,ly=2070,edge="N",street="Chicasaw St",made=true}
+S["12198,2214"]={town="louisville_3",x=12198,y=2214,lx=12198,ly=2214,edge="W",street="Mary St",made=true}
+S["12206,3437"]={town="louisville_3",x=12206,y=3437,lx=12206,ly=3438,edge="N",street="KY-1394",made=true}
+S["12207,3001"]={town="louisville_3",x=12207,y=3001,lx=12207,ly=3001,edge="N",street="Waverly St",made=true}
+S["12210,3146"]={town="louisville_3",x=12210,y=3146,lx=12210,ly=3146,edge="N",street="River St",made=true}
+S["12215,1498"]={town="louisville_3",x=12215,y=1498,lx=12215,ly=1498,edge="N",street="Smoky St",made=true}
+S["12231,1724"]={town="louisville_3",x=12231,y=1724,lx=12231,ly=1724,edge="N",street="Bourbon Way",made=true}
+S["12233,2350"]={town="louisville_3",x=12233,y=2350,lx=12233,ly=2350,edge="W",street="Dublin St",made=true}
+S["12238,2070"]={town="louisville_3",x=12238,y=2070,lx=12238,ly=2070,edge="N",street="Chicasaw St",made=true}
+S["12239,2143"]={town="louisville_3",x=12239,y=2143,lx=12239,ly=2143,edge="W",street="Francis St",made=true}
+S["12247,2570"]={town="louisville_3",x=12247,y=2570,lx=12247,ly=2570,edge="N",street="Chapelmount Downs",made=true}
+S["12255,1236"]={town="louisville_3",x=12255,y=1236,lx=12255,ly=1236,edge="N",street="W River Road",made=true}
+S["12255,1403"]={town="louisville_3",x=12255,y=1403,lx=12255,ly=1403,edge="N",street="Gnarled Stump Lane",made=true}
+S["12255,3001"]={town="louisville_3",x=12255,y=3001,lx=12255,ly=3001,edge="N",street="Waverly St",made=true}
+S["12256,3074"]={town="louisville_3",x=12256,y=3074,lx=12256,ly=3074,edge="W",street="Nelson St",made=true}
+S["12256,3147"]={town="louisville_3",x=12256,y=3147,lx=12256,ly=3147,edge="N",street="Nelson St",made=true}
+S["12259,1653"]={town="louisville_3",x=12259,y=1653,lx=12259,ly=1653,edge="N",street="W Liberty St",made=true}
+S["12261,1498"]={town="louisville_3",x=12261,y=1498,lx=12261,ly=1498,edge="N",street="Smoky St",made=true}
+S["12261,2216"]={town="louisville_3",x=12261,y=2216,lx=12261,ly=2217,edge="N",street="Joseph St",made=true}
+S["12268,3231"]={town="louisville_3",x=12268,y=3231,lx=12268,ly=3231,edge="N",street="Nelson St",made=true}
+S["12280,3403"]={town="louisville_3",x=12280,y=3403,lx=12280,ly=3403,edge="N",street="Oakdale Crescent",made=true}
+S["12281,3325"]={town="louisville_3",x=12281,y=3325,lx=12281,ly=3325,edge="W",street="Nelson St",made=true}
+S["12281,3454"]={town="louisville_3",x=12281,y=3454,lx=12281,ly=3454,edge="N",street="KY-1394",made=true}
+S["12281,3511"]={town="louisville_3",x=12281,y=3511,lx=12281,ly=3511,edge="N",street="Lower River Road",made=true}
+S["12289,2910"]={town="louisville_3",x=12289,y=2910,lx=12289,ly=2910,edge="N",street="N Maple Court St",made=true}
+S["12293,3695"]={town="louisville_3",x=12293,y=3695,lx=12293,ly=3695,edge="N",street="Lower River Road",made=true}
+S["12298,1857"]={town="louisville_3",x=12298,y=1857,lx=12298,ly=1857,edge="N",street="3rd St",made=true}
+S["12298,1955"]={town="louisville_3",x=12298,y=1955,lx=12298,ly=1955,edge="N",street="3rd St",made=true}
+S["12298,2033"]={town="louisville_3",x=12298,y=2033,lx=12298,ly=2033,edge="N",street="3rd St",made=true}
+S["12300,1297"]={town="louisville_3",x=12300,y=1297,lx=12300,ly=1297,edge="W",street="Old Sulphur St",made=true}
+S["12300,1350"]={town="louisville_3",x=12300,y=1350,lx=12300,ly=1350,edge="N",street="Jackson St",made=true}
+S["12302,1402"]={town="louisville_3",x=12302,y=1402,lx=12302,ly=1402,edge="N",street="3rd St",made=true}
+S["12302,1582"]={town="louisville_3",x=12302,y=1582,lx=12303,ly=1582,edge="W",street="3rd St",made=true}
+S["12302,1726"]={town="louisville_3",x=12302,y=1726,lx=12302,ly=1726,edge="N",street="3rd St",made=true}
+S["12302,2348"]={town="louisville_3",x=12302,y=2348,lx=12302,ly=2348,edge="N",street="3rd St",made=true}
+S["12302,2471"]={town="louisville_3",x=12302,y=2471,lx=12302,ly=2471,edge="N",street="3rd St",made=true}
+S["12316,2192"]={town="louisville_3",x=12316,y=2192,lx=12316,ly=2192,edge="N",street="Graduate St",made=true}
+S["12317,2097"]={town="louisville_3",x=12317,y=2097,lx=12317,ly=2097,edge="N",street="Creek St",made=true}
+S["12328,2999"]={town="louisville_3",x=12328,y=2999,lx=12328,ly=2999,edge="N",street="Waverly St",made=true}
+S["12329,3807"]={town="louisville_3",x=12329,y=3807,lx=12329,ly=3807,edge="W",street="Lower River Road",made=true}
+S["12337,3323"]={town="louisville_3",x=12337,y=3323,lx=12337,ly=3323,edge="N",street="Leafhill Heights",made=true}
+S["12337,3393"]={town="louisville_3",x=12337,y=3393,lx=12337,ly=3393,edge="W",street="Tincture Lane",made=true}
+S["12338,3091"]={town="louisville_3",x=12338,y=3091,lx=12338,ly=3091,edge="N",street="Sandra Mallard St",made=true}
+S["12340,1238"]={town="louisville_3",x=12340,y=1238,lx=12340,ly=1238,edge="N",street="W River Road",made=true}
+S["12340,3181"]={town="louisville_3",x=12340,y=3181,lx=12341,ly=3181,edge="W",street="Carson St",made=true}
+S["12341,1502"]={town="louisville_3",x=12341,y=1502,lx=12341,ly=1503,edge="N",street="Jefferson St",made=true}
+S["12350,2572"]={town="louisville_3",x=12350,y=2572,lx=12350,ly=2572,edge="N",street="Chapelmount Downs",made=true}
+S["12350,3509"]={town="louisville_3",x=12350,y=3509,lx=12350,ly=3509,edge="N",street="Rockford Lane",made=true}
+S["12350,3598"]={town="louisville_3",x=12350,y=3598,lx=12351,ly=3598,edge="W",street="St Peregrine St",made=true}
+S["12351,2512"]={town="louisville_3",x=12351,y=2512,lx=12351,ly=2512,edge="N",street="3rd St",made=true}
+S["12352,1654"]={town="louisville_3",x=12352,y=1654,lx=12352,ly=1654,edge="N",street="W Liberty St",made=true}
+S["12360,2033"]={town="louisville_3",x=12360,y=2033,lx=12360,ly=2034,edge="N",street="Cherokee St",made=true}
+S["12367,2914"]={town="louisville_3",x=12367,y=2914,lx=12367,ly=2915,edge="N",street="N Maple Court St",made=true}
+S["12391,1574"]={town="louisville_3",x=12391,y=1574,lx=12391,ly=1574,edge="N",street="2nd St",made=true}
+S["12393,1350"]={town="louisville_3",x=12393,y=1350,lx=12393,ly=1350,edge="N",street="Jackson St",made=true}
+S["12395,1426"]={town="louisville_3",x=12395,y=1426,lx=12396,ly=1426,edge="W",street="2nd St",made=true}
+S["12395,1758"]={town="louisville_3",x=12395,y=1758,lx=12396,ly=1758,edge="W",street="2nd St",made=true}
+S["12395,1857"]={town="louisville_3",x=12395,y=1857,lx=12396,ly=1857,edge="W",street="2nd St",made=true}
+S["12395,1949"]={town="louisville_3",x=12395,y=1949,lx=12396,ly=1949,edge="W",street="2nd St",made=true}
+S["12397,3093"]={town="louisville_3",x=12397,y=3093,lx=12397,ly=3093,edge="N",street="Sandra Mallard St",made=true}
+S["12398,2192"]={town="louisville_3",x=12398,y=2192,lx=12398,ly=2193,edge="N",street="Old Seminary Road",made=true}
+S["12399,2999"]={town="louisville_3",x=12399,y=2999,lx=12399,ly=2999,edge="N",street="Waverly St",made=true}
+S["12400,2329"]={town="louisville_3",x=12400,y=2329,lx=12400,ly=2330,edge="N",street="Geoffrey R. Rogers St",made=true}
+S["12419,3176"]={town="louisville_3",x=12419,y=3176,lx=12419,ly=3176,edge="N",street="Sandra Mallard St",made=true}
+S["12422,1238"]={town="louisville_3",x=12422,y=1238,lx=12422,ly=1239,edge="N",street="W River Road",made=true}
+S["12429,3446"]={town="louisville_3",x=12429,y=3446,lx=12429,ly=3447,edge="N",street="KY-1394",made=true}
+S["12430,2570"]={town="louisville_3",x=12430,y=2570,lx=12430,ly=2570,edge="N",street="Chapelmount Downs",made=true}
+S["12431,3325"]={town="louisville_3",x=12431,y=3325,lx=12431,ly=3325,edge="N",street="Leafhill Heights",made=true}
+S["12433,2097"]={town="louisville_3",x=12433,y=2097,lx=12433,ly=2097,edge="N",street="Creek St",made=true}
+S["12434,1658"]={town="louisville_3",x=12434,y=1658,lx=12434,ly=1659,edge="N",street="W Liberty St",made=true}
+S["12443,2699"]={town="louisville_3",x=12443,y=2699,lx=12443,ly=2699,edge="N",street="Chapelmount Access Road",made=true}
+S["12472,2913"]={town="louisville_3",x=12472,y=2913,lx=12472,ly=2913,edge="N",street="Stable Road",made=true}
+S["12476,3533"]={town="louisville_3",x=12476,y=3533,lx=12476,ly=3533,edge="W",street="Rockford Lane",made=true}
+S["12477,1502"]={town="louisville_3",x=12477,y=1502,lx=12477,ly=1503,edge="N",street="Jefferson St",made=true}
+S["12478,3607"]={town="louisville_3",x=12478,y=3607,lx=12479,ly=3607,edge="W",street="Rockford Lane",made=true}
+S["12481,2329"]={town="louisville_3",x=12481,y=2329,lx=12481,ly=2330,edge="N",street="Geoffrey R. Rogers St",made=true}
+S["12482,2190"]={town="louisville_3",x=12482,y=2190,lx=12482,ly=2190,edge="N",street="Old Seminary Road",made=true}
+S["12485,3323"]={town="louisville_3",x=12485,y=3323,lx=12485,ly=3323,edge="N",street="Kneeslap Lane",made=true}
+S["12505,1426"]={town="louisville_3",x=12505,y=1426,lx=12505,ly=1426,edge="W",street="Scholars Lane",made=true}
+S["12506,1236"]={town="louisville_3",x=12506,y=1236,lx=12506,ly=1236,edge="N",street="W River Road",made=true}
+S["12506,2395"]={town="louisville_3",x=12506,y=2395,lx=12506,ly=2396,edge="N",street="Station Road",made=true}
+S["12508,1354"]={town="louisville_3",x=12508,y=1354,lx=12508,ly=1354,edge="N",street="Jackson St",made=true}
+S["12508,1727"]={town="louisville_3",x=12508,y=1727,lx=12509,ly=1727,edge="W",street="Music Hall St",made=true}
+S["12508,1958"]={town="louisville_3",x=12508,y=1958,lx=12508,ly=1958,edge="N",street="Romero St",made=true}
+S["12508,2033"]={town="louisville_3",x=12508,y=2033,lx=12508,ly=2033,edge="N",street="Pike St",made=true}
+S["12508,2098"]={town="louisville_3",x=12508,y=2098,lx=12508,ly=2098,edge="N",street="Pike St",made=true}
+S["12511,2700"]={town="louisville_3",x=12511,y=2700,lx=12511,ly=2700,edge="N",street="S 1st St",made=true}
+S["12513,3454"]={town="louisville_3",x=12513,y=3454,lx=12513,ly=3454,edge="N",street="KY-1394",made=true}
+S["12515,2514"]={town="louisville_3",x=12515,y=2514,lx=12515,ly=2514,edge="N",street="S 1st St",made=true}
+S["12515,2602"]={town="louisville_3",x=12515,y=2602,lx=12516,ly=2602,edge="W",street="S 1st St",made=true}
+S["12515,2791"]={town="louisville_3",x=12515,y=2791,lx=12516,ly=2791,edge="W",street="S 1st St",made=true}
+S["12515,3095"]={town="louisville_3",x=12515,y=3095,lx=12516,ly=3095,edge="W",street="S 1st St",made=true}
+S["12515,3168"]={town="louisville_3",x=12515,y=3168,lx=12516,ly=3168,edge="W",street="S 1st St",made=true}
+S["12515,3244"]={town="louisville_3",x=12515,y=3244,lx=12516,ly=3244,edge="W",street="S 1st St",made=true}
+S["12515,3681"]={town="louisville_3",x=12515,y=3681,lx=12516,ly=3681,edge="W",street="Dixie Highway (Route 31W)",made=true}
+S["12515,3753"]={town="louisville_3",x=12515,y=3753,lx=12516,ly=3753,edge="W",street="Dixie Highway (Route 31W)",made=true}
+S["12515,3832"]={town="louisville_3",x=12515,y=3832,lx=12516,ly=3832,edge="W",street="Dixie Highway (Route 31W)",made=true}
+S["12518,1654"]={town="louisville_3",x=12518,y=1654,lx=12518,ly=1654,edge="N",street="W Liberty St",made=true}
+S["12525,1576"]={town="louisville_3",x=12525,y=1576,lx=12525,ly=1577,edge="N",street="Industry Road",made=true}
+S["12529,1855"]={town="louisville_3",x=12529,y=1855,lx=12529,ly=1856,edge="N",street="Boyle St",made=true}
+S["12529,3001"]={town="louisville_3",x=12529,y=3001,lx=12529,ly=3002,edge="N",street="Waverly St",made=true}
+S["12530,1798"]={town="louisville_3",x=12530,y=1798,lx=12530,ly=1798,edge="N",street="W Broadway St",made=true}
+S["12557,2698"]={town="louisville_3",x=12557,y=2698,lx=12557,ly=2698,edge="W",street="Widow Johnson St",made=true}
+S["12565,1502"]={town="louisville_3",x=12565,y=1502,lx=12565,ly=1503,edge="N",street="Jefferson St",made=true}
+S["12590,3454"]={town="louisville_3",x=12590,y=3454,lx=12590,ly=3454,edge="N",street="KY-1394",made=true}
+S["12591,1238"]={town="louisville_3",x=12591,y=1238,lx=12591,ly=1239,edge="N",street="W River Road",made=true}
+S["12593,2511"]={town="louisville_3",x=12593,y=2511,lx=12593,ly=2511,edge="N",street="Train Station Access Road",made=true}
+S["12595,2757"]={town="louisville_3",x=12595,y=2757,lx=12595,ly=2757,edge="W",street="Bulls Anger St",made=true}
+S["12595,2832"]={town="louisville_3",x=12595,y=2832,lx=12595,ly=2832,edge="W",street="Early Riser St",made=true}
+S["12597,1044"]={town="louisville_3",x=12597,y=1044,lx=12597,ly=1044,edge="W",street="Clark Memorial Bridge",made=true}
+S["12597,1119"]={town="louisville_3",x=12597,y=1119,lx=12597,ly=1119,edge="W",street="Clark Memorial Bridge",made=true}
+S["12597,1650"]={town="louisville_3",x=12597,y=1650,lx=12597,ly=1650,edge="W",street="N 1st St",made=true}
+S["12597,2100"]={town="louisville_3",x=12597,y=2100,lx=12597,ly=2100,edge="N",street="N 1st St",made=true}
+S["12598,2395"]={town="louisville_3",x=12598,y=2395,lx=12598,ly=2395,edge="N",street="Station Road",made=true}
+S["12599,2263"]={town="louisville_3",x=12599,y=2263,lx=12599,ly=2263,edge="N",street="Merciful St",made=true}
+S["12599,2309"]={town="louisville_3",x=12599,y=2309,lx=12599,ly=2309,edge="N",street="Merciful St",made=true}
+S["12601,1363"]={town="louisville_3",x=12601,y=1363,lx=12602,ly=1363,edge="W",street="N 1st St",made=true}
+S["12601,1574"]={town="louisville_3",x=12601,y=1574,lx=12601,ly=1574,edge="N",street="N 1st St",made=true}
+S["12601,1723"]={town="louisville_3",x=12601,y=1723,lx=12602,ly=1723,edge="W",street="N 1st St",made=true}
+S["12601,1855"]={town="louisville_3",x=12601,y=1855,lx=12601,ly=1855,edge="N",street="N 1st St",made=true}
+S["12601,1963"]={town="louisville_3",x=12601,y=1963,lx=12602,ly=1963,edge="W",street="N 1st St",made=true}
+S["12603,2180"]={town="louisville_3",x=12603,y=2180,lx=12604,ly=2180,edge="W",street="Merciful St",made=true}
+S["12611,2634"]={town="louisville_3",x=12611,y=2634,lx=12611,ly=2634,edge="W",street="Widow Johnson St",made=true}
+S["12625,3001"]={town="louisville_3",x=12625,y=3001,lx=12625,ly=3002,edge="N",street="Waverly St",made=true}
+S["12667,1238"]={town="louisville_3",x=12667,y=1238,lx=12667,ly=1239,edge="N",street="E River Road",made=true}
+S["12671,2100"]={town="louisville_3",x=12671,y=2100,lx=12671,ly=2100,edge="N",street="Grady St",made=true}
+S["12681,1498"]={town="louisville_3",x=12681,y=1498,lx=12681,ly=1498,edge="N",street="W Main St",made=true}
+S["12683,1423"]={town="louisville_3",x=12683,y=1423,lx=12683,ly=1423,edge="W",street="San Francisco St",made=true}
+S["12683,2179"]={town="louisville_3",x=12683,y=2179,lx=12683,ly=2179,edge="W",street="Daniel Boone St",made=true}
+S["12683,2513"]={town="louisville_3",x=12683,y=2513,lx=12683,ly=2514,edge="N",street="Train Station Access Road",made=true}
+S["12685,1350"]={town="louisville_3",x=12685,y=1350,lx=12685,ly=1350,edge="N",street="Jackson St",made=true}
+S["12685,1658"]={town="louisville_3",x=12685,y=1658,lx=12685,ly=1658,edge="N",street="E Liberty St",made=true}
+S["12685,1953"]={town="louisville_3",x=12685,y=1953,lx=12685,ly=1953,edge="N",street="William St",made=true}
+S["12685,2265"]={town="louisville_3",x=12685,y=2265,lx=12685,ly=2265,edge="N",street="Doffcap St",made=true}
+S["12686,1872"]={town="louisville_3",x=12686,y=1872,lx=12686,ly=1872,edge="W",street="Scots St",made=true}
+S["12686,3571"]={town="louisville_3",x=12686,y=3571,lx=12686,ly=3571,edge="N",street="Starling St",made=true}
+S["12687,1585"]={town="louisville_3",x=12687,y=1585,lx=12688,ly=1585,edge="W",street="Fresno St",made=true}
+S["12687,1798"]={town="louisville_3",x=12687,y=1798,lx=12687,ly=1798,edge="N",street="E Broadway St",made=true}
+S["12687,3692"]={town="louisville_3",x=12687,y=3692,lx=12687,ly=3692,edge="W",street="Robin St",made=true}
+S["12692,3496"]={town="louisville_3",x=12692,y=3496,lx=12692,ly=3496,edge="N",street="Jay St",made=true}
+S["12703,3114"]={town="louisville_3",x=12703,y=3114,lx=12703,ly=3114,edge="N",street="Lantern St",made=true}
+S["12703,3196"]={town="louisville_3",x=12703,y=3196,lx=12703,ly=3196,edge="N",street="Lantern St",made=true}
+S["12703,3269"]={town="louisville_3",x=12703,y=3269,lx=12703,ly=3269,edge="N",street="Lantern St",made=true}
+S["12703,3402"]={town="louisville_3",x=12703,y=3402,lx=12703,ly=3402,edge="N",street="Bethelehem St",made=true}
+S["12705,2999"]={town="louisville_3",x=12705,y=2999,lx=12705,ly=2999,edge="N",street="Waverly St",made=true}
+S["12711,2424"]={town="louisville_3",x=12711,y=2424,lx=12712,ly=2424,edge="W",street="Train Station Access Road",made=true}
+S["12739,1279"]={town="louisville_3",x=12739,y=1279,lx=12739,ly=1279,edge="W",street="New York St",made=true}
+S["12742,2100"]={town="louisville_3",x=12742,y=2100,lx=12742,ly=2100,edge="N",street="Grady St",made=true}
+S["12744,1953"]={town="louisville_3",x=12744,y=1953,lx=12744,ly=1953,edge="N",street="William St",made=true}
+S["12744,2011"]={town="louisville_3",x=12744,y=2011,lx=12744,ly=2011,edge="W",street="Chickasaw Road",made=true}
+S["12749,2921"]={town="louisville_3",x=12749,y=2921,lx=12749,ly=2922,edge="N",street="Sinner St",made=true}
+S["12750,2701"]={town="louisville_3",x=12750,y=2701,lx=12750,ly=2701,edge="W",street="Worship St",made=true}
+S["12750,2759"]={town="louisville_3",x=12750,y=2759,lx=12750,ly=2759,edge="W",street="Worship St",made=true}
+S["12750,2829"]={town="louisville_3",x=12750,y=2829,lx=12750,ly=2829,edge="W",street="Worship St",made=true}
+S["12755,3818"]={town="louisville_3",x=12755,y=3818,lx=12755,ly=3818,edge="N",street="Robin St",made=true}
+S["12756,1350"]={town="louisville_3",x=12756,y=1350,lx=12756,ly=1350,edge="N",street="Jackson St",made=true}
+S["12756,3694"]={town="louisville_3",x=12756,y=3694,lx=12756,ly=3694,edge="N",street="Finch St",made=true}
+S["12758,3571"]={town="louisville_3",x=12758,y=3571,lx=12758,ly=3572,edge="N",street="Starling St",made=true}
+S["12771,3446"]={town="louisville_3",x=12771,y=3446,lx=12771,ly=3446,edge="N",street="KY-1394",made=true}
+S["12777,2265"]={town="louisville_3",x=12777,y=2265,lx=12777,ly=2266,edge="N",street="Doffcap St",made=true}
+S["12783,3114"]={town="louisville_3",x=12783,y=3114,lx=12783,ly=3115,edge="N",street="Stuffing St",made=true}
+S["12788,3497"]={town="louisville_3",x=12788,y=3497,lx=12788,ly=3497,edge="W",street="Jay St",made=true}
+S["12797,2703"]={town="louisville_3",x=12797,y=2703,lx=12797,ly=2703,edge="N",street="Luther St",made=true}
+S["12797,2869"]={town="louisville_3",x=12797,y=2869,lx=12797,ly=2869,edge="W",street="Confessor St",made=true}
+S["12797,2960"]={town="louisville_3",x=12797,y=2960,lx=12797,ly=2960,edge="W",street="Confessor St",made=true}
+S["12799,1574"]={town="louisville_3",x=12799,y=1574,lx=12799,ly=1574,edge="W",street="Ponderosa St",made=true}
+S["12799,1648"]={town="louisville_3",x=12799,y=1648,lx=12799,ly=1648,edge="W",street="Ponderosa St",made=true}
+S["12800,1427"]={town="louisville_3",x=12800,y=1427,lx=12800,ly=1427,edge="W",street="California St",made=true}
+S["12800,1729"]={town="louisville_3",x=12800,y=1729,lx=12800,ly=1729,edge="N",street="Sacramento St",made=true}
+S["12805,1498"]={town="louisville_3",x=12805,y=1498,lx=12805,ly=1498,edge="N",street="W Main St",made=true}
+S["12818,1798"]={town="louisville_3",x=12818,y=1798,lx=12818,ly=1798,edge="N",street="E Broadway St",made=true}
+S["12822,2101"]={town="louisville_3",x=12822,y=2101,lx=12822,ly=2101,edge="W",street="Grady St",made=true}
+S["12822,2152"]={town="louisville_3",x=12822,y=2152,lx=12822,ly=2152,edge="W",street="Dunmore St",made=true}
+S["12823,1238"]={town="louisville_3",x=12823,y=1238,lx=12823,ly=1239,edge="N",street="E River Road",made=true}
+S["12824,3694"]={town="louisville_3",x=12824,y=3694,lx=12824,ly=3694,edge="N",street="Finch St",made=true}
+S["12828,1354"]={town="louisville_3",x=12828,y=1354,lx=12828,ly=1355,edge="N",street="Jackson St",made=true}
+S["12828,1953"]={town="louisville_3",x=12828,y=1953,lx=12828,ly=1953,edge="N",street="William St",made=true}
+S["12841,2798"]={town="louisville_3",x=12841,y=2798,lx=12841,ly=2798,edge="N",street="Burners St",made=true}
+S["12843,2701"]={town="louisville_3",x=12843,y=2701,lx=12843,ly=2701,edge="N",street="Luther St",made=true}
+S["12843,2867"]={town="louisville_3",x=12843,y=2867,lx=12843,ly=2868,edge="N",street="Remorse St",made=true}
+S["12856,3311"]={town="louisville_3",x=12856,y=3311,lx=12856,ly=3311,edge="N",street="Darker St",made=true}
+S["12857,3402"]={town="louisville_3",x=12857,y=3402,lx=12857,ly=3402,edge="N",street="Bethelehem St",made=true}
+S["12859,3532"]={town="louisville_3",x=12859,y=3532,lx=12859,ly=3533,edge="N",street="Sparrow St",made=true}
+S["12870,2999"]={town="louisville_3",x=12870,y=2999,lx=12870,ly=2999,edge="N",street="Waverly St",made=true}
+S["12870,3234"]={town="louisville_3",x=12870,y=3234,lx=12870,ly=3234,edge="N",street="Darker St",made=true}
+S["12872,3102"]={town="louisville_3",x=12872,y=3102,lx=12873,ly=3102,edge="W",street="Christmas Row St",made=true}
+S["12893,3605"]={town="louisville_3",x=12893,y=3605,lx=12893,ly=3605,edge="N",street="Bluebird St",made=true}
+S["12894,3454"]={town="louisville_3",x=12894,y=3454,lx=12894,ly=3454,edge="N",street="KY-1394",made=true}
+S["12896,3674"]={town="louisville_3",x=12896,y=3674,lx=12896,ly=3674,edge="N",street="Moormen Road",made=true}
+S["12897,1238"]={town="louisville_3",x=12897,y=1238,lx=12897,ly=1239,edge="N",street="E River Road",made=true}
+S["12899,2014"]={town="louisville_3",x=12899,y=2014,lx=12899,ly=2015,edge="N",street="Virginia Av",made=true}
+S["12900,1350"]={town="louisville_3",x=12900,y=1350,lx=12900,ly=1350,edge="N",street="Jackson St",made=true}
+S["12900,1525"]={town="louisville_3",x=12900,y=1525,lx=12900,ly=1525,edge="W",street="Virginia Av",made=true}
+S["12900,1608"]={town="louisville_3",x=12900,y=1608,lx=12900,ly=1608,edge="W",street="Virginia Av",made=true}
+S["12900,1721"]={town="louisville_3",x=12900,y=1721,lx=12900,ly=1721,edge="W",street="Virginia Av",made=true}
+S["12900,1836"]={town="louisville_3",x=12900,y=1836,lx=12901,ly=1836,edge="W",street="Virginia Av",made=true}
+S["12900,2099"]={town="louisville_3",x=12900,y=2099,lx=12900,ly=2099,edge="W",street="Virginia Av",made=true}
+S["12900,2383"]={town="louisville_3",x=12900,y=2383,lx=12900,ly=2384,edge="N",street="Ulster St",made=true}
+S["12901,1442"]={town="louisville_3",x=12901,y=1442,lx=12902,ly=1442,edge="W",street="Danson St",made=true}
+S["12901,2311"]={town="louisville_3",x=12901,y=2311,lx=12902,ly=2311,edge="W",street="Ulster St",made=true}
+S["12902,2219"]={town="louisville_3",x=12902,y=2219,lx=12903,ly=2219,edge="W",street="Wellington Hts",made=true}
+S["12927,3832"]={town="louisville_3",x=12927,y=3832,lx=12927,ly=3832,edge="W",street="Moormen Road",made=true}
+S["12936,3532"]={town="louisville_3",x=12936,y=3532,lx=12936,ly=3532,edge="N",street="Sparrow St",made=true}
+S["12937,3234"]={town="louisville_3",x=12937,y=3234,lx=12938,ly=3234,edge="W",street="Mainslick Road",made=true}
+S["12938,3760"]={town="louisville_3",x=12938,y=3760,lx=12938,ly=3760,edge="W",street="Moormen Road",made=true}
+S["12955,1853"]={town="louisville_3",x=12955,y=1853,lx=12955,ly=1853,edge="W",street="Stonewall St",made=true}
+S["12956,1802"]={town="louisville_3",x=12956,y=1802,lx=12956,ly=1802,edge="N",street="E Broadway St",made=true}
+S["12963,1932"]={town="louisville_3",x=12963,y=1932,lx=12963,ly=1932,edge="N",street="Kilkenny St",made=true}
+S["12975,3330"]={town="louisville_3",x=12975,y=3330,lx=12975,ly=3330,edge="N",street="Sheriff St",made=true}
+S["12976,1238"]={town="louisville_3",x=12976,y=1238,lx=12976,ly=1239,edge="N",street="E River Road",made=true}
+S["12981,1658"]={town="louisville_3",x=12981,y=1658,lx=12981,ly=1659,edge="N",street="E Liberty St",made=true}
+S["12983,3001"]={town="louisville_3",x=12983,y=3001,lx=12983,ly=3001,edge="N",street="Waverly St",made=true}
+S["12983,3130"]={town="louisville_3",x=12983,y=3130,lx=12983,ly=3130,edge="N",street="Gray St",made=true}
+S["12989,3605"]={town="louisville_3",x=12989,y=3605,lx=12989,ly=3606,edge="N",street="Crow Court",made=true}
+S["12993,3258"]={town="louisville_3",x=12993,y=3258,lx=12993,ly=3258,edge="N",street="New Oak St",made=true}
+S["12997,1431"]={town="louisville_3",x=12997,y=1431,lx=12997,ly=1431,edge="W",street="Lewis and Clark St",made=true}
+S["12999,1350"]={town="louisville_3",x=12999,y=1350,lx=12999,ly=1350,edge="N",street="Jackson St",made=true}
+S["12999,1502"]={town="louisville_3",x=12999,y=1502,lx=12999,ly=1502,edge="N",street="E Main St",made=true}
+S["13011,3456"]={town="louisville_3",x=13011,y=3456,lx=13011,ly=3457,edge="N",street="KY-841",made=true}
+S["13022,3530"]={town="louisville_3",x=13022,y=3530,lx=13022,ly=3530,edge="N",street="Sparrow St",made=true}
+S["13033,1854"]={town="louisville_3",x=13033,y=1854,lx=13033,ly=1855,edge="N",street="Stonewall St",made=true}
+S["13034,1798"]={town="louisville_3",x=13034,y=1798,lx=13034,ly=1798,edge="N",street="E Broadway St",made=true}
+S["13035,1953"]={town="louisville_3",x=13035,y=1953,lx=13035,ly=1953,edge="N",street="William St",made=true}
+S["13035,2199"]={town="louisville_3",x=13035,y=2199,lx=13035,ly=2199,edge="N",street="Wellington Hts",made=true}
+S["13036,1900"]={town="louisville_3",x=13036,y=1900,lx=13036,ly=1900,edge="N",street="Surrender St",made=true}
+S["13036,2086"]={town="louisville_3",x=13036,y=2086,lx=13037,ly=2086,edge="W",street="Ladykiss St",made=true}
+S["13045,3258"]={town="louisville_3",x=13045,y=3258,lx=13045,ly=3259,edge="N",street="New Oak St",made=true}
+S["13046,3344"]={town="louisville_3",x=13046,y=3344,lx=13046,ly=3344,edge="N",street="Sycamore Court Loop",made=true}
+S["13053,1354"]={town="louisville_3",x=13053,y=1354,lx=13053,ly=1354,edge="N",street="Jackson St",made=true}
+S["13055,1237"]={town="louisville_3",x=13055,y=1237,lx=13056,ly=1237,edge="W",street="Louisville Expo St",made=true}
+S["13058,2927"]={town="louisville_3",x=13058,y=2927,lx=13058,ly=2927,edge="N",street="Tennessee St",made=true}
+S["13064,3001"]={town="louisville_3",x=13064,y=3001,lx=13064,ly=3002,edge="N",street="Waverly St",made=true}
+S["13071,3072"]={town="louisville_3",x=13071,y=3072,lx=13071,ly=3072,edge="W",street="Window St",made=true}
+S["13073,3130"]={town="louisville_3",x=13073,y=3130,lx=13073,ly=3130,edge="N",street="Gray St",made=true}
+S["13098,1550"]={town="louisville_3",x=13098,y=1550,lx=13098,ly=1550,edge="N",street="Baseball St",made=true}
+S["13098,1633"]={town="louisville_3",x=13098,y=1633,lx=13098,ly=1633,edge="W",street="Baseball St",made=true}
+S["13098,1720"]={town="louisville_3",x=13098,y=1720,lx=13098,ly=1720,edge="W",street="Mens St",made=true}
+S["13098,1901"]={town="louisville_3",x=13098,y=1901,lx=13098,ly=1901,edge="W",street="United States St",made=true}
+S["13098,1957"]={town="louisville_3",x=13098,y=1957,lx=13098,ly=1957,edge="N",street="William St",made=true}
+S["13099,1498"]={town="louisville_3",x=13099,y=1498,lx=13099,ly=1498,edge="N",street="E Main St",made=true}
+S["13099,1802"]={town="louisville_3",x=13099,y=1802,lx=13099,ly=1802,edge="N",street="E Broadway St",made=true}
+S["13099,2199"]={town="louisville_3",x=13099,y=2199,lx=13099,ly=2199,edge="N",street="Wellington Hts",made=true}
+S["13114,2098"]={town="louisville_3",x=13114,y=2098,lx=13114,ly=2098,edge="N",street="Cutpurse St",made=true}
+S["13126,1250"]={town="louisville_3",x=13126,y=1250,lx=13126,ly=1250,edge="N",street="Cows Lament St",made=true}
+S["13130,1354"]={town="louisville_3",x=13130,y=1354,lx=13130,ly=1355,edge="N",street="Jackson St",made=true}
+S["13145,2927"]={town="louisville_3",x=13145,y=2927,lx=13145,ly=2927,edge="N",street="Tennessee St",made=true}
+S["13155,1802"]={town="louisville_3",x=13155,y=1802,lx=13155,ly=1802,edge="N",street="E Broadway St",made=true}
+S["13165,1852"]={town="louisville_3",x=13165,y=1852,lx=13165,ly=1852,edge="N",street="Destiny St",made=true}
+S["13168,1900"]={town="louisville_3",x=13168,y=1900,lx=13168,ly=1900,edge="N",street="Gods Mercy St",made=true}
+S["13198,1425"]={town="louisville_3",x=13198,y=1425,lx=13198,ly=1425,edge="N",street="Rudy Grady Blvd",made=true}
+S["13198,1601"]={town="louisville_3",x=13198,y=1601,lx=13198,ly=1601,edge="N",street="Rudy Grady Blvd",made=true}
+S["13198,1731"]={town="louisville_3",x=13198,y=1731,lx=13198,ly=1731,edge="N",street="Rudy Grady Blvd",made=true}
+S["13198,2002"]={town="louisville_3",x=13198,y=2002,lx=13198,ly=2002,edge="N",street="Rudy Grady Blvd",made=true}
+S["13199,1264"]={town="louisville_3",x=13199,y=1264,lx=13199,ly=1264,edge="W",street="Leatherwork St",made=true}
+S["13199,2998"]={town="louisville_3",x=13199,y=2998,lx=13199,ly=2998,edge="N",street="Waverly St",made=true}
+S["13199,3110"]={town="louisville_3",x=13199,y=3110,lx=13199,ly=3110,edge="N",street="Wisteria St",made=true}
+S["13200,2199"]={town="louisville_3",x=13200,y=2199,lx=13200,ly=2199,edge="N",street="Wellington Hts",made=true}
+S["13201,3200"]={town="louisville_3",x=13201,y=3200,lx=13201,ly=3200,edge="N",street="Goldenrod St",made=true}
+S["13202,1352"]={town="louisville_3",x=13202,y=1352,lx=13203,ly=1352,edge="W",street="Rudy Grady Blvd",made=true}
+S["13202,1500"]={town="louisville_3",x=13202,y=1500,lx=13202,ly=1500,edge="N",street="Rudy Grady Blvd",made=true}
+S["13202,1656"]={town="louisville_3",x=13202,y=1656,lx=13202,ly=1656,edge="N",street="Rudy Grady Blvd",made=true}
+S["13202,1800"]={town="louisville_3",x=13202,y=1800,lx=13202,ly=1800,edge="N",street="Rudy Grady Blvd",made=true}
+S["13202,2099"]={town="louisville_3",x=13202,y=2099,lx=13202,ly=2099,edge="N",street="Rudy Grady Blvd",made=true}
+S["13202,3300"]={town="louisville_3",x=13202,y=3300,lx=13202,ly=3300,edge="N",street="Fuchsia St",made=true}
+S["13255,2045"]={town="louisville_3",x=13255,y=2045,lx=13255,ly=2045,edge="N",street="Peaceful Haven St",made=true}
+S["13275,1953"]={town="louisville_3",x=13275,y=1953,lx=13275,ly=1953,edge="N",street="St Michael St",made=true}
+S["13276,3241"]={town="louisville_3",x=13276,y=3241,lx=13276,ly=3241,edge="N",street="Tulip St",made=true}
+S["13279,1538"]={town="louisville_3",x=13279,y=1538,lx=13279,ly=1538,edge="N",street="Cartwheel St",made=true}
+S["13279,1664"]={town="louisville_3",x=13279,y=1664,lx=13279,ly=1664,edge="N",street="Cartwheel St",made=true}
+S["13280,1385"]={town="louisville_3",x=13280,y=1385,lx=13280,ly=1385,edge="N",street="Trotter St",made=true}
+S["13281,1264"]={town="louisville_3",x=13281,y=1264,lx=13281,ly=1264,edge="N",street="Bruiser Ave",made=true}
+S["13281,1730"]={town="louisville_3",x=13281,y=1730,lx=13281,ly=1730,edge="N",street="Cartwheel St",made=true}
+S["13281,1800"]={town="louisville_3",x=13281,y=1800,lx=13281,ly=1800,edge="N",street="Cartwheel St",made=true}
+S["13285,3110"]={town="louisville_3",x=13285,y=3110,lx=13285,ly=3110,edge="N",street="Daffodil St",made=true}
+S["13286,3156"]={town="louisville_3",x=13286,y=3156,lx=13286,ly=3156,edge="W",street="Jasmine St",made=true}
+S["13294,3001"]={town="louisville_3",x=13294,y=3001,lx=13294,ly=3002,edge="N",street="Waverly St",made=true}
+S["13309,2119"]={town="louisville_3",x=13309,y=2119,lx=13309,ly=2119,edge="W",street="Tall Fence St",made=true}
+S["13311,2045"]={town="louisville_3",x=13311,y=2045,lx=13311,ly=2045,edge="N",street="Peaceful Haven St",made=true}
+S["13317,2242"]={town="louisville_3",x=13317,y=2242,lx=13317,ly=2242,edge="N",street="Grenadiers Row",made=true}
+S["13318,3454"]={town="louisville_3",x=13318,y=3454,lx=13318,ly=3454,edge="N",street="KY-841",made=true}
+S["13322,3243"]={town="louisville_3",x=13322,y=3243,lx=13322,ly=3243,edge="W",street="Spring Cl",made=true}
+S["13328,1800"]={town="louisville_3",x=13328,y=1800,lx=13328,ly=1800,edge="N",street="Feast Dr",made=true}
+S["13354,1953"]={town="louisville_3",x=13354,y=1953,lx=13354,ly=1953,edge="N",street="St Michael St",made=true}
+S["13360,1552"]={town="louisville_3",x=13360,y=1552,lx=13360,ly=1552,edge="W",street="W Market St",made=true}
+S["13362,1722"]={town="louisville_3",x=13362,y=1722,lx=13362,ly=1722,edge="N",street="W Market St",made=true}
+S["13388,2030"]={town="louisville_3",x=13388,y=2030,lx=13388,ly=2030,edge="W",street="Purple Cove St",made=true}
+S["13389,1264"]={town="louisville_3",x=13389,y=1264,lx=13389,ly=1264,edge="N",street="Bruiser Ave",made=true}
+S["13390,1387"]={town="louisville_3",x=13390,y=1387,lx=13390,ly=1387,edge="N",street="Butcher St",made=true}
+S["13390,3456"]={town="louisville_3",x=13390,y=3456,lx=13390,ly=3457,edge="N",street="KY-841",made=true}
+S["13393,2148"]={town="louisville_3",x=13393,y=2148,lx=13393,ly=2149,edge="N",street="Tall Fence St",made=true}
+S["13393,2270"]={town="louisville_3",x=13393,y=2270,lx=13393,ly=2270,edge="N",street="First Class St",made=true}
+S["13399,1664"]={town="louisville_3",x=13399,y=1664,lx=13399,ly=1665,edge="N",street="Derek Auton St",made=true}
+S["13409,3200"]={town="louisville_3",x=13409,y=3200,lx=13409,ly=3201,edge="N",street="Goldenrod St",made=true}
+S["13413,2905"]={town="louisville_3",x=13413,y=2905,lx=13413,ly=2905,edge="W",street="Hyacinth St",made=true}
+S["13413,3110"]={town="louisville_3",x=13413,y=3110,lx=13413,ly=3110,edge="N",street="Daffodil St",made=true}
+S["13413,3336"]={town="louisville_3",x=13413,y=3336,lx=13413,ly=3336,edge="N",street="Petal Fall Dr",made=true}
+S["13415,2999"]={town="louisville_3",x=13415,y=2999,lx=13415,ly=2999,edge="N",street="Hyacinth St",made=true}
+S["13419,1801"]={town="louisville_3",x=13419,y=1801,lx=13419,ly=1801,edge="N",street="Clay St",made=true}
+S["13422,1919"]={town="louisville_3",x=13422,y=1919,lx=13422,ly=1919,edge="N",street="S Fountain Av",made=true}
+S["13440,1860"]={town="louisville_3",x=13440,y=1860,lx=13440,ly=1860,edge="N",street="Fountain View Sq",made=true}
+S["13455,2032"]={town="louisville_3",x=13455,y=2032,lx=13455,ly=2032,edge="N",street="Jobs Lament St",made=true}
+S["13461,2793"]={town="louisville_3",x=13461,y=2793,lx=13461,ly=2794,edge="N",street="Forgotten St",made=true}
+S["13461,3454"]={town="louisville_3",x=13461,y=3454,lx=13461,ly=3454,edge="N",street="KY-841",made=true}
+S["13466,2270"]={town="louisville_3",x=13466,y=2270,lx=13466,ly=2271,edge="N",street="Goodboot St",made=true}
+S["13467,2112"]={town="louisville_3",x=13467,y=2112,lx=13467,ly=2112,edge="W",street="Recruiter Dr",made=true}
+S["13467,2191"]={town="louisville_3",x=13467,y=2191,lx=13468,ly=2191,edge="W",street="Recruiter Dr",made=true}
+S["13478,1801"]={town="louisville_3",x=13478,y=1801,lx=13478,ly=1801,edge="N",street="Clay St",made=true}
+S["13481,1551"]={town="louisville_3",x=13481,y=1551,lx=13481,ly=1551,edge="N",street="Goat Race Alley",made=true}
+S["13481,1600"]={town="louisville_3",x=13481,y=1600,lx=13482,ly=1600,edge="W",street="Wonder St",made=true}
+S["13492,1731"]={town="louisville_3",x=13492,y=1731,lx=13492,ly=1731,edge="N",street="Terrace St",made=true}
+S["13494,1662"]={town="louisville_3",x=13494,y=1662,lx=13494,ly=1662,edge="N",street="Derek Auton St",made=true}
+S["13499,2400"]={town="louisville_3",x=13499,y=2400,lx=13499,ly=2400,edge="N",street="S Shelby Road",made=true}
+S["13499,2498"]={town="louisville_3",x=13499,y=2498,lx=13499,ly=2498,edge="W",street="S Shelby Road",made=true}
+S["13499,2574"]={town="louisville_3",x=13499,y=2574,lx=13499,ly=2574,edge="N",street="S Shelby Road",made=true}
+S["13499,2701"]={town="louisville_3",x=13499,y=2701,lx=13499,ly=2701,edge="N",street="S Shelby Road",made=true}
+S["13499,2950"]={town="louisville_3",x=13499,y=2950,lx=13499,ly=2950,edge="N",street="S Shelby Road",made=true}
+S["13501,1953"]={town="louisville_3",x=13501,y=1953,lx=13501,ly=1953,edge="N",street="St Michael St",made=true}
+S["13501,3300"]={town="louisville_3",x=13501,y=3300,lx=13501,ly=3300,edge="N",street="Hazel Row",made=true}
+S["13502,1265"]={town="louisville_3",x=13502,y=1265,lx=13502,ly=1265,edge="N",street="N Shelby Road",made=true}
+S["13502,1385"]={town="louisville_3",x=13502,y=1385,lx=13502,ly=1385,edge="N",street="N Shelby Road",made=true}
+S["13502,1470"]={town="louisville_3",x=13502,y=1470,lx=13503,ly=1470,edge="W",street="N Shelby Road",made=true}
+S["13502,3110"]={town="louisville_3",x=13502,y=3110,lx=13502,ly=3110,edge="N",street="Daffodil St",made=true}
+S["13503,3200"]={town="louisville_3",x=13503,y=3200,lx=13504,ly=3200,edge="W",street="Rose St",made=true}
+S["13514,3380"]={town="louisville_3",x=13514,y=3380,lx=13514,ly=3380,edge="N",street="Posey St",made=true}
+S["13521,2190"]={town="louisville_3",x=13521,y=2190,lx=13521,ly=2190,edge="W",street="Keep St",made=true}
+S["13538,2863"]={town="louisville_3",x=13538,y=2863,lx=13538,ly=2863,edge="N",street="N Rogers St",made=true}
+S["13540,1551"]={town="louisville_3",x=13540,y=1551,lx=13540,ly=1551,edge="N",street="Goat Race Alley",made=true}
+S["13540,1732"]={town="louisville_3",x=13540,y=1732,lx=13540,ly=1732,edge="N",street="Dancer St",made=true}
+S["13545,2398"]={town="louisville_3",x=13545,y=2398,lx=13545,ly=2398,edge="N",street="Southside Dr",made=true}
+S["13547,1908"]={town="louisville_3",x=13547,y=1908,lx=13547,ly=1908,edge="N",street="Potter St",made=true}
+S["13548,3147"]={town="louisville_3",x=13548,y=3147,lx=13548,ly=3147,edge="W",street="Crabapple Cl",made=true}
+S["13549,1846"]={town="louisville_3",x=13549,y=1846,lx=13549,ly=1846,edge="N",street="Germantown Road",made=true}
+S["13561,2291"]={town="louisville_3",x=13561,y=2291,lx=13561,ly=2291,edge="N",street="Boniface St",made=true}
+S["13562,2703"]={town="louisville_3",x=13562,y=2703,lx=13562,ly=2703,edge="N",street="Kenwood St",made=true}
+S["13563,3456"]={town="louisville_3",x=13563,y=3456,lx=13563,ly=3457,edge="N",street="KY-841",made=true}
+S["13568,2574"]={town="louisville_3",x=13568,y=2574,lx=13568,ly=2574,edge="N",street="Crow St",made=true}
+S["13574,3300"]={town="louisville_3",x=13574,y=3300,lx=13574,ly=3300,edge="N",street="Hazel Row",made=true}
+S["13588,2500"]={town="louisville_3",x=13588,y=2500,lx=13588,ly=2501,edge="N",street="Washington St",made=true}
+S["13592,1625"]={town="louisville_3",x=13592,y=1625,lx=13592,ly=1625,edge="W",street="Old Hunter St",made=true}
+S["13593,1551"]={town="louisville_3",x=13593,y=1551,lx=13593,ly=1551,edge="N",street="Goat Race Alley",made=true}
+S["13597,2232"]={town="louisville_3",x=13597,y=2232,lx=13597,ly=2232,edge="N",street="Victory St",made=true}
+S["13599,2158"]={town="louisville_3",x=13599,y=2158,lx=13599,ly=2158,edge="N",street="Swill St",made=true}
+S["13601,2022"]={town="louisville_3",x=13601,y=2022,lx=13601,ly=2022,edge="N",street="Doorstop St",made=true}
+S["13605,3145"]={town="louisville_3",x=13605,y=3145,lx=13605,ly=3145,edge="N",street="Lilac St",made=true}
+S["13607,2291"]={town="louisville_3",x=13607,y=2291,lx=13607,ly=2291,edge="N",street="Boniface St",made=true}
+S["13607,3240"]={town="louisville_3",x=13607,y=3240,lx=13607,ly=3240,edge="W",street="Tulip St",made=true}
+S["13608,2402"]={town="louisville_3",x=13608,y=2402,lx=13608,ly=2402,edge="N",street="Southside Dr",made=true}
+S["13618,1943"]={town="louisville_3",x=13618,y=1943,lx=13618,ly=1943,edge="N",street="Heisenberg St",made=true}
+S["13619,2865"]={town="louisville_3",x=13619,y=2865,lx=13619,ly=2866,edge="N",street="N Rogers St",made=true}
+S["13632,2610"]={town="louisville_3",x=13632,y=2610,lx=13632,ly=2610,edge="W",street="Washington St",made=true}
+S["13632,2789"]={town="louisville_3",x=13632,y=2789,lx=13632,ly=2789,edge="W",street="Evergreen St",made=true}
+S["13634,2683"]={town="louisville_3",x=13634,y=2683,lx=13635,ly=2683,edge="W",street="Washington St",made=true}
+S["13634,2952"]={town="louisville_3",x=13634,y=2952,lx=13634,ly=2952,edge="N",street="Evergreen St",made=true}
+S["13634,3072"]={town="louisville_3",x=13634,y=3072,lx=13634,ly=3073,edge="N",street="Old Market St",made=true}
+S["13645,1848"]={town="louisville_3",x=13645,y=1848,lx=13645,ly=1848,edge="N",street="Germantown Road",made=true}
+S["13648,1731"]={town="louisville_3",x=13648,y=1731,lx=13648,ly=1731,edge="N",street="E Market St",made=true}
+S["13653,3265"]={town="louisville_3",x=13653,y=3265,lx=13654,ly=3265,edge="W",street="Old Market St",made=true}
+S["13654,3132"]={town="louisville_3",x=13654,y=3132,lx=13654,ly=3132,edge="N",street="Old Market St",made=true}
+S["13654,3205"]={town="louisville_3",x=13654,y=3205,lx=13654,ly=3205,edge="N",street="Old Market St",made=true}
+S["13665,2291"]={town="louisville_3",x=13665,y=2291,lx=13665,ly=2291,edge="N",street="Boniface St",made=true}
+S["13667,1497"]={town="louisville_3",x=13667,y=1497,lx=13667,ly=1497,edge="N",street="Bass Road",made=true}
+S["13670,2525"]={town="louisville_3",x=13670,y=2525,lx=13670,ly=2525,edge="N",street="Oriole St",made=true}
+S["13678,2232"]={town="louisville_3",x=13678,y=2232,lx=13678,ly=2232,edge="N",street="Victory St",made=true}
+S["13686,1645"]={town="louisville_3",x=13686,y=1645,lx=13686,ly=1645,edge="N",street="Backway St",made=true}
+S["13688,2611"]={town="louisville_3",x=13688,y=2611,lx=13688,ly=2611,edge="N",street="McKinley Ave",made=true}
+S["13689,3001"]={town="louisville_3",x=13689,y=3001,lx=13689,ly=3001,edge="N",street="Phoenix St",made=true}
+S["13690,2863"]={town="louisville_3",x=13690,y=2863,lx=13690,ly=2863,edge="N",street="Woodpecker St",made=true}
+S["13695,2103"]={town="louisville_3",x=13695,y=2103,lx=13695,ly=2103,edge="N",street="Nick St",made=true}
+S["13713,3205"]={town="louisville_3",x=13713,y=3205,lx=13713,ly=3205,edge="N",street="Walnut Wood St",made=true}
+S["13714,2398"]={town="louisville_3",x=13714,y=2398,lx=13714,ly=2398,edge="N",street="Southside Dr",made=true}
+S["13714,3132"]={town="louisville_3",x=13714,y=3132,lx=13714,ly=3132,edge="N",street="Henrietta Dr",made=true}
+S["13721,3264"]={town="louisville_3",x=13721,y=3264,lx=13721,ly=3265,edge="N",street="Fishmonger Row",made=true}
+S["13738,1848"]={town="louisville_3",x=13738,y=1848,lx=13738,ly=1848,edge="N",street="Germantown Road",made=true}
+S["13739,1497"]={town="louisville_3",x=13739,y=1497,lx=13739,ly=1497,edge="N",street="Bass Road",made=true}
+S["13739,1553"]={town="louisville_3",x=13739,y=1553,lx=13739,ly=1553,edge="N",street="Backway St",made=true}
+S["13739,2192"]={town="louisville_3",x=13739,y=2192,lx=13739,ly=2192,edge="N",street="Bavaria St",made=true}
+S["13744,2684"]={town="louisville_3",x=13744,y=2684,lx=13744,ly=2685,edge="N",street="Democrat St",made=true}
+S["13746,2609"]={town="louisville_3",x=13746,y=2609,lx=13746,ly=2609,edge="N",street="McKinley Ave",made=true}
+S["13750,3001"]={town="louisville_3",x=13750,y=3001,lx=13750,ly=3001,edge="N",street="Phoenix St",made=true}
+S["13756,2525"]={town="louisville_3",x=13756,y=2525,lx=13756,ly=2525,edge="N",street="Independence St",made=true}
+S["13757,2795"]={town="louisville_3",x=13757,y=2795,lx=13757,ly=2795,edge="W",street="Cuckoo St",made=true}
+S["13781,1389"]={town="louisville_3",x=13781,y=1389,lx=13781,ly=1389,edge="W",street="Bass Road",made=true}
+S["13783,1280"]={town="louisville_3",x=13783,y=1280,lx=13783,ly=1280,edge="N",street="Bass Road",made=true}
+S["13799,2466"]={town="louisville_3",x=13799,y=2466,lx=13799,ly=2466,edge="N",street="Audubon St",made=true}
+S["13799,2866"]={town="louisville_3",x=13799,y=2866,lx=13799,ly=2866,edge="N",street="Audubon St",made=true}
+S["13799,3026"]={town="louisville_3",x=13799,y=3026,lx=13799,ly=3026,edge="W",street="Owl St",made=true}
+S["13801,2684"]={town="louisville_3",x=13801,y=2684,lx=13802,ly=2684,edge="W",street="Audubon St",made=true}
+S["13802,2527"]={town="louisville_3",x=13802,y=2527,lx=13802,ly=2527,edge="N",street="Audubon St",made=true}
+S["13820,1848"]={town="louisville_3",x=13820,y=1848,lx=13820,ly=1849,edge="N",street="Germantown Road",made=true}
+S["13822,2609"]={town="louisville_3",x=13822,y=2609,lx=13822,ly=2609,edge="N",street="McKinley Ave",made=true}
+S["13826,2402"]={town="louisville_3",x=13826,y=2402,lx=13826,ly=2403,edge="N",street="Southside Dr",made=true}
+S["13841,2917"]={town="louisville_3",x=13841,y=2917,lx=13841,ly=2917,edge="N",street="Sapphire St",made=true}
+S["13850,2525"]={town="louisville_3",x=13850,y=2525,lx=13850,ly=2525,edge="N",street="Panama St",made=true}
+S["13853,2866"]={town="louisville_3",x=13853,y=2866,lx=13853,ly=2866,edge="N",street="Ruby St",made=true}
+S["13877,2757"]={town="louisville_3",x=13877,y=2757,lx=13877,ly=2757,edge="N",street="Diamond St",made=true}
+S["13885,3063"]={town="louisville_3",x=13885,y=3063,lx=13885,ly=3063,edge="N",street="Opal St",made=true}
+S["13887,3156"]={town="louisville_3",x=13887,y=3156,lx=13888,ly=3156,edge="W",street="Backside St",made=true}
+S["13895,2611"]={town="louisville_3",x=13895,y=2611,lx=13895,ly=2612,edge="N",street="McKinley Ave",made=true}
+S["13895,2699"]={town="louisville_3",x=13895,y=2699,lx=13895,ly=2699,edge="N",street="Kenwood St",made=true}
+S["13897,2402"]={town="louisville_3",x=13897,y=2402,lx=13897,ly=2403,edge="N",street="Southside Dr",made=true}
+S["13913,2093"]={town="louisville_3",x=13913,y=2093,lx=13913,ly=2093,edge="N",street="Germantown Road",made=true}
+S["13921,2864"]={town="louisville_3",x=13921,y=2864,lx=13921,ly=2864,edge="N",street="Ruby St",made=true}
+S["13924,2950"]={town="louisville_3",x=13924,y=2950,lx=13924,ly=2950,edge="W",street="Sapphire St",made=true}
+S["13934,2308"]={town="louisville_3",x=13934,y=2308,lx=13935,ly=2308,edge="W",street="Woodsedge St",made=true}
+S["13940,3227"]={town="louisville_3",x=13940,y=3227,lx=13940,ly=3227,edge="W",street="Backside St",made=true}
+S["13940,3301"]={town="louisville_3",x=13940,y=3301,lx=13940,ly=3301,edge="N",street="Rice St",made=true}
+S["13961,3027"]={town="louisville_3",x=13961,y=3027,lx=13961,ly=3028,edge="N",street="Emerald St",made=true}
+S["13979,2426"]={town="louisville_3",x=13979,y=2426,lx=13979,ly=2426,edge="N",street="Southside Dr",made=true}
+S["13979,2756"]={town="louisville_3",x=13979,y=2756,lx=13979,ly=2756,edge="W",street="Southside Dr",made=true}
+S["13979,2811"]={town="louisville_3",x=13979,y=2811,lx=13979,ly=2811,edge="N",street="Southside Dr",made=true}
+S["13983,2570"]={town="louisville_3",x=13983,y=2570,lx=13983,ly=2570,edge="N",street="Southside Dr",made=true}
+S["13983,2701"]={town="louisville_3",x=13983,y=2701,lx=13984,ly=2701,edge="W",street="Southside Dr",made=true}
+S["13983,3117"]={town="louisville_3",x=13983,y=3117,lx=13984,ly=3117,edge="W",street="Southside Dr",made=true}
+S["13985,2099"]={town="louisville_3",x=13985,y=2099,lx=13985,ly=2099,edge="N",street="Germantown Road",made=true}
+S["14012,2170"]={town="louisville_3",x=14012,y=2170,lx=14012,ly=2170,edge="N",street="Germantown Road",made=true}
+S["14014,2264"]={town="louisville_3",x=14014,y=2264,lx=14014,ly=2264,edge="N",street="Woodsedge St",made=true}
+S["14025,2932"]={town="louisville_3",x=14025,y=2932,lx=14025,ly=2932,edge="N",street="Beggars St",made=true}
+S["14042,2499"]={town="louisville_3",x=14042,y=2499,lx=14042,ly=2499,edge="W",street="Patriots St",made=true}
+S["14044,2425"]={town="louisville_3",x=14044,y=2425,lx=14044,ly=2425,edge="N",street="Woodsedge St",made=true}
+S["14054,2878"]={town="louisville_3",x=14054,y=2878,lx=14054,ly=2878,edge="N",street="Hundred Steps St",made=true}
+S["14068,2743"]={town="louisville_3",x=14068,y=2743,lx=14068,ly=2743,edge="N",street="American St",made=true}
+S["14069,2812"]={town="louisville_3",x=14069,y=2812,lx=14069,ly=2812,edge="N",street="Wilson St",made=true}
+S["14099,2925"]={town="louisville_3",x=14099,y=2925,lx=14099,ly=2925,edge="N",street="Tramp St",made=true}
+S["14101,2630"]={town="louisville_3",x=14101,y=2630,lx=14101,ly=2630,edge="N",street="Patriots St",made=true}
+S["14101,2876"]={town="louisville_3",x=14101,y=2876,lx=14101,ly=2876,edge="N",street="Tramp St",made=true}
+S["14111,3000"]={town="louisville_3",x=14111,y=3000,lx=14111,ly=3000,edge="N",street="Birdsong Road",made=true}
+S["14156,2923"]={town="louisville_3",x=14156,y=2923,lx=14156,ly=2923,edge="N",street="Mulefear St",made=true}
+S["14184,2788"]={town="louisville_3",x=14184,y=2788,lx=14184,ly=2788,edge="N",street="Wilson St",made=true}
+S["14226,2964"]={town="louisville_3",x=14226,y=2964,lx=14226,ly=2964,edge="N",street="Freddy Stapleton St",made=true}
+S["14267,2733"]={town="louisville_3",x=14267,y=2733,lx=14267,ly=2733,edge="W",street="Liberty St",made=true}
+S["14267,2824"]={town="louisville_3",x=14267,y=2824,lx=14267,ly=2824,edge="N",street="Liberty St",made=true}
+S["14290,2909"]={town="louisville_3",x=14290,y=2909,lx=14290,ly=2909,edge="N",street="Hamburg Close",made=true}
+S["14290,2965"]={town="louisville_3",x=14290,y=2965,lx=14290,ly=2965,edge="N",street="Carrot St",made=true}
+S["12269,1264"]={town="louisville_3",x=12269,y=1264,lx=12269,ly=1264,edge="W",street="",hatch="kitchen",under={12269,1264,12269,1263,12269,1262,12269,1261}}
+S["13589,2545"]={town="louisville_3",x=13589,y=2545,lx=13589,ly=2545,edge="N",street="",hatch="garagestorage",under={13589,2545,13588,2545,13587,2545,13586,2545}}
+S["13701,2475"]={town="louisville_3",x=13701,y=2475,lx=13701,ly=2475,edge="N",street="",hatch="kitchen",under={13701,2475,13702,2475,13703,2475,13704,2475,13705,2475,13706,2475,13707,2475}}
+S["12689,2789"]={town="louisville_3",x=12689,y=2789,lx=12689,ly=2789,edge="N",street="",hatch="kitchen",under={12689,2789,12690,2789,12691,2789,12692,2789,12693,2789,12694,2789,12695,2789}}
+S["12339,3072"]={town="louisville_3",x=12339,y=3072,lx=12339,ly=3072,edge="N",street="",hatch="garage",under={12339,3072,12340,3072,12341,3072}}
+S["12356,3118"]={town="louisville_3",x=12356,y=3118,lx=12356,ly=3118,edge="N",street="",hatch="garage",under={12356,3118,12355,3118,12354,3118,12353,3118}}
+S["12217,2120"]={town="louisville_3",x=12217,y=2120,lx=12217,ly=2120,edge="N",street="",hatch="kitchen",under={12217,2120,12216,2120,12215,2120,12214,2120}}
+S["12161,2979"]={town="louisville_3",x=12161,y=2979,lx=12161,ly=2979,edge="N",street="",hatch="kitchen",under={12161,2979,12160,2979,12159,2979,12158,2979,12157,2979}}
+S["13883,2904"]={town="louisville_3",x=13883,y=2904,lx=13883,ly=2904,edge="N",street="",hatch="garagestorage",under={13883,2904,13883,2905,13883,2906}}
+S["13074,1812"]={town="louisville_3",x=13074,y=1812,lx=13074,ly=1812,edge="W",street="",hatch="kitchen",under={13074,1812,13074,1811,13074,1810,13074,1809,13074,1808}}
+S["14171,2869"]={town="louisville_3",x=14171,y=2869,lx=14171,ly=2869,edge="N",street="",hatch="garagestorage",under={14171,2869,14170,2869,14169,2869,14168,2869}}
+S["12161,1970"]={town="louisville_3",x=12161,y=1970,lx=12161,ly=1970,edge="N",street="",hatch="kitchen",under={12161,1970,12161,1971,12161,1972,12161,1973}}
+S["13512,2481"]={town="louisville_3",x=13512,y=2481,lx=13512,ly=2481,edge="W",street="",hatch="kitchen",under={13512,2481,13512,2480,13512,2479,13512,2478}}
+S["14250,2739"]={town="louisville_3",x=14250,y=2739,lx=14250,ly=2739,edge="N",street="",hatch="kitchen",under={14250,2739,14251,2739,14252,2739}}
+S["13829,2904"]={town="louisville_3",x=13829,y=2904,lx=13829,ly=2904,edge="N",street="",hatch="garagestorage",under={13829,2904,13829,2905,13829,2906}}
+S["13778,2952"]={town="louisville_3",x=13778,y=2952,lx=13778,ly=2952,edge="N",street="",hatch="kitchen",under={13778,2952,13779,2952,13780,2952,13781,2952,13782,2952}}
+S["13821,3016"]={town="louisville_3",x=13821,y=3016,lx=13821,ly=3016,edge="N",street="",hatch="garagestorage",under={13821,3016,13821,3017,13821,3018}}
+S["12914,3082"]={town="louisville_3",x=12914,y=3082,lx=12914,ly=3082,edge="N",street="",hatch="kitchen",under={12914,3082,12914,3083,12914,3084,12914,3085,12914,3086,12914,3087}}
+S["13922,3289"]={town="louisville_3",x=13922,y=3289,lx=13922,ly=3289,edge="N",street="",hatch="laundry",under={13922,3289,13922,3290,13922,3291}}
+S["12198,1546"]={town="louisville_3",x=12198,y=1546,lx=12198,ly=1546,edge="N",street="",hatch="kitchen",under={12198,1546,12199,1546,12200,1546,12201,1546,12202,1546,12203,1546,12204,1546}}
+S["13297,2255"]={town="louisville_3",x=13297,y=2255,lx=13297,ly=2255,edge="W",street="",hatch="kitchen",under={13297,2255,13297,2254,13297,2253,13297,2252,13297,2251,13297,2250,13297,2249}}
+S["13110,1724"]={town="louisville_3",x=13110,y=1724,lx=13110,ly=1724,edge="N",street="",hatch="storageunit",under={13110,1724,13109,1724,13108,1724,13107,1724,13106,1724,13105,1724,13104,1724,13103,1724}}
+S["14208,2743"]={town="louisville_3",x=14208,y=2743,lx=14208,ly=2743,edge="W",street="",hatch="kitchen",under={14208,2743,14208,2742,14208,2741,14208,2740}}
+S["13492,1972"]={town="louisville_3",x=13492,y=1972,lx=13492,ly=1972,edge="N",street="",hatch="kitchen",under={13492,1972,13493,1972,13494,1972}}
+S["12836,3214"]={town="louisville_3",x=12836,y=3214,lx=12836,ly=3214,edge="N",street="",hatch="kitchen",under={12836,3214,12837,3214,12838,3214,12839,3214,12840,3214,12841,3214}}
+S["13187,3077"]={town="louisville_3",x=13187,y=3077,lx=13187,ly=3077,edge="N",street="",hatch="kitchen",under={13187,3077,13188,3077,13189,3077,13190,3077}}
+S["12543,2755"]={town="louisville_3",x=12543,y=2755,lx=12543,ly=2755,edge="N",street="",hatch="kitchen",under={12543,2755,12544,2755,12545,2755,12546,2755,12547,2755}}
+S["13161,1735"]={town="louisville_3",x=13161,y=1735,lx=13161,ly=1735,edge="N",street="",hatch="janitor",under={13161,1735,13160,1735,13159,1735,13158,1735}}
+S["14061,2844"]={town="louisville_3",x=14061,y=2844,lx=14061,ly=2844,edge="N",street="",hatch="kitchen",under={14061,2844,14060,2844,14059,2844,14058,2844}}
+S["14016,2572"]={town="louisville_3",x=14016,y=2572,lx=14016,ly=2572,edge="N",street="",hatch="kitchen",under={14016,2572,14017,2572,14018,2572,14019,2572}}
+S["12526,1919"]={town="louisville_3",x=12526,y=1919,lx=12526,ly=1919,edge="N",street="",hatch="kitchen",under={12526,1919,12527,1919,12528,1919}}
+S["13445,2683"]={town="louisville_3",x=13445,y=2683,lx=13445,ly=2683,edge="N",street="",hatch="garage",under={13445,2683,13446,2683,13447,2683}}
+S["13599,2841"]={town="louisville_3",x=13599,y=2841,lx=13599,ly=2841,edge="N",street="",hatch="kitchen",under={13599,2841,13600,2841,13601,2841,13602,2841}}
+S["12941,1749"]={town="louisville_3",x=12941,y=1749,lx=12941,ly=1749,edge="N",street="",hatch="kitchen",under={12941,1749,12942,1749,12943,1749,12944,1749,12945,1749,12946,1749,12947,1749}}
+S["13334,3279"]={town="louisville_3",x=13334,y=3279,lx=13334,ly=3279,edge="N",street="",hatch="kitchen",under={13334,3279,13333,3279,13332,3279,13331,3279,13330,3279,13329,3279,13328,3279}}
+S["13479,2712"]={town="louisville_3",x=13479,y=2712,lx=13479,ly=2712,edge="N",street="",hatch="kitchen",under={13479,2712,13478,2712,13477,2712,13476,2712}}
+S["13700,1633"]={town="louisville_3",x=13700,y=1633,lx=13700,ly=1633,edge="N",street="",hatch="storageunit",under={13700,1633,13700,1634,13700,1635}}
+S["12379,1837"]={town="louisville_3",x=12379,y=1837,lx=12379,ly=1837,edge="W",street="",hatch="kitchen",under={12379,1837,12379,1836,12379,1835,12379,1834}}
+S["12985,3348"]={town="louisville_3",x=12985,y=3348,lx=12985,ly=3348,edge="N",street="",hatch="kitchen",under={12985,3348,12984,3348,12983,3348,12982,3348}}
+S["13521,1960"]={town="louisville_3",x=13521,y=1960,lx=13521,ly=1960,edge="W",street="",hatch="kitchen",under={13521,1960,13521,1959,13521,1958,13521,1957}}
+S["13222,1794"]={town="louisville_3",x=13222,y=1794,lx=13222,ly=1794,edge="N",street="",hatch="kitchen",under={13222,1794,13223,1794,13224,1794}}
+S["13340,2082"]={town="louisville_3",x=13340,y=2082,lx=13340,ly=2082,edge="W",street="",hatch="kitchen",under={13340,2082,13340,2081,13340,2080,13340,2079}}
+S["12236,3273"]={town="louisville_3",x=12236,y=3273,lx=12236,ly=3273,edge="N",street="",hatch="kitchen",under={12236,3273,12236,3274,12236,3275}}
+S["12739,3425"]={town="louisville_3",x=12739,y=3425,lx=12739,ly=3425,edge="N",street="",hatch="kitchen",under={12739,3425,12739,3426,12739,3427}}
+S["12956,3402"]={town="louisville_3",x=12956,y=3402,lx=12956,ly=3402,edge="N",street="",hatch="laundry",under={12956,3402,12955,3402,12954,3402,12953,3402}}
+S["12378,1930"]={town="louisville_3",x=12378,y=1930,lx=12378,ly=1930,edge="N",street="",hatch="kitchen",under={12378,1930,12379,1930,12380,1930,12381,1930,12382,1930,12383,1930,12384,1930,12385,1930}}
+S["13592,2375"]={town="louisville_3",x=13592,y=2375,lx=13592,ly=2375,edge="N",street="",hatch="garagestorage",under={13592,2375,13593,2375,13594,2375}}
+S["13920,2822"]={town="louisville_3",x=13920,y=2822,lx=13920,ly=2822,edge="N",street="",hatch="kitchen",under={13920,2822,13920,2823,13920,2824}}
+S["13537,3151"]={town="louisville_3",x=13537,y=3151,lx=13537,ly=3151,edge="N",street="",hatch="kitchen",under={13537,3151,13538,3151,13539,3151,13540,3151}}
+S["13087,3016"]={town="louisville_3",x=13087,y=3016,lx=13087,ly=3016,edge="W",street="",hatch="kitchen",under={13087,3016,13087,3015,13087,3014,13087,3013,13087,3012,13087,3011,13087,3010}}
+S["13864,2848"]={town="louisville_3",x=13864,y=2848,lx=13864,ly=2848,edge="W",street="",hatch="kitchen",under={13864,2848,13864,2847,13864,2846,13864,2845}}
+S["12341,1485"]={town="louisville_3",x=12341,y=1485,lx=12341,ly=1485,edge="N",street="",hatch="kitchen",under={12341,1485,12341,1486,12341,1487,12341,1488,12341,1489,12341,1490,12341,1491}}
+S["13609,2087"]={town="louisville_3",x=13609,y=2087,lx=13609,ly=2087,edge="N",street="",hatch="kitchen",under={13609,2087,13609,2088,13609,2089,13609,2090,13609,2091}}
+S["13565,2213"]={town="louisville_3",x=13565,y=2213,lx=13565,ly=2213,edge="N",street="",hatch="kitchen",under={13565,2213,13564,2213,13563,2213,13562,2213}}
+S["13037,3380"]={town="louisville_3",x=13037,y=3380,lx=13037,ly=3380,edge="N",street="",hatch="garagestorage",under={13037,3380,13038,3380,13039,3380}}
+S["12537,2650"]={town="louisville_3",x=12537,y=2650,lx=12537,ly=2650,edge="W",street="",hatch="kitchen",under={12537,2650,12537,2649,12537,2648,12537,2647}}
+S["13858,2801"]={town="louisville_3",x=13858,y=2801,lx=13858,ly=2801,edge="W",street="",hatch="kitchen",under={13858,2801,13858,2800,13858,2799,13858,2798}}
+S["12535,1883"]={town="louisville_3",x=12535,y=1883,lx=12535,ly=1883,edge="N",street="",hatch="kitchen",under={12535,1883,12534,1883,12533,1883,12532,1883}}
+S["13769,2473"]={town="louisville_3",x=13769,y=2473,lx=13769,ly=2473,edge="N",street="",hatch="garagestorage",under={13769,2473,13768,2473,13767,2473,13766,2473}}
+S["13173,2941"]={town="louisville_3",x=13173,y=2941,lx=13173,ly=2941,edge="W",street="",hatch="kitchen",under={13173,2941,13173,2940,13173,2939,13173,2938}}
+S["12684,3055"]={town="louisville_3",x=12684,y=3055,lx=12684,ly=3055,edge="N",street="",hatch="kitchen",under={12684,3055,12683,3055,12682,3055,12681,3055}}
+S["12884,1521"]={town="louisville_3",x=12884,y=1521,lx=12884,ly=1521,edge="N",street="",hatch="kitchen",under={12884,1521,12885,1521,12886,1521,12887,1521,12888,1521,12889,1521,12890,1521,12891,1521}}
+S["12606,2745"]={town="louisville_3",x=12606,y=2745,lx=12606,ly=2745,edge="N",street="",hatch="kitchen",under={12606,2745,12605,2745,12604,2745,12603,2745}}
+S["13488,2814"]={town="louisville_3",x=13488,y=2814,lx=13488,ly=2814,edge="N",street="",hatch="kitchen",under={13488,2814,13489,2814,13490,2814,13491,2814}}
+S["12160,2040"]={town="louisville_3",x=12160,y=2040,lx=12160,ly=2040,edge="W",street="",hatch="kitchen",under={12160,2040,12160,2039,12160,2038,12160,2037}}
+S["13753,2246"]={town="louisville_3",x=13753,y=2246,lx=13753,ly=2246,edge="N",street="",hatch="garage",under={13753,2246,13752,2246,13751,2246,13750,2246}}
+S["12273,3049"]={town="louisville_3",x=12273,y=3049,lx=12273,ly=3049,edge="N",street="",hatch="laundry",under={12273,3049,12272,3049,12271,3049,12270,3049,12269,3049,12268,3049,12267,3049,12266,3049}}
+S["13001,1923"]={town="louisville_3",x=13001,y=1923,lx=13001,ly=1923,edge="N",street="",hatch="laundry",under={13001,1923,13001,1924,13001,1925}}
+S["13142,1885"]={town="louisville_3",x=13142,y=1885,lx=13142,ly=1885,edge="N",street="",hatch="kitchen",under={13142,1885,13142,1886,13142,1887,13142,1888,13142,1889,13142,1890,13142,1891}}
+S["14232,2834"]={town="louisville_3",x=14232,y=2834,lx=14232,ly=2834,edge="N",street="",hatch="garagestorage",under={14232,2834,14232,2835,14232,2836}}
+S["13527,1614"]={town="louisville_3",x=13527,y=1614,lx=13527,ly=1614,edge="N",street="",hatch="kitchen",under={13527,1614,13528,1614,13529,1614,13530,1614,13531,1614}}
+S["13864,2958"]={town="louisville_3",x=13864,y=2958,lx=13864,ly=2958,edge="W",street="",hatch="garagestorage",under={13864,2958,13864,2957,13864,2956,13864,2955,13864,2954}}
+S["12457,3264"]={town="louisville_3",x=12457,y=3264,lx=12457,ly=3264,edge="N",street="",hatch="laundry",under={12457,3264,12456,3264,12455,3264,12454,3264}}
+S["14034,2145"]={town="louisville_3",x=14034,y=2145,lx=14034,ly=2145,edge="W",street="",hatch="laundry",under={14034,2145,14034,2144,14034,2143,14034,2142}}
+S["13544,2243"]={town="louisville_3",x=13544,y=2243,lx=13544,ly=2243,edge="N",street="",hatch="garagestorage",under={13544,2243,13545,2243,13546,2243}}
+S["13480,2560"]={town="louisville_3",x=13480,y=2560,lx=13480,ly=2560,edge="N",street="",hatch="kitchen",under={13480,2560,13479,2560,13478,2560,13477,2560,13476,2560,13475,2560}}
+S["13818,2624"]={town="louisville_3",x=13818,y=2624,lx=13818,ly=2624,edge="W",street="",hatch="kitchen",under={13818,2624,13818,2623,13818,2622,13818,2621,13818,2620,13819,2620}}
+S["13485,1682"]={town="louisville_3",x=13485,y=1682,lx=13485,ly=1682,edge="N",street="",hatch="kitchen",under={13485,1682,13486,1682,13487,1682}}
+H[#H+1]={town="louisville_3",kind="pump",x=12504,y=3231,w=7,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=12977,y=3025,w=7,h=5}
+H[#H+1]={town="louisville_3",kind="squat",x=12655,y=2514,w=6,h=6}
+H[#H+1]={town="louisville_3",kind="laststand",x=12653,y=2257,w=8,h=4}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12099,y=1729,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="squat",x=13644,y=2195,w=8,h=4}
+H[#H+1]={town="louisville_3",kind="squat",x=12325,y=2517,w=5,h=4}
+H[#H+1]={town="louisville_3",kind="squat",x=12608,y=1958,w=6,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=12396,y=1981,w=6,h=4}
+H[#H+1]={town="louisville_3",kind="squat",x=13023,y=3450,w=6,h=4}
+H[#H+1]={town="louisville_3",kind="pump",x=12542,y=2993,w=6,h=6}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12591,y=1125,w=6,h=6}
+H[#H+1]={town="louisville_3",kind="pump",x=12992,y=1464,w=5,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=12143,y=2063,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="maintenance",x=13493,y=2334,w=6,h=6}
+H[#H+1]={town="louisville_3",kind="laststand",x=13964,y=2996,w=8,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=12920,y=3598,w=6,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=13984,y=3301,w=8,h=5}
+H[#H+1]={town="louisville_3",kind="squat",x=13802,y=2935,w=5,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=14031,y=2420,w=6,h=5}
+H[#H+1]={town="louisville_3",kind="pump",x=12290,y=2155,w=8,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=12745,y=2093,w=7,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=14262,y=2728,w=5,h=6}
+H[#H+1]={town="louisville_3",kind="laststand",x=13600,y=2142,w=8,h=6}
+H[#H+1]={town="louisville_3",kind="laststand",x=12273,y=3356,w=8,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=13876,y=2392,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=12484,y=1828,w=6,h=6}
+H[#H+1]={town="louisville_3",kind="laststand",x=12504,y=3807,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=13335,y=3193,w=8,h=5}
+H[#H+1]={town="louisville_3",kind="pump",x=13411,y=3381,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=13191,y=1667,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=13971,y=2957,w=8,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=12259,y=2868,w=5,h=4}
+H[#H+1]={town="louisville_3",kind="squat",x=12518,y=2158,w=7,h=4}
+H[#H+1]={town="louisville_3",kind="squat",x=12058,y=2722,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="maintenance",x=13762,y=2925,w=5,h=6}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12571,y=2147,w=5,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=12745,y=1973,w=5,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=12758,y=3741,w=8,h=5}
+H[#H+1]={town="louisville_3",kind="pump",x=12698,y=3329,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="maintenance",x=13740,y=1633,w=7,h=5}
+H[#H+1]={town="louisville_3",kind="squat",x=12584,y=1492,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12358,y=3447,w=6,h=4}
+H[#H+1]={town="louisville_3",kind="maintenance",x=13936,y=2867,w=8,h=4}
+H[#H+1]={town="louisville_3",kind="maintenance",x=13687,y=2403,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="maintenance",x=13583,y=2568,w=5,h=6}
+H[#H+1]={town="louisville_3",kind="laststand",x=13635,y=2710,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=12775,y=1503,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="pump",x=12909,y=1239,w=7,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=12591,y=1288,w=6,h=6}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12195,y=2573,w=7,h=4}
+H[#H+1]={town="louisville_3",kind="pump",x=13406,y=2933,w=7,h=5}
+H[#H+1]={town="louisville_3",kind="squat",x=12199,y=2203,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=13971,y=2877,w=8,h=6}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12991,y=1365,w=6,h=6}
+H[#H+1]={town="louisville_3",kind="laststand",x=13871,y=2833,w=6,h=6}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12059,y=2026,w=6,h=4}
+H[#H+1]={town="louisville_3",kind="pump",x=13948,y=2565,w=7,h=4}
+H[#H+1]={town="louisville_3",kind="maintenance",x=13030,y=3065,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12863,y=1230,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="laststand",x=12957,y=2189,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=14289,y=3001,w=7,h=5}
+H[#H+1]={town="louisville_3",kind="squat",x=12669,y=3459,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="squat",x=13645,y=3111,w=5,h=4}
+H[#H+1]={town="louisville_3",kind="squat",x=12688,y=2184,w=5,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=12516,y=2813,w=6,h=4}
+H[#H+1]={town="louisville_3",kind="squat",x=13741,y=2244,w=5,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=12259,y=3102,w=7,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=12769,y=3687,w=8,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=12779,y=3450,w=7,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=12602,y=1033,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=12589,y=1175,w=8,h=6}
+H[#H+1]={town="louisville_3",kind="pump",x=13867,y=2786,w=8,h=6}
+H[#H+1]={town="louisville_3",kind="pump",x=13911,y=3066,w=6,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=12674,y=1659,w=6,h=5}
+H[#H+1]={town="louisville_3",kind="squat",x=13485,y=2300,w=6,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=12902,y=2298,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=12396,y=1685,w=8,h=5}
+H[#H+1]={town="louisville_3",kind="squat",x=13541,y=2933,w=6,h=4}
+H[#H+1]={town="louisville_3",kind="squat",x=13493,y=1544,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="maintenance",x=14158,y=2944,w=6,h=5}
+H[#H+1]={town="louisville_3",kind="pump",x=13547,y=3242,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12555,y=3440,w=5,h=4}
+H[#H+1]={town="louisville_3",kind="pump",x=12695,y=2256,w=7,h=5}
+H[#H+1]={town="louisville_3",kind="pump",x=13175,y=1948,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12204,y=2172,w=7,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=12293,y=2049,w=5,h=5}
+H[#H+1]={town="louisville_3",kind="laststand",x=13830,y=3066,w=8,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=12972,y=3324,w=5,h=4}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12385,y=1780,w=6,h=4}
+H[#H+1]={town="louisville_3",kind="laststand",x=12428,y=3440,w=7,h=4}
+H[#H+1]={town="louisville_3",kind="squat",x=12929,y=3363,w=6,h=4}
+H[#H+1]={town="louisville_3",kind="maintenance",x=12461,y=2506,w=7,h=6}
+H[#H+1]={town="louisville_3",kind="squat",x=12396,y=1367,w=6,h=4}
+V[#V+1]={town="louisville_3",x=12294,y=3438,bx=12309,by=3444,sx=12281,sy=3454}
+V[#V+1]={town="louisville_3",x=12520,y=3371,bx=12515,by=3383,sx=12513,sy=3454}
+V[#V+1]={town="louisville_3",x=12598,y=2572,bx=12613,by=2579,sx=12611,sy=2634}
+V[#V+1]={town="louisville_3",x=13183,y=2159,bx=13198,by=2137,sx=13202,sy=2099}
+V[#V+1]={town="louisville_3",x=14063,y=2432,bx=14074,by=2427,sx=14044,sy=2425}
+V[#V+1]={town="louisville_3",x=13887,y=2871,bx=13876,by=2866,sx=13853,sy=2866}
+V[#V+1]={town="louisville_3",x=12948,y=1828,bx=12955,by=1846,sx=12955,sy=1853}
+V[#V+1]={town="louisville_3",x=13991,y=3118,bx=13983,by=3111,sx=13983,sy=3117}
+V[#V+1]={town="louisville_3",x=13095,y=1914,bx=13083,by=1900,sx=13098,sy=1901}
+V[#V+1]={town="louisville_3",x=12605,y=2750,bx=12626,by=2752,sx=12595,sy=2757}
+V[#V+1]={town="louisville_3",x=12571,y=2753,bx=12557,by=2747,sx=12595,sy=2757}
+V[#V+1]={town="louisville_3",x=12865,y=3239,bx=12882,by=3234,sx=12870,sy=3234}
+V[#V+1]={town="louisville_3",x=12385,y=2701,bx=12403,by=2687,sx=12443,sy=2699}
+V[#V+1]={town="louisville_3",x=12896,y=1360,bx=12899,by=1381,sx=12900,sy=1350}
+V[#V+1]={town="louisville_3",x=13303,y=1270,bx=13311,by=1266,sx=13281,sy=1264}
+V[#V+1]={town="louisville_3",x=12999,y=1341,bx=13018,by=1350,sx=12999,sy=1350}
+V[#V+1]={town="louisville_3",x=12522,y=3077,bx=12515,by=3070,sx=12515,sy=3095}
+V[#V+1]={town="louisville_3",x=13419,y=1798,bx=13397,by=1801,sx=13419,sy=1801}
+V[#V+1]={town="louisville_3",x=13898,y=2337,bx=13891,by=2347,sx=13897,sy=2402}
+V[#V+1]={town="louisville_3",x=12669,y=3593,bx=12664,by=3602,sx=12686,sy=3571}
+V[#V+1]={town="louisville_3",x=12700,y=3099,bx=12703,by=3077,sx=12703,sy=3114}
+V[#V+1]={town="louisville_3",x=13169,y=3013,bx=13164,by=3001,sx=13199,sy=2998}
+V[#V+1]={town="louisville_3",x=12907,y=1708,bx=12900,by=1699,sx=12900,sy=1721}
+V[#V+1]={town="louisville_3",x=14077,y=2724,bx=14070,by=2708,sx=14068,sy=2743}
+V[#V+1]={town="louisville_3",x=13286,y=1961,bx=13304,by=1957,sx=13275,sy=1953}
+V[#V+1]={town="louisville_3",x=13618,y=2457,bx=13638,by=2449,sx=13608,sy=2402}
+V[#V+1]={town="louisville_3",x=12765,y=3263,bx=12756,by=3269,sx=12703,sy=3269}
+V[#V+1]={town="louisville_3",x=12276,y=3305,bx=12267,by=3295,sx=12281,sy=3325}
+V[#V+1]={town="louisville_3",x=12605,y=1257,bx=12606,by=1238,sx=12591,sy=1238}
+V[#V+1]={town="louisville_3",x=12508,y=3189,bx=12511,by=3218,sx=12515,sy=3244}
+V[#V+1]={town="louisville_3",x=12463,y=2780,bx=12470,by=2765,sx=12515,sy=2791}
+V[#V+1]={town="louisville_3",x=12715,y=3156,bx=12705,by=3155,sx=12703,sy=3114}
+V[#V+1]={town="louisville_3",x=13371,y=3328,bx=13384,by=3336,sx=13413,sy=3336}
+V[#V+1]={town="louisville_3",x=13489,y=2369,bx=13499,by=2355,sx=13499,sy=2400}
+V[#V+1]={town="louisville_3",x=12486,y=3626,bx=12477,by=3622,sx=12478,sy=3607}
+V[#V+1]={town="louisville_3",x=13005,y=1509,bx=12984,by=1502,sx=12999,sy=1502}
+V[#V+1]={town="louisville_3",x=13548,y=1672,bx=13542,by=1643,sx=13494,sy=1662}
+V[#V+1]={town="louisville_3",x=12265,y=3177,bx=12258,by=3167,sx=12256,sy=3147}
+V[#V+1]={town="louisville_3",x=12088,y=2942,bx=12069,by=2951,sx=12069,sy=2902}
+V[#V+1]={town="louisville_3",x=12805,y=3578,bx=12822,by=3579,sx=12758,sy=3571}
+V[#V+1]={town="louisville_3",x=12207,y=2143,bx=12198,by=2157,sx=12239,sy=2143}
+V[#V+1]={town="louisville_3",x=13171,y=1881,bx=13168,by=1877,sx=13168,sy=1900}
+V[#V+1]={town="louisville_3",x=13327,y=1367,bx=13330,by=1383,sx=13280,sy=1385}
+V[#V+1]={town="louisville_3",x=13823,y=3070,bx=13827,by=3065,sx=13885,sy=3063}
+V[#V+1]={town="louisville_3",x=12880,y=3020,bx=12872,by=3019,sx=12870,sy=2999}
+V[#V+1]={town="louisville_3",x=13418,y=1848,bx=13401,by=1852,sx=13440,sy=1860}
+V[#V+1]={town="louisville_3",x=12221,y=3393,bx=12230,by=3403,sx=12280,sy=3403}
+V[#V+1]={town="louisville_3",x=12128,y=1753,bx=12128,by=1728,sx=12157,sy=1728}
+V[#V+1]={town="louisville_3",x=12665,y=3015,bx=12655,by=3001,sx=12625,sy=3001}
+V[#V+1]={town="louisville_3",x=12551,y=1780,bx=12548,by=1797,sx=12530,sy=1798}
+V[#V+1]={town="louisville_3",x=12300,y=2581,bx=12323,by=2572,sx=12350,sy=2572}
+V[#V+1]={town="louisville_3",x=13575,y=1488,bx=13577,by=1498,sx=13593,sy=1551}
+V[#V+1]={town="louisville_3",x=14123,y=2842,bx=14132,by=2849,sx=14101,sy=2876}
+V[#V+1]={town="louisville_3",x=13041,y=1989,bx=13036,by=1981,sx=13035,sy=1953}
+V[#V+1]={town="louisville_3",x=12547,y=3336,bx=12538,by=3315,sx=12485,sy=3323}
+V[#V+1]={town="louisville_3",x=12332,y=1868,bx=12323,by=1858,sx=12298,sy=1857}
+V[#V+1]={town="louisville_3",x=14286,y=2853,bx=14269,by=2846,sx=14267,sy=2824}
+V[#V+1]={town="louisville_3",x=12422,y=3506,bx=12441,by=3509,sx=12476,sy=3533}
+V[#V+1]={town="louisville_3",x=12144,y=1591,bx=12155,by=1604,sx=12159,sy=1575}
+I.towns["irvington"] = { name = "Irvington", x0 = 1536, y0 = 13824, x1 = 3071, y1 = 14847, tw = 6, th = 4, chunks = 2183 }
+S["1565,14666"]={town="irvington",x=1565,y=14666,lx=1565,ly=14666,edge="N",street="Cornwell Road",made=true}
+S["1566,14839"]={town="irvington",x=1566,y=14839,lx=1566,ly=14839,edge="N",street="KY-79",made=true}
+S["1567,14592"]={town="irvington",x=1567,y=14592,lx=1567,ly=14592,edge="N",street="Straight Road",made=true}
+S["1567,14741"]={town="irvington",x=1567,y=14741,lx=1567,ly=14741,edge="W",street="Straight Road",made=true}
+S["1648,14839"]={town="irvington",x=1648,y=14839,lx=1648,ly=14840,edge="N",street="KY-79",made=true}
+S["1724,14839"]={town="irvington",x=1724,y=14839,lx=1724,ly=14840,edge="N",street="KY-79",made=true}
+S["1797,14601"]={town="irvington",x=1797,y=14601,lx=1797,ly=14601,edge="N",street="West St",made=true}
+S["1797,14702"]={town="irvington",x=1797,y=14702,lx=1797,ly=14702,edge="W",street="West St",made=true}
+S["1797,14836"]={town="irvington",x=1797,y=14836,lx=1797,ly=14836,edge="N",street="West St",made=true}
+S["1798,14498"]={town="irvington",x=1798,y=14498,lx=1798,ly=14498,edge="N",street="Irvington St",made=true}
+S["1900,14402"]={town="irvington",x=1900,y=14402,lx=1900,ly=14402,edge="N",street="N Carl St",made=true}
+S["1900,14497"]={town="irvington",x=1900,y=14497,lx=1900,ly=14497,edge="N",street="N Carl St",made=true}
+S["1900,14602"]={town="irvington",x=1900,y=14602,lx=1900,ly=14602,edge="N",street="Arkansas Av",made=true}
+S["1913,14834"]={town="irvington",x=1913,y=14834,lx=1913,ly=14835,edge="N",street="KY-79",made=true}
+S["1999,14401"]={town="irvington",x=1999,y=14401,lx=1999,ly=14402,edge="N",street="High St",made=true}
+S["2001,14673"]={town="irvington",x=2001,y=14673,lx=2001,ly=14673,edge="W",street="Main St",made=true}
+S["2001,14745"]={town="irvington",x=2001,y=14745,lx=2001,ly=14745,edge="W",street="KY-79",made=true}
+S["2003,14498"]={town="irvington",x=2003,y=14498,lx=2003,ly=14498,edge="N",street="Irvington St",made=true}
+S["2003,14602"]={town="irvington",x=2003,y=14602,lx=2003,ly=14602,edge="N",street="Main St",made=true}
+S["2100,14296"]={town="irvington",x=2100,y=14296,lx=2100,ly=14296,edge="N",street="W Kentucky St",made=true}
+S["2101,14500"]={town="irvington",x=2101,y=14500,lx=2101,ly=14500,edge="N",street="Irvington St",made=true}
+S["2102,14400"]={town="irvington",x=2102,y=14400,lx=2102,ly=14400,edge="N",street="Center St",made=true}
+S["2165,14586"]={town="irvington",x=2165,y=14586,lx=2166,ly=14586,edge="W",street="KY-79",made=true}
+S["2181,14296"]={town="irvington",x=2181,y=14296,lx=2181,ly=14296,edge="N",street="W Kentucky St",made=true}
+S["2204,14098"]={town="irvington",x=2204,y=14098,lx=2204,ly=14098,edge="N",street="Merino St",made=true}
+S["2204,14402"]={town="irvington",x=2204,y=14402,lx=2204,ly=14402,edge="N",street="Merino St",made=true}
+S["2206,14222"]={town="irvington",x=2206,y=14222,lx=2207,ly=14222,edge="W",street="Merino St",made=true}
+S["2206,14500"]={town="irvington",x=2206,y=14500,lx=2206,ly=14500,edge="N",street="Irvington St",made=true}
+S["2252,14100"]={town="irvington",x=2252,y=14100,lx=2252,ly=14100,edge="N",street="Hall Road",made=true}
+S["2254,14296"]={town="irvington",x=2254,y=14296,lx=2254,ly=14296,edge="N",street="W Kentucky St",made=true}
+S["2277,14499"]={town="irvington",x=2277,y=14499,lx=2277,ly=14499,edge="N",street="KY-79",made=true}
+S["2302,14098"]={town="irvington",x=2302,y=14098,lx=2302,ly=14098,edge="N",street="Hall Road",made=true}
+S["2302,14178"]={town="irvington",x=2302,y=14178,lx=2302,ly=14178,edge="W",street="Rant St",made=true}
+S["2303,14298"]={town="irvington",x=2303,y=14298,lx=2303,ly=14298,edge="N",street="W Kentucky St",made=true}
+S["2306,13962"]={town="irvington",x=2306,y=13962,lx=2306,ly=13963,edge="N",street="Ed St",made=true}
+S["2320,14426"]={town="irvington",x=2320,y=14426,lx=2320,ly=14426,edge="N",street="Dempsey St",made=true}
+S["2351,14296"]={town="irvington",x=2351,y=14296,lx=2351,ly=14296,edge="N",street="W Kentucky St",made=true}
+S["2352,14101"]={town="irvington",x=2352,y=14101,lx=2352,ly=14101,edge="N",street="Frog St",made=true}
+S["2368,14499"]={town="irvington",x=2368,y=14499,lx=2368,ly=14499,edge="N",street="KY-79",made=true}
+S["2399,13884"]={town="irvington",x=2399,y=13884,lx=2399,ly=13885,edge="N",street="Lincoln St",made=true}
+S["2400,14199"]={town="irvington",x=2400,y=14199,lx=2400,ly=14199,edge="N",street="Peach St",made=true}
+S["2400,14347"]={town="irvington",x=2400,y=14347,lx=2400,ly=14347,edge="N",street="Dempsey St",made=true}
+S["2402,13962"]={town="irvington",x=2402,y=13962,lx=2402,ly=13962,edge="N",street="Ed St",made=true}
+S["2402,14298"]={town="irvington",x=2402,y=14298,lx=2402,ly=14298,edge="N",street="Peach St",made=true}
+S["2426,14098"]={town="irvington",x=2426,y=14098,lx=2426,ly=14098,edge="N",street="Hall Road",made=true}
+S["2498,14330"]={town="irvington",x=2498,y=14330,lx=2498,ly=14330,edge="W",street="1st Ave",made=true}
+S["2498,14402"]={town="irvington",x=2498,y=14402,lx=2498,ly=14402,edge="N",street="1st Ave",made=true}
+S["2498,14485"]={town="irvington",x=2498,y=14485,lx=2498,ly=14485,edge="W",street="1st Ave",made=true}
+S["2500,14007"]={town="irvington",x=2500,y=14007,lx=2500,ly=14007,edge="N",street="1st Ave",made=true}
+S["2501,14570"]={town="irvington",x=2501,y=14570,lx=2502,ly=14570,edge="W",street="Rosewater Road",made=true}
+S["2502,14089"]={town="irvington",x=2502,y=14089,lx=2503,ly=14089,edge="W",street="1st Ave",made=true}
+S["2502,14160"]={town="irvington",x=2502,y=14160,lx=2503,ly=14160,edge="W",street="1st Ave",made=true}
+S["2502,14250"]={town="irvington",x=2502,y=14250,lx=2502,ly=14250,edge="N",street="1st Ave",made=true}
+S["2503,13882"]={town="irvington",x=2503,y=13882,lx=2503,ly=13882,edge="N",street="Lincoln St",made=true}
+S["2578,14401"]={town="irvington",x=2578,y=14401,lx=2578,ly=14401,edge="N",street="Woodlawn Dr",made=true}
+S["2599,14098"]={town="irvington",x=2599,y=14098,lx=2599,ly=14098,edge="N",street="Hall Road",made=true}
+S["2599,14177"]={town="irvington",x=2599,y=14177,lx=2599,ly=14177,edge="W",street="5th St",made=true}
+S["2599,14300"]={town="irvington",x=2599,y=14300,lx=2599,ly=14300,edge="N",street="Grand Ave",made=true}
+S["2599,14502"]={town="irvington",x=2599,y=14502,lx=2599,ly=14502,edge="N",street="KY-79",made=true}
+S["2600,13882"]={town="irvington",x=2600,y=13882,lx=2600,ly=13882,edge="N",street="Lincoln St",made=true}
+S["2600,13932"]={town="irvington",x=2600,y=13932,lx=2600,ly=13932,edge="N",street="2nd St",made=true}
+S["2600,13985"]={town="irvington",x=2600,y=13985,lx=2600,ly=13985,edge="N",street="Lake St",made=true}
+S["2650,13983"]={town="irvington",x=2650,y=13983,lx=2650,ly=13983,edge="N",street="Lake St",made=true}
+S["2699,13985"]={town="irvington",x=2699,y=13985,lx=2699,ly=13985,edge="N",street="Lake St",made=true}
+S["2699,14300"]={town="irvington",x=2699,y=14300,lx=2699,ly=14300,edge="N",street="Grand Ave",made=true}
+S["2699,14519"]={town="irvington",x=2699,y=14519,lx=2699,ly=14520,edge="N",street="Donkey Road",made=true}
+S["2700,13883"]={town="irvington",x=2700,y=13883,lx=2701,ly=13883,edge="W",street="3rd St",made=true}
+S["2700,13934"]={town="irvington",x=2700,y=13934,lx=2701,ly=13934,edge="W",street="3rd St",made=true}
+S["2701,14098"]={town="irvington",x=2701,y=14098,lx=2701,ly=14098,edge="N",street="6th St",made=true}
+S["2702,14200"]={town="irvington",x=2702,y=14200,lx=2702,ly=14200,edge="N",street="Clover Road",made=true}
+S["2774,14246"]={town="irvington",x=2774,y=14246,lx=2774,ly=14246,edge="N",street="Clover Road",made=true}
+S["2774,14519"]={town="irvington",x=2774,y=14519,lx=2774,ly=14520,edge="N",street="Donkey Road",made=true}
+S["2813,13918"]={town="irvington",x=2813,y=13918,lx=2813,ly=13919,edge="N",street="Beaver St",made=true}
+S["2847,14591"]={town="irvington",x=2847,y=14591,lx=2847,ly=14591,edge="N",street="Valley St",made=true}
+S["2848,14517"]={town="irvington",x=2848,y=14517,lx=2848,ly=14517,edge="N",street="Donkey Road",made=true}
+S["2865,14665"]={town="irvington",x=2865,y=14665,lx=2865,ly=14665,edge="N",street="Valley St",made=true}
+S["2952,14358"]={town="irvington",x=2952,y=14358,lx=2952,ly=14358,edge="W",street="Hay St",made=true}
+S["2952,14429"]={town="irvington",x=2952,y=14429,lx=2952,ly=14429,edge="W",street="Hay St",made=true}
+S["2952,14502"]={town="irvington",x=2952,y=14502,lx=2952,ly=14502,edge="N",street="KY-79",made=true}
+S["2954,14592"]={town="irvington",x=2954,y=14592,lx=2954,ly=14592,edge="N",street="Valley St",made=true}
+S["2954,14664"]={town="irvington",x=2954,y=14664,lx=2955,ly=14664,edge="W",street="Valley St",made=true}
+S["3026,14517"]={town="irvington",x=3026,y=14517,lx=3026,ly=14517,edge="N",street="Donkey Road",made=true}
+S["3026,14817"]={town="irvington",x=3026,y=14817,lx=3026,ly=14817,edge="W",street="Driveway Road",made=true}
+S["3028,14594"]={town="irvington",x=3028,y=14594,lx=3029,ly=14594,edge="W",street="Driveway Road",made=true}
+S["3028,14665"]={town="irvington",x=3028,y=14665,lx=3029,ly=14665,edge="W",street="Driveway Road",made=true}
+S["3028,14742"]={town="irvington",x=3028,y=14742,lx=3029,ly=14742,edge="W",street="Driveway Road",made=true}
+S["2015,14477"]={town="irvington",x=2015,y=14477,lx=2015,ly=14477,edge="N",street="",hatch="kitchen",under={2015,14477,2015,14478,2015,14479,2015,14480,2015,14481}}
+S["2265,14212"]={town="irvington",x=2265,y=14212,lx=2265,ly=14212,edge="N",street="",hatch="garage",under={2265,14212,2264,14212,2263,14212,2262,14212}}
+S["2556,14387"]={town="irvington",x=2556,y=14387,lx=2556,ly=14387,edge="N",street="",hatch="kitchen",under={2556,14387,2557,14387,2558,14387}}
+S["2076,14479"]={town="irvington",x=2076,y=14479,lx=2076,ly=14479,edge="N",street="",hatch="kitchen",under={2076,14479,2075,14479,2074,14479,2073,14479,2072,14479}}
+S["2937,14679"]={town="irvington",x=2937,y=14679,lx=2937,ly=14679,edge="W",street="",hatch="garagestorage",under={2937,14679,2937,14678,2937,14677,2937,14676}}
+S["2468,13946"]={town="irvington",x=2468,y=13946,lx=2468,ly=13946,edge="N",street="",hatch="storageunit",under={2468,13946,2468,13947,2468,13948}}
+S["2449,13904"]={town="irvington",x=2449,y=13904,lx=2449,ly=13904,edge="W",street="",hatch="storageunit",under={2449,13904,2449,13903,2449,13902,2449,13901}}
+S["1774,14628"]={town="irvington",x=1774,y=14628,lx=1774,ly=14628,edge="W",street="",hatch="storage",under={1774,14628,1774,14627,1774,14626,1774,14625}}
+S["2325,13979"]={town="irvington",x=2325,y=13979,lx=2325,ly=13979,edge="N",street="",hatch="kitchen",under={2325,13979,2326,13979,2327,13979,2328,13979,2329,13979}}
+S["3006,14824"]={town="irvington",x=3006,y=14824,lx=3006,ly=14824,edge="N",street="",hatch="garagestorage",under={3006,14824,3007,14824,3008,14824}}
+S["2239,14274"]={town="irvington",x=2239,y=14274,lx=2239,ly=14274,edge="N",street="",hatch="kitchen",under={2239,14274,2240,14274,2241,14274}}
+S["2453,14328"]={town="irvington",x=2453,y=14328,lx=2453,ly=14328,edge="N",street="",hatch="garagestorage",under={2453,14328,2452,14328,2451,14328,2450,14328}}
+S["1811,14577"]={town="irvington",x=1811,y=14577,lx=1811,ly=14577,edge="N",street="",hatch="garagestorage",under={1811,14577,1810,14577,1809,14577,1808,14577}}
+S["3048,14685"]={town="irvington",x=3048,y=14685,lx=3048,ly=14685,edge="N",street="",hatch="laundry",under={3048,14685,3047,14685,3046,14685,3045,14685}}
+H[#H+1]={town="irvington",kind="squat",x=2395,y=14168,w=5,h=4}
+H[#H+1]={town="irvington",kind="laststand",x=2701,y=13960,w=5,h=6}
+H[#H+1]={town="irvington",kind="maintenance",x=2516,y=14094,w=5,h=4}
+H[#H+1]={town="irvington",kind="maintenance",x=2898,y=14587,w=7,h=4}
+H[#H+1]={town="irvington",kind="pump",x=2305,y=14113,w=5,h=6}
+H[#H+1]={town="irvington",kind="laststand",x=1560,y=14801,w=7,h=6}
+H[#H+1]={town="irvington",kind="laststand",x=2524,y=14504,w=8,h=5}
+H[#H+1]={town="irvington",kind="laststand",x=1885,y=14603,w=7,h=4}
+H[#H+1]={town="irvington",kind="squat",x=2353,y=14273,w=5,h=5}
+H[#H+1]={town="irvington",kind="maintenance",x=2197,y=14105,w=7,h=5}
+H[#H+1]={town="irvington",kind="pump",x=2254,y=14225,w=8,h=6}
+H[#H+1]={town="irvington",kind="laststand",x=2592,y=14101,w=5,h=6}
+H[#H+1]={town="irvington",kind="maintenance",x=2329,y=14504,w=8,h=4}
+H[#H+1]={town="irvington",kind="laststand",x=2721,y=13854,w=8,h=6}
+H[#H+1]={town="irvington",kind="laststand",x=2305,y=14234,w=7,h=4}
+H[#H+1]={town="irvington",kind="maintenance",x=2693,y=14136,w=6,h=6}
+H[#H+1]={town="irvington",kind="squat",x=1891,y=14478,w=7,h=6}
+V[#V+1]={town="irvington",x=2969,y=14621,bx=2954,by=14619,sx=2954,sy=14592}
+V[#V+1]={town="irvington",x=2595,y=13941,bx=2600,by=13947,sx=2600,sy=13932}
+V[#V+1]={town="irvington",x=2363,y=14281,bx=2369,by=14296,sx=2351,sy=14296}
+V[#V+1]={town="irvington",x=2654,y=14024,bx=2651,by=14035,sx=2650,sy=13983}
+V[#V+1]={town="irvington",x=2634,y=14476,bx=2636,by=14500,sx=2599,sy=14502}
+V[#V+1]={town="irvington",x=2256,y=14193,bx=2253,by=14164,sx=2302,sy=14178}
+V[#V+1]={town="irvington",x=2406,y=14061,bx=2402,by=14090,sx=2426,sy=14098}
+V[#V+1]={town="irvington",x=2758,y=14098,bx=2766,by=14080,sx=2701,sy=14098}
+V[#V+1]={town="irvington",x=2686,y=14095,bx=2673,by=14080,sx=2701,sy=14098}
+V[#V+1]={town="irvington",x=2571,y=13838,bx=2566,by=13844,sx=2600,sy=13882}
+V[#V+1]={town="irvington",x=1713,y=14827,bx=1729,by=14837,sx=1724,sy=14839}
+I.towns["brandenburg_2"] = { name = "Brandenburg", x0 = 1280, y0 = 5632, x1 = 2303, y1 = 6655, tw = 4, th = 4, chunks = 1800 }
+S["1345,5773"]={town="brandenburg_2",x=1345,y=5773,lx=1345,ly=5774,edge="N",street="Battlefield Road",made=true}
+S["1471,5771"]={town="brandenburg_2",x=1471,y=5771,lx=1471,ly=5771,edge="N",street="Battlefield Road",made=true}
+S["1471,5856"]={town="brandenburg_2",x=1471,y=5856,lx=1471,ly=5856,edge="W",street="Court Road",made=true}
+S["1546,5665"]={town="brandenburg_2",x=1546,y=5665,lx=1546,ly=5665,edge="W",street="River Loop Dr",made=true}
+S["1546,5883"]={town="brandenburg_2",x=1546,y=5883,lx=1546,ly=5883,edge="W",street="N Fairway St",made=true}
+S["1546,5997"]={town="brandenburg_2",x=1546,y=5997,lx=1546,ly=5997,edge="W",street="N Fairway St",made=true}
+S["1546,6069"]={town="brandenburg_2",x=1546,y=6069,lx=1546,ly=6069,edge="W",street="S Fairway St",made=true}
+S["1547,5771"]={town="brandenburg_2",x=1547,y=5771,lx=1547,ly=5771,edge="N",street="Lawrence St",made=true}
+S["1569,6140"]={town="brandenburg_2",x=1569,y=6140,lx=1569,ly=6140,edge="W",street="S Fairway St",made=true}
+S["1642,5770"]={town="brandenburg_2",x=1642,y=5770,lx=1642,ly=5770,edge="N",street="N Brand St",made=true}
+S["1642,5868"]={town="brandenburg_2",x=1642,y=5868,lx=1642,ly=5868,edge="W",street="S Brand St",made=true}
+S["1644,5700"]={town="brandenburg_2",x=1644,y=5700,lx=1644,ly=5700,edge="N",street="River Loop Dr",made=true}
+S["1659,6001"]={town="brandenburg_2",x=1659,y=6001,lx=1659,ly=6001,edge="W",street="Hammer St",made=true}
+S["1659,6127"]={town="brandenburg_2",x=1659,y=6127,lx=1659,ly=6127,edge="W",street="Hammer St",made=true}
+S["1749,6127"]={town="brandenburg_2",x=1749,y=6127,lx=1749,ly=6127,edge="W",street="Anvil St",made=true}
+S["1750,5771"]={town="brandenburg_2",x=1750,y=5771,lx=1750,ly=5771,edge="N",street="Lawrence St",made=true}
+S["1751,5892"]={town="brandenburg_2",x=1751,y=5892,lx=1752,ly=5892,edge="W",street="Anvil St",made=true}
+S["1752,5999"]={town="brandenburg_2",x=1752,y=5999,lx=1752,ly=5999,edge="N",street="Meade Road",made=true}
+S["1792,6646"]={town="brandenburg_2",x=1792,y=6646,lx=1792,ly=6646,edge="W",street="Kirch Road",made=true}
+S["1793,6411"]={town="brandenburg_2",x=1793,y=6411,lx=1793,ly=6411,edge="N",street="Brandenburg Bypass",made=true}
+S["1799,6128"]={town="brandenburg_2",x=1799,y=6128,lx=1799,ly=6128,edge="N",street="Howard Dr",made=true}
+S["1841,6001"]={town="brandenburg_2",x=1841,y=6001,lx=1841,ly=6001,edge="W",street="Nail St",made=true}
+S["1847,6216"]={town="brandenburg_2",x=1847,y=6216,lx=1847,ly=6216,edge="W",street="Lakeview Lane",made=true}
+S["1847,6289"]={town="brandenburg_2",x=1847,y=6289,lx=1847,ly=6289,edge="W",street="Lakeview Lane",made=true}
+S["1859,5797"]={town="brandenburg_2",x=1859,y=5797,lx=1859,ly=5797,edge="N",street="Lawrence St",made=true}
+S["1881,6128"]={town="brandenburg_2",x=1881,y=6128,lx=1881,ly=6128,edge="N",street="Howard Dr",made=true}
+S["1887,6475"]={town="brandenburg_2",x=1887,y=6475,lx=1887,ly=6476,edge="N",street="Brandenburg Bypass",made=true}
+S["1965,6291"]={town="brandenburg_2",x=1965,y=6291,lx=1965,ly=6291,edge="N",street="S Fairway St",made=true}
+S["1966,5802"]={town="brandenburg_2",x=1966,y=5802,lx=1966,ly=5802,edge="N",street="Lawrence St",made=true}
+S["1966,5927"]={town="brandenburg_2",x=1966,y=5927,lx=1966,ly=5927,edge="N",street="High St",made=true}
+S["1966,6024"]={town="brandenburg_2",x=1966,y=6024,lx=1966,ly=6024,edge="W",street="High St",made=true}
+S["1966,6127"]={town="brandenburg_2",x=1966,y=6127,lx=1966,ly=6127,edge="N",street="High St",made=true}
+S["1966,6218"]={town="brandenburg_2",x=1966,y=6218,lx=1966,ly=6218,edge="W",street="High St",made=true}
+S["1966,6407"]={town="brandenburg_2",x=1966,y=6407,lx=1966,ly=6407,edge="N",street="Main St",made=true}
+S["1974,6642"]={town="brandenburg_2",x=1974,y=6642,lx=1974,ly=6642,edge="N",street="Old State Road",made=true}
+S["1975,6471"]={town="brandenburg_2",x=1975,y=6471,lx=1975,ly=6471,edge="N",street="Brandenburg Bypass",made=true}
+S["1976,6549"]={town="brandenburg_2",x=1976,y=6549,lx=1977,ly=6549,edge="W",street="Old State Road",made=true}
+S["2012,5804"]={town="brandenburg_2",x=2012,y=5804,lx=2012,ly=5805,edge="N",street="Lawrence St",made=true}
+S["2012,5925"]={town="brandenburg_2",x=2012,y=5925,lx=2012,ly=5925,edge="N",street="Meade Road",made=true}
+S["2040,6232"]={town="brandenburg_2",x=2040,y=6232,lx=2040,ly=6232,edge="N",street="Saunder St",made=true}
+S["2047,6474"]={town="brandenburg_2",x=2047,y=6474,lx=2048,ly=6474,edge="W",street="Brandenburg Bypass",made=true}
+S["2047,6644"]={town="brandenburg_2",x=2047,y=6644,lx=2048,ly=6644,edge="W",street="Quail Road",made=true}
+S["2060,5802"]={town="brandenburg_2",x=2060,y=5802,lx=2060,ly=5802,edge="N",street="Lawrence St",made=true}
+S["2060,5849"]={town="brandenburg_2",x=2060,y=5849,lx=2060,ly=5849,edge="N",street="Boyd Road",made=true}
+S["2100,6127"]={town="brandenburg_2",x=2100,y=6127,lx=2101,ly=6127,edge="W",street="Boyd Road",made=true}
+S["2107,5887"]={town="brandenburg_2",x=2107,y=5887,lx=2107,ly=5887,edge="N",street="Union Dr",made=true}
+S["2112,6329"]={town="brandenburg_2",x=2112,y=6329,lx=2112,ly=6329,edge="N",street="Armory Road",made=true}
+S["2113,6192"]={town="brandenburg_2",x=2113,y=6192,lx=2113,ly=6192,edge="N",street="Ohio Dr",made=true}
+S["2114,5993"]={town="brandenburg_2",x=2114,y=5993,lx=2114,ly=5993,edge="W",street="Indiana St",made=true}
+S["2114,6069"]={town="brandenburg_2",x=2114,y=6069,lx=2114,ly=6069,edge="W",street="Indiana St",made=true}
+S["2161,5887"]={town="brandenburg_2",x=2161,y=5887,lx=2161,ly=5888,edge="N",street="Union Dr",made=true}
+S["2163,5802"]={town="brandenburg_2",x=2163,y=5802,lx=2163,ly=5802,edge="N",street="Lawrence St",made=true}
+S["2194,6159"]={town="brandenburg_2",x=2194,y=6159,lx=2194,ly=6159,edge="W",street="Hill St",made=true}
+S["2195,6399"]={town="brandenburg_2",x=2195,y=6399,lx=2195,ly=6400,edge="N",street="Hill St",made=true}
+S["2196,5999"]={town="brandenburg_2",x=2196,y=5999,lx=2196,ly=5999,edge="N",street="Meade Road",made=true}
+S["2196,6071"]={town="brandenburg_2",x=2196,y=6071,lx=2197,ly=6071,edge="W",street="Kilree St",made=true}
+S["2196,6234"]={town="brandenburg_2",x=2196,y=6234,lx=2197,ly=6234,edge="W",street="Hill St",made=true}
+S["2196,6327"]={town="brandenburg_2",x=2196,y=6327,lx=2196,ly=6327,edge="N",street="Hill St",made=true}
+S["2227,5802"]={town="brandenburg_2",x=2227,y=5802,lx=2227,ly=5802,edge="N",street="Lawrence St",made=true}
+S["2234,5887"]={town="brandenburg_2",x=2234,y=5887,lx=2234,ly=5887,edge="N",street="Union Dr",made=true}
+S["2276,6310"]={town="brandenburg_2",x=2276,y=6310,lx=2276,ly=6310,edge="W",street="Ohio Dr",made=true}
+S["2277,5816"]={town="brandenburg_2",x=2277,y=5816,lx=2277,ly=5816,edge="N",street="Lawrence St",made=true}
+S["2277,5999"]={town="brandenburg_2",x=2277,y=5999,lx=2277,ly=5999,edge="N",street="Meade Road",made=true}
+S["2278,6203"]={town="brandenburg_2",x=2278,y=6203,lx=2279,ly=6203,edge="W",street="Ohio Dr",made=true}
+S["2293,6112"]={town="brandenburg_2",x=2293,y=6112,lx=2293,ly=6113,edge="N",street="Lafayette Dr",made=true}
+S["2209,6016"]={town="brandenburg_2",x=2209,y=6016,lx=2209,ly=6016,edge="N",street="",hatch="garagestorage",under={2209,6016,2208,6016,2207,6016,2206,6016}}
+S["2098,6025"]={town="brandenburg_2",x=2098,y=6025,lx=2098,ly=6025,edge="N",street="",hatch="kitchen",under={2098,6025,2099,6025,2100,6025}}
+S["2169,6243"]={town="brandenburg_2",x=2169,y=6243,lx=2169,ly=6243,edge="W",street="",hatch="laundry",under={2169,6243,2169,6242,2169,6241,2169,6240}}
+S["1731,5939"]={town="brandenburg_2",x=1731,y=5939,lx=1731,ly=5939,edge="N",street="",hatch="garage",under={1731,5939,1732,5939,1733,5939}}
+S["1662,5808"]={town="brandenburg_2",x=1662,y=5808,lx=1662,ly=5808,edge="N",street="",hatch="kitchen",under={1662,5808,1661,5808,1660,5808,1659,5808}}
+S["1768,6107"]={town="brandenburg_2",x=1768,y=6107,lx=1768,ly=6107,edge="W",street="",hatch="kitchen",under={1768,6107,1768,6106,1768,6105,1768,6104}}
+S["2002,6489"]={town="brandenburg_2",x=2002,y=6489,lx=2002,ly=6489,edge="W",street="",hatch="storageunit",under={2002,6489,2002,6488,2002,6487,2002,6486}}
+S["2155,6348"]={town="brandenburg_2",x=2155,y=6348,lx=2155,ly=6348,edge="W",street="",hatch="laundry",under={2155,6348,2155,6347,2155,6346,2155,6345,2155,6344,2155,6343,2155,6342,2155,6341}}
+S["2040,5873"]={town="brandenburg_2",x=2040,y=5873,lx=2040,ly=5873,edge="W",street="",hatch="kitchen",under={2040,5873,2040,5872,2040,5871,2040,5870}}
+S["2150,5968"]={town="brandenburg_2",x=2150,y=5968,lx=2150,ly=5968,edge="W",street="",hatch="kitchen",under={2150,5968,2150,5967,2150,5966,2150,5965}}
+S["2151,6008"]={town="brandenburg_2",x=2151,y=6008,lx=2151,ly=6008,edge="N",street="",hatch="kitchen",under={2151,6008,2150,6008,2149,6008,2148,6008,2147,6008}}
+H[#H+1]={town="brandenburg_2",kind="maintenance",x=1308,y=5774,w=7,h=6}
+H[#H+1]={town="brandenburg_2",kind="maintenance",x=2189,y=6179,w=5,h=4}
+H[#H+1]={town="brandenburg_2",kind="pump",x=2106,y=6261,w=6,h=4}
+H[#H+1]={town="brandenburg_2",kind="pump",x=1752,y=5879,w=7,h=4}
+H[#H+1]={town="brandenburg_2",kind="squat",x=2279,y=6189,w=8,h=5}
+H[#H+1]={town="brandenburg_2",kind="maintenance",x=2126,y=6065,w=8,h=5}
+H[#H+1]={town="brandenburg_2",kind="laststand",x=2155,y=6113,w=8,h=5}
+H[#H+1]={town="brandenburg_2",kind="maintenance",x=2187,y=6077,w=7,h=5}
+H[#H+1]={town="brandenburg_2",kind="pump",x=2269,y=5836,w=7,h=5}
+H[#H+1]={town="brandenburg_2",kind="pump",x=1742,y=5925,w=7,h=4}
+H[#H+1]={town="brandenburg_2",kind="laststand",x=1960,y=5892,w=6,h=6}
+H[#H+1]={town="brandenburg_2",kind="squat",x=2237,y=5980,w=8,h=4}
+H[#H+1]={town="brandenburg_2",kind="squat",x=1961,y=6542,w=5,h=6}
+V[#V+1]={town="brandenburg_2",x=1524,y=5658,bx=1503,by=5659,sx=1546,sy=5665}
+V[#V+1]={town="brandenburg_2",x=2189,y=6017,bx=2177,by=6028,sx=2196,sy=5999}
+V[#V+1]={town="brandenburg_2",x=1561,y=5646,bx=1546,by=5645,sx=1546,sy=5665}
+V[#V+1]={town="brandenburg_2",x=2107,y=6160,bx=2100,by=6168,sx=2113,sy=6192}
+V[#V+1]={town="brandenburg_2",x=1708,y=6108,bx=1700,by=6128,sx=1659,sy=6127}
+V[#V+1]={town="brandenburg_2",x=1950,y=6017,bx=1966,by=6001,sx=1966,sy=6024}
+V[#V+1]={town="brandenburg_2",x=2164,y=6275,bx=2174,by=6284,sx=2196,sy=6327}
+V[#V+1]={town="brandenburg_2",x=2151,y=6334,bx=2148,by=6331,sx=2112,sy=6329}
+I.towns["march_ridge"] = { name = "March Ridge", x0 = 9728, y0 = 12544, x1 = 10495, y1 = 13311, tw = 3, th = 3, chunks = 883 }
+S["9803,12663"]={town="march_ridge",x=9803,y=12663,lx=9803,ly=12663,edge="N",street="MacArthur St",made=true}
+S["9803,12761"]={town="march_ridge",x=9803,y=12761,lx=9803,ly=12761,edge="W",street="MacArthur St",made=true}
+S["9803,12896"]={town="march_ridge",x=9803,y=12896,lx=9803,ly=12896,edge="N",street="MacArthur St",made=true}
+S["9803,13142"]={town="march_ridge",x=9803,y=13142,lx=9803,ly=13142,edge="N",street="Westmoore St",made=true}
+S["9834,13039"]={town="march_ridge",x=9834,y=13039,lx=9834,ly=13039,edge="N",street="Potomac Way",made=true}
+S["9863,12975"]={town="march_ridge",x=9863,y=12975,lx=9863,ly=12975,edge="N",street="Runner St",made=true}
+S["9864,13142"]={town="march_ridge",x=9864,y=13142,lx=9864,ly=13142,edge="N",street="Westmoore St",made=true}
+S["9865,12896"]={town="march_ridge",x=9865,y=12896,lx=9865,ly=12896,edge="N",street="Yorktown St",made=true}
+S["9867,12663"]={town="march_ridge",x=9867,y=12663,lx=9867,ly=12663,edge="N",street="Adams Road",made=true}
+S["9867,12761"]={town="march_ridge",x=9867,y=12761,lx=9868,ly=12761,edge="W",street="Adams Road",made=true}
+S["9927,12896"]={town="march_ridge",x=9927,y=12896,lx=9927,ly=12896,edge="N",street="Yorktown St",made=true}
+S["9927,13060"]={town="march_ridge",x=9927,y=13060,lx=9927,ly=13060,edge="W",street="Bradley St",made=true}
+S["9927,13142"]={town="march_ridge",x=9927,y=13142,lx=9927,ly=13142,edge="N",street="Westmoore St",made=true}
+S["9929,12974"]={town="march_ridge",x=9929,y=12974,lx=9929,ly=12974,edge="N",street="Churchill St",made=true}
+S["9992,12696"]={town="march_ridge",x=9992,y=12696,lx=9992,ly=12696,edge="N",street="Folger St",made=true}
+S["9992,12976"]={town="march_ridge",x=9992,y=12976,lx=9992,ly=12976,edge="N",street="Sherman St",made=true}
+S["10052,13049"]={town="march_ridge",x=10052,y=13049,lx=10052,ly=13049,edge="W",street="Lincoln Av",made=true}
+S["10053,12832"]={town="march_ridge",x=10053,y=12832,lx=10053,ly=12832,edge="N",street="Eisenhower St",made=true}
+S["10054,12895"]={town="march_ridge",x=10054,y=12895,lx=10054,ly=12895,edge="N",street="Lincoln Av",made=true}
+S["10088,12696"]={town="march_ridge",x=10088,y=12696,lx=10088,ly=12696,edge="N",street="Folger St",made=true}
+S["10088,12770"]={town="march_ridge",x=10088,y=12770,lx=10088,ly=12770,edge="N",street="Nelson Dr",made=true}
+S["10154,12619"]={town="march_ridge",x=10154,y=12619,lx=10154,ly=12619,edge="N",street="Folger St",made=true}
+S["10171,12834"]={town="march_ridge",x=10171,y=12834,lx=10171,ly=12834,edge="N",street="Eisenhower St",made=true}
+S["10236,12619"]={town="march_ridge",x=10236,y=12619,lx=10236,ly=12619,edge="N",street="Knox St",made=true}
+S["10236,12680"]={town="march_ridge",x=10236,y=12680,lx=10236,ly=12680,edge="N",street="Greene St",made=true}
+S["10236,12742"]={town="march_ridge",x=10236,y=12742,lx=10236,ly=12742,edge="N",street="Greene St",made=true}
+S["10238,12834"]={town="march_ridge",x=10238,y=12834,lx=10238,ly=12834,edge="N",street="Eisenhower St",made=true}
+S["10365,12547"]={town="march_ridge",x=10365,y=12547,lx=10366,ly=12547,edge="W",street="Patton St",made=true}
+S["10365,12620"]={town="march_ridge",x=10365,y=12620,lx=10365,ly=12620,edge="N",street="Patton St",made=true}
+S["10365,12710"]={town="march_ridge",x=10365,y=12710,lx=10366,ly=12710,edge="W",street="Patton St",made=true}
+S["10365,12782"]={town="march_ridge",x=10365,y=12782,lx=10366,ly=12782,edge="W",street="Patton St",made=true}
+S["10436,12680"]={town="march_ridge",x=10436,y=12680,lx=10436,ly=12680,edge="N",street="Lafayette St",made=true}
+S["9942,12999"]={town="march_ridge",x=9942,y=12999,lx=9942,ly=12999,edge="N",street="",hatch="kitchen",under={9942,12999,9941,12999,9940,12999,9939,12999}}
+S["10280,12664"]={town="march_ridge",x=10280,y=12664,lx=10280,ly=12664,edge="N",street="",hatch="kitchen",under={10280,12664,10281,12664,10282,12664,10283,12664,10284,12664}}
+S["10219,12673"]={town="march_ridge",x=10219,y=12673,lx=10219,ly=12673,edge="N",street="",hatch="kitchen",under={10219,12673,10220,12673,10221,12673,10222,12673,10223,12673,10224,12673,10225,12673}}
+S["10039,12718"]={town="march_ridge",x=10039,y=12718,lx=10039,ly=12718,edge="W",street="",hatch="janitor",under={10039,12718,10039,12717,10039,12716,10039,12715,10039,12714,10039,12713,10039,12712,10039,12711}}
+S["10342,12714"]={town="march_ridge",x=10342,y=12714,lx=10342,ly=12714,edge="N",street="",hatch="kitchen",under={10342,12714,10342,12715,10342,12716,10342,12717}}
+H[#H+1]={town="march_ridge",kind="squat",x=9930,y=13041,w=7,h=5}
+H[#H+1]={town="march_ridge",kind="maintenance",x=10228,y=12743,w=6,h=5}
+H[#H+1]={town="march_ridge",kind="laststand",x=10093,y=12827,w=5,h=5}
+H[#H+1]={town="march_ridge",kind="pump",x=9993,y=12906,w=6,h=6}
+H[#H+1]={town="march_ridge",kind="pump",x=9921,y=12716,w=6,h=4}
+H[#H+1]={town="march_ridge",kind="laststand",x=10357,y=12651,w=6,h=6}
+V[#V+1]={town="march_ridge",x=9977,y=13136,bx=9959,by=13140,sx=9927,sy=13142}
+V[#V+1]={town="march_ridge",x=9935,y=12853,bx=9929,by=12855,sx=9927,sy=12896}
+V[#V+1]={town="march_ridge",x=9859,y=13092,bx=9863,by=13094,sx=9864,sy=13142}
+V[#V+1]={town="march_ridge",x=10162,y=12781,bx=10170,by=12798,sx=10171,sy=12834}
+I.towns["valley_station"] = { name = "Valley Station", x0 = 13568, y0 = 5376, x1 = 14335, y1 = 6143, tw = 3, th = 3, chunks = 197 }
+S["13576,5720"]={town="valley_station",x=13576,y=5720,lx=13576,ly=5721,edge="N",street="Bearcamp Road",made=true}
+S["13662,5720"]={town="valley_station",x=13662,y=5720,lx=13662,ly=5721,edge="N",street="Bearcamp Road",made=true}
+S["13751,5718"]={town="valley_station",x=13751,y=5718,lx=13751,ly=5718,edge="N",street="Bearcamp Road",made=true}
+S["13784,5647"]={town="valley_station",x=13784,y=5647,lx=13784,ly=5647,edge="W",street="Bearcamp Road",made=true}
+S["13878,5561"]={town="valley_station",x=13878,y=5561,lx=13878,ly=5561,edge="N",street="Bearcamp Road",made=true}
+S["13972,5416"]={town="valley_station",x=13972,y=5416,lx=13972,ly=5416,edge="W",street="Bearcamp Road",made=true}
+S["13972,5496"]={town="valley_station",x=13972,y=5496,lx=13972,ly=5496,edge="N",street="Bearcamp Road",made=true}
+S["14058,5497"]={town="valley_station",x=14058,y=5497,lx=14058,ly=5497,edge="N",street="Fruitwood Road",made=true}
+S["14137,5986"]={town="valley_station",x=14137,y=5986,lx=14137,ly=5987,edge="N",street="Bearcamp Road",made=true}
+S["14162,5907"]={town="valley_station",x=14162,y=5907,lx=14162,ly=5907,edge="N",street="Poorpath Road",made=true}
+S["13604,5749"]={town="valley_station",x=13604,y=5749,lx=13604,ly=5749,edge="W",street="",hatch="janitor",under={13604,5749,13604,5748,13604,5747,13604,5746}}
+S["13890,5474"]={town="valley_station",x=13890,y=5474,lx=13890,ly=5474,edge="N",street="",hatch="kitchen",under={13890,5474,13889,5474,13888,5474,13887,5474,13886,5474,13885,5474}}
+H[#H+1]={town="valley_station",kind="squat",x=13708,y=5721,w=5,h=5}
+H[#H+1]={town="valley_station",kind="pump",x=13573,y=5714,w=8,h=4}
+V[#V+1]={town="valley_station",x=13726,y=5733,bx=13740,by=5720,sx=13751,sy=5718}
+I.towns["riverside_2"] = { name = "Riverside", x0 = 5120, y0 = 5632, x1 = 5631, y1 = 6143, tw = 2, th = 2, chunks = 211 }
+S["5310,5986"]={town="riverside_2",x=5310,y=5986,lx=5310,ly=5986,edge="W",street="Scenic Grove Road",made=true}
+S["5342,6073"]={town="riverside_2",x=5342,y=6073,lx=5342,ly=6073,edge="N",street="Scenic Grove Road",made=true}
+S["5346,5934"]={town="riverside_2",x=5346,y=5934,lx=5346,ly=5934,edge="W",street="Scenic Grove Road",made=true}
+S["5383,5837"]={town="riverside_2",x=5383,y=5837,lx=5383,ly=5838,edge="N",street="KY-163",made=true}
+S["5388,5986"]={town="riverside_2",x=5388,y=5986,lx=5388,ly=5986,edge="W",street="Scenic Grove Road",made=true}
+S["5411,6073"]={town="riverside_2",x=5411,y=6073,lx=5411,ly=6073,edge="N",street="Scenic Grove Road",made=true}
+S["5458,5835"]={town="riverside_2",x=5458,y=5835,lx=5458,ly=5835,edge="N",street="Olin Road",made=true}
+S["5459,5915"]={town="riverside_2",x=5459,y=5915,lx=5460,ly=5915,edge="W",street="Long Needle Road",made=true}
+S["5459,5986"]={town="riverside_2",x=5459,y=5986,lx=5460,ly=5986,edge="W",street="Long Needle Road",made=true}
+S["5459,6060"]={town="riverside_2",x=5459,y=6060,lx=5459,ly=6060,edge="N",street="Long Needle Road",made=true}
+S["5587,5837"]={town="riverside_2",x=5587,y=5837,lx=5587,ly=5838,edge="N",street="Olin Road",made=true}
+S["5361,6091"]={town="riverside_2",x=5361,y=6091,lx=5361,ly=6091,edge="N",street="",hatch="kitchen",under={5361,6091,5360,6091,5359,6091,5358,6091}}
+S["5394,6060"]={town="riverside_2",x=5394,y=6060,lx=5394,ly=6060,edge="N",street="",hatch="kitchen",under={5394,6060,5394,6061,5394,6062}}
+H[#H+1]={town="riverside_2",kind="laststand",x=5341,y=5948,w=5,h=5}
+H[#H+1]={town="riverside_2",kind="laststand",x=5460,y=5981,w=8,h=6}
+V[#V+1]={town="riverside_2",x=5454,y=6015,bx=5457,by=6034,sx=5459,sy=6060}
+I.towns["muldraugh_5"] = { name = "Muldraugh", x0 = 11520, y0 = 9728, x1 = 12031, y1 = 10239, tw = 2, th = 2, chunks = 155 }
+S["11547,9864"]={town="muldraugh_5",x=11547,y=9864,lx=11547,ly=9864,edge="W",street="Haulage Road",made=true}
+S["11547,9936"]={town="muldraugh_5",x=11547,y=9936,lx=11547,ly=9936,edge="W",street="Haulage Road",made=true}
+S["11549,9747"]={town="muldraugh_5",x=11549,y=9747,lx=11549,ly=9747,edge="N",street="Haulage Road",made=true}
+S["11549,10035"]={town="muldraugh_5",x=11549,y=10035,lx=11550,ly=10035,edge="W",street="Haulage Road",made=true}
+S["11549,10107"]={town="muldraugh_5",x=11549,y=10107,lx=11550,ly=10107,edge="W",street="Haulage Road",made=true}
+S["11606,10195"]={town="muldraugh_5",x=11606,y=10195,lx=11606,ly=10195,edge="N",street="Haulage Road",made=true}
+S["11737,10197"]={town="muldraugh_5",x=11737,y=10197,lx=11737,ly=10197,edge="W",street="Southern Railroad (Muldraugh - Fort Knox)",made=true}
+S["11890,9891"]={town="muldraugh_5",x=11890,y=9891,lx=11890,ly=9891,edge="W",street="Tioga Road",made=true}
+S["11890,9977"]={town="muldraugh_5",x=11890,y=9977,lx=11890,ly=9977,edge="W",street="Tioga Road",made=true}
+S["11927,9758"]={town="muldraugh_5",x=11927,y=9758,lx=11927,ly=9758,edge="W",street="Tioga Road",made=true}
+S["11526,10006"]={town="muldraugh_5",x=11526,y=10006,lx=11526,ly=10006,edge="W",street="",hatch="janitor",under={11526,10006,11526,10005,11526,10004,11526,10003}}
+S["11906,9807"]={town="muldraugh_5",x=11906,y=9807,lx=11906,ly=9807,edge="N",street="",hatch="janitor",under={11906,9807,11907,9807,11908,9807}}
+H[#H+1]={town="muldraugh_5",kind="pump",x=11891,y=9964,w=8,h=6}
+H[#H+1]={town="muldraugh_5",kind="maintenance",x=11891,y=9903,w=7,h=5}
+V[#V+1]={town="muldraugh_5",x=11535,y=10179,bx=11547,by=10173,sx=11549,sy=10107}
+I.towns["valley_station_2"] = { name = "Valley Station", x0 = 12544, y0 = 4096, x1 = 13055, y1 = 4863, tw = 2, th = 3, chunks = 167 }
+S["12555,4584"]={town="valley_station_2",x=12555,y=4584,lx=12556,ly=4584,edge="W",street="Oliver Road",made=true}
+S["12571,4456"]={town="valley_station_2",x=12571,y=4456,lx=12572,ly=4456,edge="W",street="Oliver Road",made=true}
+S["12599,4357"]={town="valley_station_2",x=12599,y=4357,lx=12599,ly=4357,edge="N",street="Station Road",made=true}
+S["12690,4357"]={town="valley_station_2",x=12690,y=4357,lx=12690,ly=4357,edge="N",street="Station Road",made=true}
+S["12770,4357"]={town="valley_station_2",x=12770,y=4357,lx=12770,ly=4357,edge="N",street="Station Road",made=true}
+S["12830,4662"]={town="valley_station_2",x=12830,y=4662,lx=12830,ly=4662,edge="N",street="Tinsley Road",made=true}
+S["12890,4738"]={town="valley_station_2",x=12890,y=4738,lx=12891,ly=4738,edge="W",street="Tinsley Road",made=true}
+S["12901,4846"]={town="valley_station_2",x=12901,y=4846,lx=12902,ly=4846,edge="W",street="Tinsley Road",made=true}
+S["12880,4782"]={town="valley_station_2",x=12880,y=4782,lx=12880,ly=4782,edge="N",street="",hatch="garagestorage",under={12880,4782,12881,4782,12882,4782,12883,4782}}
+H[#H+1]={town="valley_station_2",kind="pump",x=12811,y=4647,w=5,h=6}
+H[#H+1]={town="valley_station_2",kind="maintenance",x=12902,y=4847,w=6,h=6}
+V[#V+1]={town="valley_station_2",x=12661,y=4343,bx=12664,by=4357,sx=12690,sy=4357}
+I.towns["louisville_4"] = { name = "Louisville", x0 = 15104, y0 = 2816, x1 = 15615, y1 = 3327, tw = 2, th = 2, chunks = 221 }
+S["15324,3218"]={town="louisville_4",x=15324,y=3218,lx=15324,ly=3218,edge="N",street="Midfield Access Road",made=true}
+S["15324,3305"]={town="louisville_4",x=15324,y=3305,lx=15324,ly=3305,edge="N",street="Midfield Access Road",made=true}
+S["15368,3114"]={town="louisville_4",x=15368,y=3114,lx=15368,ly=3115,edge="N",street="Midfield Access Road",made=true}
+S["15396,3324"]={town="louisville_4",x=15396,y=3324,lx=15396,ly=3324,edge="N",street="KY-841",made=true}
+S["15450,3112"]={town="louisville_4",x=15450,y=3112,lx=15450,ly=3112,edge="N",street="Midfield Access Road",made=true}
+S["15450,3219"]={town="louisville_4",x=15450,y=3219,lx=15450,ly=3219,edge="N",street="Standiford Road",made=true}
+S["15508,3324"]={town="louisville_4",x=15508,y=3324,lx=15508,ly=3324,edge="N",street="KY-841",made=true}
+S["15560,3114"]={town="louisville_4",x=15560,y=3114,lx=15560,ly=3115,edge="N",street="Midfield Access Road",made=true}
+S["15601,3188"]={town="louisville_4",x=15601,y=3188,lx=15602,ly=3188,edge="W",street="Terminal Dr",made=true}
+S["15601,3269"]={town="louisville_4",x=15601,y=3269,lx=15602,ly=3269,edge="W",street="Terminal Dr",made=true}
+H[#H+1]={town="louisville_4",kind="pump",x=15441,y=3169,w=7,h=5}
+H[#H+1]={town="louisville_4",kind="laststand",x=15362,y=3319,w=6,h=5}
+V[#V+1]={town="louisville_4",x=15349,y=3127,bx=15362,by=3114,sx=15368,sy=3114}
+I.towns["echo_creek"] = { name = "Echo Creek", x0 = 1792, y0 = 10496, x1 = 2047, y1 = 11007, tw = 1, th = 2, chunks = 131 }
+S["1849,10853"]={town="echo_creek",x=1849,y=10853,lx=1849,ly=10854,edge="N",street="Smith Road",made=true}
+S["1907,10779"]={town="echo_creek",x=1907,y=10779,lx=1907,ly=10780,edge="N",street="Steelworks Road",made=true}
+S["1926,10853"]={town="echo_creek",x=1926,y=10853,lx=1926,ly=10854,edge="N",street="Smith Road",made=true}
+S["1948,10972"]={town="echo_creek",x=1948,y=10972,lx=1948,ly=10972,edge="N",street="Lakehook Road",made=true}
+S["2007,10776"]={town="echo_creek",x=2007,y=10776,lx=2007,ly=10776,edge="N",street="Steelworks Road",made=true}
+S["2022,10851"]={town="echo_creek",x=2022,y=10851,lx=2022,ly=10851,edge="N",street="Smith Road",made=true}
+S["2031,10992"]={town="echo_creek",x=2031,y=10992,lx=2031,ly=10992,edge="N",street="Lakehook Road",made=true}
+S["1921,10965"]={town="echo_creek",x=1921,y=10965,lx=1921,ly=10965,edge="N",street="",hatch="shed",under={1921,10965,1921,10966,1921,10967}}
+H[#H+1]={town="echo_creek",kind="maintenance",x=1910,y=10780,w=5,h=6}
+V[#V+1]={town="echo_creek",x=1909,y=10938,bx=1894,by=10942,sx=1948,sy=10972}
+I.towns["brandenburg_3"] = { name = "Brandenburg", x0 = 3584, y0 = 6144, x1 = 4095, y1 = 6655, tw = 2, th = 2, chunks = 116 }
+S["3752,6235"]={town="brandenburg_3",x=3752,y=6235,lx=3752,ly=6235,edge="W",street="KY-60",made=true}
+S["3752,6338"]={town="brandenburg_3",x=3752,y=6338,lx=3752,ly=6338,edge="W",street="KY-60",made=true}
+S["3756,6159"]={town="brandenburg_3",x=3756,y=6159,lx=3757,ly=6159,edge="W",street="KY-60",made=true}
+S["3831,6339"]={town="brandenburg_3",x=3831,y=6339,lx=3831,ly=6340,edge="N",street="Ito Road",made=true}
+S["3968,6545"]={town="brandenburg_3",x=3968,y=6545,lx=3968,ly=6545,edge="N",street="Sunderland Hills Road",made=true}
+S["4040,6547"]={town="brandenburg_3",x=4040,y=6547,lx=4040,ly=6548,edge="N",street="Sunderland Hills Road",made=true}
+H[#H+1]={town="brandenburg_3",kind="maintenance",x=3764,y=6333,w=5,h=4}
+V[#V+1]={town="brandenburg_3",x=4042,y=6553,bx=4061,by=6547,sx=4040,sy=6547}
+I.towns["irvington_2"] = { name = "Irvington", x0 = 3584, y0 = 14336, x1 = 3839, y1 = 14847, tw = 1, th = 2, chunks = 40 }
+S["3600,14502"]={town="irvington_2",x=3600,y=14502,lx=3600,ly=14503,edge="N",street="KY-79",made=true}
+S["3679,14502"]={town="irvington_2",x=3679,y=14502,lx=3679,ly=14503,edge="N",street="KY-79",made=true}
+S["3755,14502"]={town="irvington_2",x=3755,y=14502,lx=3755,ly=14503,edge="N",street="KY-79",made=true}
+S["3827,14502"]={town="irvington_2",x=3827,y=14502,lx=3827,ly=14503,edge="N",street="KY-79",made=true}
+H[#H+1]={town="irvington_2",kind="maintenance",x=3700,y=14496,w=5,h=4}
+V[#V+1]={town="irvington_2",x=3741,y=14528,bx=3742,by=14502,sx=3755,sy=14502}
+I.towns["riverside_3"] = { name = "Riverside", x0 = 5376, y0 = 6400, x1 = 5887, y1 = 6655, tw = 2, th = 1, chunks = 161 }
+S["5543,6602"]={town="riverside_3",x=5543,y=6602,lx=5543,ly=6602,edge="N",street="Doe Valley Dr",made=true}
+S["5647,6404"]={town="riverside_3",x=5647,y=6404,lx=5648,ly=6404,edge="W",street="Lakeshore Pkwy",made=true}
+S["5658,6497"]={town="riverside_3",x=5658,y=6497,lx=5658,ly=6497,edge="W",street="Lakeshore Pkwy",made=true}
+S["5673,6646"]={town="riverside_3",x=5673,y=6646,lx=5673,ly=6647,edge="N",street="Doe Valley Dr",made=true}
+S["5746,6511"]={town="riverside_3",x=5746,y=6511,lx=5746,ly=6512,edge="N",street="Lakeshore Pkwy",made=true}
+S["5813,6639"]={town="riverside_3",x=5813,y=6639,lx=5813,ly=6639,edge="N",street="Lakeshore Pkwy",made=true}
+S["5884,6638"]={town="riverside_3",x=5884,y=6638,lx=5884,ly=6638,edge="N",street="West Maple St",made=true}
+H[#H+1]={town="riverside_3",kind="squat",x=5679,y=6512,w=7,h=6}
+V[#V+1]={town="riverside_3",x=5833,y=6562,bx=5815,by=6556,sx=5813,sy=6639}
+I.towns["muldraugh_6"] = { name = "Muldraugh", x0 = 9728, y0 = 10752, x1 = 10239, y1 = 11007, tw = 2, th = 1, chunks = 92 }
+S["9959,10799"]={town="muldraugh_6",x=9959,y=10799,lx=9960,ly=10799,edge="W",street="Inferno Road",made=true}
+S["10013,10879"]={town="muldraugh_6",x=10013,y=10879,lx=10013,ly=10880,edge="N",street="Inferno Road",made=true}
+S["10138,10971"]={town="muldraugh_6",x=10138,y=10971,lx=10139,ly=10971,edge="W",street="Inferno Road",made=true}
+S["10098,10954"]={town="muldraugh_6",x=10098,y=10954,lx=10098,ly=10954,edge="W",street="",hatch="shed",under={10098,10954,10098,10953,10098,10952,10098,10951,10098,10950}}
+H[#H+1]={town="muldraugh_6",kind="squat",x=9960,y=10804,w=6,h=6}
+V[#V+1]={town="muldraugh_6",x=9969,y=10765,bx=9959,by=10762,sx=9959,sy=10799}
+I.towns["irvington_3"] = { name = "Irvington", x0 = 768, y0 = 12800, x1 = 1023, y1 = 13055, tw = 1, th = 1, chunks = 72 }
+S["833,12847"]={town="irvington_3",x=833,y=12847,lx=834,ly=12847,edge="W",street="KY-79",made=true}
+S["833,12921"]={town="irvington_3",x=833,y=12921,lx=834,ly=12921,edge="W",street="KY-79",made=true}
+S["833,13004"]={town="irvington_3",x=833,y=13004,lx=834,ly=13004,edge="W",street="KY-79",made=true}
+H[#H+1]={town="irvington_3",kind="pump",x=824,y=13050,w=7,h=4}
+V[#V+1]={town="irvington_3",x=845,y=12938,bx=833,by=12966,sx=833,sy=13004}
+I.lair={town="louisville_3",tx=13349,ty=2266,ex=13348,ey=2266,x=13302,y=2275,gx=13296,gy=2275,vx=13295,vy=2275,hx=13297,hy=2255,cx=13317,cy=2242,hoard={13291,2272,5,7},rous={13304,2272,13300,2279,13301,2275,13300,2271}}
 return I

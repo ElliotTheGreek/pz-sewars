@@ -5,5 +5,22 @@
     "Sandbox_Sewars.Zombies_option1": "None",
     "Sandbox_Sewars.Zombies_option2": "Few",
     "Sandbox_Sewars.Zombies_option3": "Some",
-    "Sandbox_Sewars.Zombies_option4": "Many"
+    "Sandbox_Sewars.Zombies_option4": "Many",
+    "Sandbox_Sewars.Loot": "Shelter supplies",
+    "Sandbox_Sewars.Loot_tooltip": "How much is in a shelter's or hideout's crates and shelves when you first find them. Journals and sewer plans are there whatever this is set to. Only places not yet found are affected.",
+    "Sandbox_Sewars.Loot_option1": "None",
+    "Sandbox_Sewars.Loot_option2": "Scarce",
+    "Sandbox_Sewars.Loot_option3": "Normal",
+    "Sandbox_Sewars.Loot_option4": "Plenty",
+    "Sandbox_Sewars.Outfits": "Who the dead were",
+    "Sandbox_Sewars.Outfits_tooltip": "Mostly ordinary: sewer workers, drifters and townsfolk; hardly any carry a bag. Mixed: some came down with a pack. Survivors: many did, and their bags are full (the mod's balance before 0.3.2). Only tunnels not yet opened up are affected.",
+    "Sandbox_Sewars.Outfits_option1": "Mostly ordinary",
+    "Sandbox_Sewars.Outfits_option2": "Mixed",
+    "Sandbox_Sewars.Outfits_option3": "Survivors",
+    "Sandbox_Sewars.Rats": "Rats in the sewers",
+    "Sandbox_Sewars.Rats_tooltip": "How many of the game's own rats are down there when a stretch of tunnel is first opened up. They can be trapped, and eaten if you are hungry enough. The rodents of unusual size in the nest under Louisville are there whatever this is set to.",
+    "Sandbox_Sewars.Rats_option1": "None",
+    "Sandbox_Sewars.Rats_option2": "Few",
+    "Sandbox_Sewars.Rats_option3": "Some",
+    "Sandbox_Sewars.Rats_option4": "Swarming"
 }

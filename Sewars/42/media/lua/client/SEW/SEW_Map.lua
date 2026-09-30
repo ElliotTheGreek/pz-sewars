@@ -523,12 +523,15 @@ function M.toggle(player)
 end
 
 -- The key: Build 42's own mod options, so it is rebindable in Options -> Mods
--- (the pz_trekship PADD's route). N, because M is vanilla's world map.
+-- (the pz_trekship PADD's route). K, the one letter vanilla's keyBinding.lua
+-- leaves free: 0.3.1 shipped N, which is vanilla's Start/Stop Engine (a
+-- player's report). The option's id changed with it ("sewerMap" was N), so a
+-- saved N from 0.3.1 is not read back; ModOptions keeps the old line unread.
 M.keyOption = nil
 U.try("map.keybind", function()
     if not (PZAPI and PZAPI.ModOptions) then return end
     local opts = PZAPI.ModOptions:create("Sewars", getText("IGUI_SEW_ModName"))
-    M.keyOption = opts:addKeyBind("sewerMap", getText("IGUI_SEW_MapKey"), Keyboard.KEY_N,
+    M.keyOption = opts:addKeyBind("sewerMapKey", getText("IGUI_SEW_MapKey"), Keyboard.KEY_K,
                                   getText("IGUI_SEW_MapKeyTip"))
     PZAPI.ModOptions:load()
 end)
@@ -538,7 +541,10 @@ Events.OnKeyPressed.Add(function(key)
     local want = U.try("map.keyValue", function() return M.keyOption:getValue() end)
     if not want or want == 0 or key ~= want then return end
     local p = U.try("player", getPlayer)
-    if p then M.toggle(p) end
+    if not p then return end
+    -- Never at the wheel: whatever the key is, a driver's keys are the car's.
+    if U.try("map.vehicle", function() return p:getVehicle() end) then return end
+    M.toggle(p)
 end)
 
 return M

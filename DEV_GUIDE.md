@@ -53,6 +53,8 @@ media/lua/shared/SEW/SEW_Util.lua          safe engine calls, squares, stocking,
 media/lua/shared/SEW/SEW_Net.lua           client -> server commands and replies, all three setups
 media/lua/shared/SEW/SEW_Sewer.lua         read-only questions: which shaft, which cover, am I below
 media/lua/shared/SEW/SEW_Actions.lua       SEWClimb, the timed action: down a cover, up a ladder (global, shared)
+media/lua/shared/SEW/SEW_Rats.lua          the ROUS: an animal definition of ours, copied from vanilla's rat
+media/lua/server/SEW/SEW_Nest.lua          rats on first build, the leash, the ROUS (spawn, chase, bite), the nest's walls that open
 media/lua/shared/SEW/SEW_Compat.lua        below ground is indoors: isOutside wrapped for every Lua caller, other mods included
 media/lua/shared/SEW/SEW_Index.lua         GENERATED: towns, shafts, shelters -- small, every process
 media/lua/server/SEW/SEW_Build.lua         raising a chunk of tunnel: floors, walls, doors, ladders, dressing, shelters, the dead
@@ -60,9 +62,9 @@ media/lua/server/SEW/SEW_Server.lua        the authority: granting climbs, build
 media/lua/server/SEW/Data/SEW_Town_*.lua   GENERATED: every town's squares, by chunk -- 1.3 MB, server only
 media/lua/client/SEW/SEW_Client.lua        the menus, the move, the vault switch, lamps, ambience
 media/lua/shared/Translate/EN/*.json       ContextMenu, Tooltip, IG_UI, Sandbox -- one file per category
-media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 27 tiles
+media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 36 tiles
 media/scripts/sewars_sounds.txt, sound/SEW_*.wav   the sounds (wavs generated)
-media/sandbox-options.txt                  the zombie density option
+media/sandbox-options.txt                  zombie density, their outfits, shelter supplies
 
 tools/dev.py              THE ENTRY POINT: build, check, mutate, deploy, run, log, package
 tools/gen_sewers.py       the map -> the tunnels (Data/ and SEW_Index.lua), and plans in design/art/plans/
@@ -486,13 +488,179 @@ weather -- rain splashes read the square's cached flag in Java (checklist,
 `PlayerMT:isOutside`, `__classmetatables`), and `test_flow` asserts the
 unwrapped answer below is *outdoors* before asserting ours is not.
 
+### A tile of ours has no depth: give it the floor's or the wall's
+
+**Found by players on a dedicated server (0.3.1): "the tiles you added cover
+the character while walking."** B42 draws with depth textures, and a tile
+from a mod's own pack has none. The engine then picks one by property
+(`IsoSprite.setupTileDepth`), and a placed object goes in the floor pass only
+by property (`FBORenderCell.isObjectRenderLayer_Floor`):
+
+```
+isObjectRenderLayer_Floor      sprite.solidfloor or sprite.renderLayer == 1
+IsoWorld.LoadTileDefinitions   RenderLayer=Floor  -> renderLayer 1
+IsoSprite.setupTileDepth       solidfloor / FloorOverlay / renderLayer 1   -> floor depth
+                 560-661       WallOverlay and attachedW (or attachedN)    -> the wall's depth
+                               anything else                               -> a default depth
+```
+
+Every puddle, smear, debris pile and light pool was an object in the object
+pass with the default depth -- drawn over whoever walked across it -- and so
+was every stencil, graffito and ladder. Vanilla's own decals never meet this:
+the map loads them as part of the floor or wall they sit on
+(`CellLoader.DoTileObjectCreation`).
+
+So: **every floor tile of ours carries `RenderLayer=Floor`, every wall tile
+`WallOverlay` with its attached edge, and no tile of ours is itself a wall, door
+frame or floor.** Where we need a wall of our own look (a cave's earth, a
+breach), the wall is vanilla's -- its collision, its depth -- and ours is laid
+over it. `test_assets.py` holds all three. Properties are read by sprite name
+at load, so objects already in a save are fixed with the tiledef, no
+migration.
+
+### A picture on a wall is part of the wall, or the cutaway leaves it behind
+
+**Found in play (0.3.2), the day after the rule above shipped: by a cave's
+breach the earth hung in the air over black.** The depth fix made our earth,
+breaches, ladders, stencils and graffiti separate objects on the wall's
+square. The camera's cutaway is decided per square but applied per object,
+and only to walls and what hangs on them:
+
+```
+FBORenderCell.renderMinusFloor 34-202   sprite cutN/cutW, or a door/frame -> renderMinusFloor_DoorOrWall
+IsoWorld.LoadTileDefinitions            cutN/cutW come from WallN/WallW/... -- never from WallOverlay or attachedN/W
+  performDrawWallSegmentSingle 128-159  cut square -> DoCutawayShader(wall), then DoCutawayShaderAttached
+renderMinusFloor_NotDoorOrWall 606-630  anything else: a plain render, full height, no cut
+IsoObject.save 69-187 / load 185-476    attached sprites saved, loaded and sent with the object
+```
+
+So the wall was cut down and our picture stayed full height in front of the
+dark behind it. Vanilla never meets this: a player's wall overlay is attached
+to the wall (`ISMoveableSpriteProps`: `AttachExistingAnim`, then
+`transmitUpdatedSpriteToClients`), and the map loads decals onto their wall.
+**Every picture of ours on a wall is now attached to the wall or door frame of
+ours on its edge** (`SEW_Build`, *Pictures on walls*); only one with no wall to
+hang on is still an object. Build revision 5 moves an old save's loose ones
+on to their walls (`B.rehang`, ours only). `U.findSprite` does not see an
+attached sprite: ask `B.hasPicture`. `test_flow` checks none is left loose,
+an old save's are moved once, and a client gets them on its wall.
+
+The general rule: **a property fix is not a render fix.** The depth rule above
+was right and was checked by property; how the renderer *groups* objects was
+never looked at, and only the game showed it.
+
+### A tile name in the catalogue is not a picture in the packs
+
+**New in this mod (0.4, caves).** `boulders_36..39` are in
+`tools/_catalog/tiles.json` with a property each -- and have no picture in
+any pack. Placed, they would have drawn nothing and said nothing. Found only
+because the art was looked at before use (`vanilla_cells` refused them).
+`test_assets.py` now cuts every cave floor and stone out of the packs; do the
+same for any vanilla sprite that has not been seen on a contact sheet.
+
+### Louisville is ten Muldraughs: anything per square must be linear
+
+**New in this mod (0.4).** Louisville's district is 76 map cells and 325,000
+squares of tunnel -- half the mod. `test_layout.py` had `min(xs)` inside a
+per-square comprehension since 0.2: invisible for a town of 40,000 squares,
+over ten minutes for Louisville. Hoist anything whole-town out of a loop, and
+when a test gets slow, profile it before waiting on it
+(`cProfile`: 84,903 calls to `min` took 35 of 36 seconds).
+
+### `U.hash(x, y) % 2` is a checkerboard
+
+**New in this mod (0.4, caves).** The position hash's multipliers are odd,
+so its parity is `(x + y)`'s, and a two-way pick by `% 2` tiled the first
+cave floor like a chessboard (seen on the render). Pick by `% 5 == 0` or any
+modulus that is not a power of two.
+
+**And any small modulus of it is a pattern (0.5).** `% 3` striped the rats'
+nest's floor in diagonal bands on its first render: both multipliers are 2
+mod 3. A per-square pick from a hash goes through one step of `U.rng`
+(`U.rng(U.hash(x, y, k))(n)`); `render_sewer.py` mirrors it (`lua_rng1`).
+
+**And `U.hash(x, y, k)` for k = 1, 2, 3 is a walk, not a draw (0.3.2).** It
+is linear in `k`, so over a list of ten it steps by one: `U.fill` walked the
+list and every last stand's crate held every gun on it. A run of choices from
+one seed uses `U.rng(seed)` (Park-Miller, exact in a double).
+
+### A default key is someone else's, and a saved key outlives a new default
+
+**Found by a Workshop comment (0.3.1): the map's N is vanilla's Start/Stop
+Engine**, so every keyboard player had a clash, and the map opened in a car.
+Before choosing a default, read vanilla's `media/lua/shared/keyBinding.lua`:
+K is the only letter it leaves unbound (and `Keyboard.KEY_NONE` is always an
+option). And `PZAPI.ModOptions:save()` writes every mod's options whenever a
+player accepts the options screen, so changing the default does nothing for
+anyone who has: the option's **id** changed (`sewerMap` -> `sewerMapKey`),
+and `load()` keeps the old line unread. `tests/sim.lua` loads ModOptions.ini
+the same way, starting from a 0.3.1 player's file.
+
+### A mod cannot add an action group, and an animal without one stands still
+
+**Found in play (0.5): the ROUS "just stand around and don't attack".** The
+first build gave them an action group of our own (`media/actiongroups/rous`,
+the rat's plus a pig's attack state), because an animal bites only from the
+`attack` state of its group, and the rat's has none. The DEV_GUIDE entry
+before this one said mods' folders were probably seen. They are not:
+
+```
+IsoAnimal.initType              25-39   ActionGroup.getActionGroup(adef.animset)
+ActionGroup.load         21-30, 53-62   getMediaFile("actiongroups/<name>/actionGroup.xml")
+ZomboidFileSystem.getMediaFile   0-39   new File(workdir, path) -- the game's folder, never a mod's
+ActionGroup.getInitialState      0-49   no states: null, and a debug-channel line only
+```
+
+`AnimSets/` do load from mods (`AnimationSet.Load` -> `resolveAllDirectories`),
+which is what made it look possible. With no group the animal has no states
+at all -- no walk, no path, no attack -- and nothing is logged. And even with
+one, `goAttack` alone never bites: `fightAnimal` needs a `fightingOpponent`
+that only vanilla's own `spotted` and `checkAttackBehavior` set, and Lua has
+no setter; `attackBack` acts only on a server.
+
+So the ROUS keeps the rat's `animset`, and the chase and the bite are ours
+(`SEW_Nest.hunt`): the engine's `pathToCharacter` first, walked by hand a
+step a tick when it makes no headway (never across an edge `isBlockedTo`
+says is a wall), and a bite on a timer made on the server's copy of the
+player and sent with `syncBodyPart`, as vanilla's own health command does.
+**What generalises: an animal type from a mod can only reuse a vanilla
+animset**; anything it does beyond that animal's behaviour is Lua.
+
+Also from the engine, for anyone adding an animal: `addAnimal` has no role
+check in Java (vanilla's `AnimalCheats` check is in its Lua); the constructor
+registers the animal and `AnimalSynchronizationManager` sends it to clients;
+a chunk saves its animals at every level (`AnimalPopulationManager.
+removeChunkFromWorld`); the definitions are read once, after mod Lua loads,
+so a shared file can add one. `addAnimal` takes x, y as given -- a whole
+number is the square's north-west corner, on its wall line (found in play:
+rats beyond the tunnel walls); stand it at x + 0.5. `collidable` is animals
+pushing each other, not walls. And the pathfinder is not told of levels a
+runtime square adds below 0 (`setMinMaxLevel` notifies nothing; a chunk's
+levels reach it when the chunk is added), so an animal wandering down here
+may path through our walls: the server leashes every animal below ground
+back onto the walkway (`SEW_Nest.leash`). Unproven either way; watch for it.
+
+Also from the engine, for anyone adding an animal: `addAnimal` has no role
+check in Java (vanilla's `AnimalCheats` check is in its Lua); the constructor
+registers the animal and `AnimalSynchronizationManager` sends it to clients;
+a chunk saves its animals at every level (`AnimalPopulationManager.
+removeChunkFromWorld`); the definitions are read once, after mod Lua loads,
+so a shared file can add one. A wild animal only flees; only a tame one
+attacks unprovoked (`attackIfStressed`, stress over 80).
+
 ### The shell mangles escapes, and it will do it to you
 
-**The trekship's rule, broken three times in one session.** A heredoc turned
-`\b` into a backspace in a regex and `\n` into a newline in a string, and each
-cost a round of confusion because the file *looked* right in a terminal.
+**The trekship's rule, broken three times in one session -- and again in
+0.4.** A heredoc turned `\b` into a backspace in a regex and `\n` into a
+newline in a string, and each cost a round of confusion because the file
+*looked* right in a terminal. In 0.4 a Python edit script fed through a
+heredoc put two literal backspaces into `render_sewer.py`'s regexes; the Edit
+tool then could not match the line, which is how it was found
+(`grep -c $'\x08'` finds them).
 Write Python and Lua with the Write/Edit tools, or a script file written by
-them. Never a heredoc for anything with a backslash in it.
+them. Never a heredoc for anything with a backslash in it. (0.5: twice more,
+a `\n` in a patch fed through a heredoc; both caught because the patch
+asserted its match and wrote nothing.)
 
 ---
 
@@ -551,10 +719,10 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | Check | Catches |
 |---|---|
 | `tools/luacheck.py` | Lua syntax, generated data included |
-| `tests/test_assets.py` (71 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call |
+| `tests/test_assets.py` (71 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call |
 | `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (49 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking, the dead (and none on the player), a shut cover greyed out, refusals, the rescue, somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 30 guards broken one at a time; every one must be caught |
+| `tests/test_flow.py` (49 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue, somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, no WARN, no unknown sprite or text key |
+| `tests/mutate.py` (`dev.py mutate`) | 68 guards broken one at a time; every one must be caught |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -574,6 +742,8 @@ Debug console (single player, or an admin's server log):
 | `SEW_Here()` | where you are, the chunk, its town and build revision, the nearest shaft and its street |
 | `SEW_Build(r)` | build every chunk within r (default 3) of you now |
 | `SEW_Rebuild()` | forget which chunks are built; the next pass puts back missing hull (never furniture or the dead twice) |
+| `SEW_GoLair()` | into the house by the hatch nearest the rats' nest under Louisville |
+| `SEW_Lair()` | the nest: where, which of its walls are open, how many ROUS are alive near it |
 
 ### On a dedicated server
 
@@ -616,17 +786,18 @@ gets verified.
 
 ## Current state
 
-Version **0.3.2** (local, not yet on the Workshop), build revision **2**,
+Version **0.3.2** (local, not yet on the Workshop), build revision **5**,
 layout from `tools/gen_sewers.py`. 2026-09-29. **Workshop:** item
 **3810188405**, public, 0.3.1 uploaded 2026-09-29; `WORKSHOP_ID` is set in
 `tools/package_workshop.py`.
 
 **Built and passing every static test**: the whole loop (covers, the climb
-down, tunnels under 16 towns -- 442 shafts, 93 shelters, 114,911 walkable
+down, tunnels under 31 towns -- 442 shafts under the map's covers and 732
+under covers of ours, 239 shelters, 152 caves, 189 hatches, 475,777 walkable
 squares, 4 covers left shut because they are over buildings), ladders out,
 vaults and the sludge channel, shelters behind steel doors with stocked
 crates and shelves and sometimes their dead, zombies below by sandbox
-density, rescue, lamps at the shafts and shelters, ambience, 27 tiles of our
+density, rescue, lamps at the shafts and shelters, ambience, 36 tiles of our
 own, four sounds, the poster, the Workshop package (unpublished, private).
 
 **Not yet seen in game** -- the checklist, in order:
@@ -652,9 +823,47 @@ own, four sounds, the poster, the Workshop package (unpublished, private).
     `[SEW] compat: below ground is indoors (IsoGridSquare, IsoGameCharacter,
     IsoPlayer)` -- a `WARN` there means a class was not found. With Flying
     Birds on: flocks on the street, none below.
+11. **A cave (0.4).** A new character in SewarsDev starts on the cover
+    nearest a Muldraugh cave (`[SEW] dev build: started at the cover ...`,
+    which names the breach). Down, a short walk to a hole knocked through the
+    wall, a dirt passage, a hideout with a candle's glow, a bedroll and two
+    crates. `SEW_Caves()` lists them, `SEW_GoCave(n)` hops to any.
+12. **A house with a way down (0.4).** `SEW_GoHatch()` puts you in a Muldraugh
+    house with a hatch; within a few seconds `[SEW] hatch at ... opened` and
+    a trapdoor in the floor. *Climb down through the hatch*, the culvert, the
+    ladder back up into the house. `SEW_Hatches()` says which are open. The
+    open question: whether B42's random basements are in z -1 when the server
+    first looks (see ROADMAP).
+
+13. **Louisville (0.4).** Walk its streets: covers appear in the road at
+    junctions within a few seconds of coming near (the server puts them in;
+    a cover further off appears as you approach). Down one: tunnels under
+    the streets, shelters, caves. The old strip at x 12860-13009 is still
+    its own network.
+14. **Nothing draws over the character** (0.4, a player's report): walk over
+    a puddle and a light pool, past graffiti, a ladder, an earth wall.
+
+15. **The rats' nest (0.5).** A new character in SewarsDev starts in a
+    Louisville house by its hatch (`[SEW] dev build: started by the hatch
+    ...`, which names the false wall). Down the hatch, along the culvert to the
+    street tunnel, and a few squares on: a wall with cracks and a gnawed hole
+    at its foot on the trunk's west wall, and *R.O.U.S. THEY EXIST* nearby.
+    Right-click it: *Pull at the loose bricks*. The run, the nest, and four
+    big rats. **Do they come at you, and do they bite?** (*It bites!*, a
+    scratch or a cut on a limb.) Do they walk smoothly or glide (glide: the
+    engine's path failed below ground and they are walked by hand)? **Can
+    you shoot and hit them**, and how many hits do they take? Every hit is
+    logged: `[SEW] a ROUS was hit by ... health ...` -- no line at all means
+    the shots never reach them. *Tear through the gnawed wall* (the clawed
+    brick on the nest's west side) is refused while one lives, and gives
+    after; the hoard behind it. `SEW_Lair()` says what the server sees.
+16. **Rats (0.5).** In any tunnel opened up in a new world: vanilla's rats,
+    running from you, and none beyond the walls (a new world: the first test's
+    rats were put on the corners of their squares). Save and reload below:
+    are they still there?
 
 Known limits: only named streets get full tunnels (unnamed lanes and car
 parks get the culverts that join their covers); the art is procedural until
 the image-model pass; the poster is a render.
 
-Not a git repository yet.
+A git repository (main).

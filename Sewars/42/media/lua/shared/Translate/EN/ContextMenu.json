@@ -3,5 +3,9 @@
     "ContextMenu_SEW_Exit": "Climb out to the street",
     "ContextMenu_SEW_Map": "Sewer map",
     "ContextMenu_SEW_ReadPlan": "Read the sewer plan",
-    "ContextMenu_SEW_ReadJournal": "Read the journal"
+    "ContextMenu_SEW_ReadJournal": "Read the journal",
+    "ContextMenu_SEW_HatchDown": "Climb down through the hatch",
+    "ContextMenu_SEW_HatchUp": "Climb up through the hatch",
+    "ContextMenu_SEW_PryWall": "Pull at the loose bricks",
+    "ContextMenu_SEW_PryGate": "Tear through the gnawed wall"
 }

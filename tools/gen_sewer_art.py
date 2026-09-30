@@ -55,33 +55,85 @@ TW, TH = 256, 384          # a wall face's texture: one square wide, one storey 
 FONT_STENCIL = r"C:\Windows\Fonts\impact.ttf"
 FONT_SPRAY = r"C:\Windows\Fonts\segoeprb.ttf"
 
+# What every tile of ours that lies on the floor carries. `RenderLayer=Floor`
+# is what puts a placed object in the floor pass: FBORenderCell
+# .isObjectRenderLayer_Floor is `solidfloor or renderLayer == 1`, and
+# IsoWorld.LoadTileDefinitions sets renderLayer 1 from RenderLayer=Floor.
+# Without it a puddle is drawn in the object pass, over whoever walks across
+# it (a player's report on a dedicated server, 0.3.1). Vanilla's own decals
+# never need it: the map loads them as part of the floor, not as objects.
+FLOOR_DECAL = {"attachedFloor": "", "RenderLayer": "Floor"}
+# And every tile of ours on a wall. A sprite of ours has no depth texture, so
+# IsoSprite.setupTileDepth gives it the wall's depth only for `WallOverlay`
+# with attachedW / attachedN (bci 560-661); otherwise the default depth, and
+# it can be drawn over a character beside the wall (the same report).
+WALL_W = {"attachedW": "", "WallOverlay": ""}
+WALL_N = {"attachedN": "", "WallOverlay": ""}
+
 # Index -> (name, kind, properties). The Lua (SEW_Config.Sprites) names these by index.
 TILES_DEF = [
-    ("ladder_W", "copy:location_sewer_01_32", {"attachedW": "", "Facing": "E", "BlocksPlacement": ""}),
-    ("ladder_N", "copy:location_sewer_01_33", {"attachedN": "", "Facing": "S", "BlocksPlacement": ""}),
-    ("exit_W", "wallW", {"attachedW": ""}),
-    ("exit_N", "wallN", {"attachedN": ""}),
+    ("ladder_W", "copy:location_sewer_01_32", dict(WALL_W, Facing="E", BlocksPlacement="")),
+    ("ladder_N", "copy:location_sewer_01_33", dict(WALL_N, Facing="S", BlocksPlacement="")),
+    ("exit_W", "wallW", WALL_W),
+    ("exit_N", "wallN", WALL_N),
 ]
 GRAFFITI = ["keepout", "theyhear", "deeper", "tally", "hands", "up", "eye"]
 for g in GRAFFITI:
-    TILES_DEF.append(("g_%s_W" % g, "wallW", {"attachedW": ""}))
-    TILES_DEF.append(("g_%s_N" % g, "wallN", {"attachedN": ""}))
+    TILES_DEF.append(("g_%s_W" % g, "wallW", WALL_W))
+    TILES_DEF.append(("g_%s_N" % g, "wallN", WALL_N))
 TILES_DEF += [
-    ("safe_W", "wallW", {"attachedW": ""}),
-    ("safe_N", "wallN", {"attachedN": ""}),
-    ("grime_W", "wallW", {"attachedW": ""}),
-    ("grime_N", "wallN", {"attachedN": ""}),
-    ("puddle", "floor", {"attachedFloor": ""}),
-    ("debris", "floor", {"attachedFloor": ""}),
-    ("lightpool", "floor", {"attachedFloor": ""}),
-    ("smear", "floor", {"attachedFloor": ""}),
+    ("safe_W", "wallW", WALL_W),
+    ("safe_N", "wallN", WALL_N),
+    ("grime_W", "wallW", WALL_W),
+    ("grime_N", "wallN", WALL_N),
+    ("puddle", "floor", FLOOR_DECAL),
+    ("debris", "floor", FLOOR_DECAL),
+    ("lightpool", "floor", FLOOR_DECAL),
+    ("smear", "floor", FLOOR_DECAL),
     # Vanilla's sludge (location_sewer_01_26) is drawn 128 px up its cell -- a
     # water line two thirds of a storey above its square, for a channel one
     # level below the walkway. Laid on our walkway it floated up against the
     # wall, over squares that looked like floor and would not let you on
     # (found in play, 0.3.2). This is its picture put down on the floor
     # diamond, still solidtrans: the channel is crossed by its bridges.
-    ("sludge", "lower:location_sewer_01_26", {"BlocksPlacement": "", "solidtrans": ""}),
+    ("sludge", "lower:location_sewer_01_26", dict(FLOOR_DECAL, BlocksPlacement="", solidtrans="")),
+    # Caves (ROADMAP 0.4). Earth: vanilla has no such wall, and a wall of ours
+    # would have no depth texture (drawn over characters). So the wall is
+    # vanilla's concrete one -- its collision, its depth -- and this is the
+    # earth face laid over it (SEW_Build). earth_NW is not placed: a corner is
+    # vanilla's corner with both faces over it.
+    ("earth_W", "wallW", WALL_W),
+    ("earth_N", "wallN", WALL_N),
+    ("earth_NW", "corner:earth", WALL_W),
+    # Breaches: over vanilla's door frame (location_sewer_01_18/19, walked
+    # through, with its depth), vanilla's wall with a hole knocked through it,
+    # the hole cut inside the frame's own doorway so the frame never shows.
+    ("breach_c_W", "breach:location_sewer_01_8", WALL_W),
+    ("breach_c_N", "breach:location_sewer_01_9", WALL_N),
+    ("breach_b_W", "breach:location_sewer_01_0", WALL_W),
+    ("breach_b_N", "breach:location_sewer_01_1", WALL_N),
+    # Houses with a way down (ROADMAP 0.4): a trapdoor in a house's floor, laid
+    # over the floor the house has. No property that blocks or can be picked up.
+    ("hatch", "floor", FLOOR_DECAL),
+    # A manhole cover of ours, for the towns the map gives few (ROADMAP 0.4):
+    # vanilla's own picture, but as a floor tile -- vanilla's sprite placed as
+    # an object would be drawn over whoever stands on it.
+    ("cover", "copyfloor:street_decoration_01_15", FLOOR_DECAL),
+    # The rats' nest under Louisville (0.5). The false wall's tell: loose
+    # brickwork cracked round a gnawed hole at its foot, hung on the wall it
+    # is part of until it is pulled away.
+    ("cracks_W", "wallW", WALL_W),
+    ("cracks_N", "wallN", WALL_N),
+    # Gouges from claws the size of a hand, on the nest's earth and the wall
+    # they have gnawed half through into the hoard.
+    ("claws_W", "wallW", WALL_W),
+    ("claws_N", "wallN", WALL_N),
+    # The nest's floor: bones, and the litter they sleep in.
+    ("bones", "floor", FLOOR_DECAL),
+    ("litter", "floor", FLOOR_DECAL),
+    # Somebody's warning, a few squares from the false wall.
+    ("g_rous_W", "wallW", WALL_W),
+    ("g_rous_N", "wallN", WALL_N),
 ]
 
 
@@ -187,6 +239,10 @@ def graffiti(kind, rnd):
         return spray("THEY\nHEAR\nYOU", (225, 225, 215, 225), 48, rnd, angle=3)
     if kind == "deeper":
         return spray("DONT GO\nDEEPER", (200, 180, 40, 230), 44, rnd, angle=-2)
+    if kind == "rous":
+        tex = spray("R.O.U.S.", (196, 40, 30, 235), 50, rnd, angle=-3)
+        tex.alpha_composite(spray("\n\nTHEY EXIST", (225, 220, 205, 225), 27, rnd, drips=False, angle=1))
+        return tex
     if kind == "up":
         tex = spray("UP", (80, 190, 90, 230), 58, rnd, drips=False)
         d = ImageDraw.Draw(tex)
@@ -226,6 +282,152 @@ def graffiti(kind, rnd):
         d.ellipse([cx - 9, cy - 9, cx + 9, cy + 9], fill=(10, 10, 10, 255))
         return weather(tex, rnd, 0.25, 1)
     raise ValueError(kind)
+
+
+def earth(rnd):
+    """A dug face: packed brown earth in rough strata, stones bedded in it, roots
+    near the top, the bottom dark with damp, and a ragged top edge where the
+    digging stopped."""
+    import numpy as np
+    h, w = TH, TW
+    ys = np.linspace(0, 1, h)[:, None]
+    base = np.array([92, 70, 48], float) * (1 - ys * 0.35)[..., None] * np.ones((h, w, 1))
+    # Strata: wavy bands a shade apart.
+    xs = np.arange(w)[None, :]
+    band = np.sin((np.arange(h)[:, None] + 7 * np.sin(xs / 23.0 + rnd.random() * 6)) / 17.0)
+    base *= (1 + 0.07 * band)[..., None]
+    grain = Image.effect_noise((w, h), 60).filter(ImageFilter.GaussianBlur(1.2))
+    base *= (0.82 + 0.36 * np.asarray(grain, float) / 255)[..., None]
+    img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8), "RGB").convert("RGBA")
+    d = ImageDraw.Draw(img)
+    for _ in range(26):
+        x, y = rnd.randint(4, w - 4), rnd.randint(30, h - 10)
+        r = rnd.randint(4, 13)
+        g = rnd.randint(88, 128)
+        d.ellipse([x - r, y - r * 0.7, x + r, y + r * 0.7], fill=(g, g - 6, g - 16, 255))
+        d.arc([x - r, y - r * 0.7, x + r, y + r * 0.7], 200, 320, fill=(g + 40, g + 34, g + 22, 255), width=2)
+        d.arc([x - r, y - r * 0.7, x + r, y + r * 0.7], 20, 150, fill=(40, 30, 22, 255), width=2)
+    for _ in range(5):          # roots
+        x, y = rnd.randint(10, w - 10), rnd.randint(20, 90)
+        for k in range(rnd.randint(20, 60)):
+            nx, ny = x + rnd.randint(-3, 3), y + rnd.randint(1, 3)
+            d.line([x, y, nx, ny], fill=(46, 32, 20, 255), width=2)
+            x, y = nx, ny
+    for _ in range(8):          # pick marks
+        x, y = rnd.randint(10, w - 30), rnd.randint(60, h - 40)
+        d.line([x, y, x + rnd.randint(8, 22), y + rnd.randint(-4, 10)], fill=(50, 36, 24, 255), width=3)
+    # Damp at the foot.
+    a = img.split()
+    damp = Image.linear_gradient("L").resize((w, h)).point(lambda v: int(max(0, v - 170) * 1.6))
+    img = Image.composite(Image.new("RGBA", (w, h), (30, 24, 18, 255)), img, damp)
+    # Opaque to the top: it lies over vanilla's concrete wall, and a ragged
+    # top let the concrete show through (the first overlay sheet).
+    img.putalpha(255)
+    del a
+    return img
+
+
+def breach(cell, side, rnd, frame):
+    """Vanilla's own wall with a hole knocked through it: a ragged arch from the
+    floor to two thirds up, its edge broken and dark. What came out of it lies
+    on the floor either side (loose stones, placed by the builder).
+
+    Laid over vanilla's door frame `frame` (which gives it collision and
+    depth), so the hole is kept inside the frame's doorway: everywhere else
+    this picture covers the frame, and inside the hole the frame is empty."""
+    import numpy as np
+    from scipy import ndimage as ndi
+    doorway = (np.asarray(cell.split()[3]) > 0) & (np.asarray(frame.split()[3]) == 0)
+    # Ragged: a few pixels in from the doorway's edge, by a wandering amount.
+    depth = ndi.distance_transform_edt(doorway)
+    wobble = np.asarray(Image.effect_noise((CW, CH), 60).filter(ImageFilter.GaussianBlur(3)), float)
+    inside = depth > 1.5 + 5 * np.clip((wobble - 100) / 60, 0, 1)
+    hole = Image.new("L", (TW, TH), 0)
+    hd = ImageDraw.Draw(hole)
+    pts = []
+    cx, left, right, top = TW / 2, TW * 0.1, TW * 0.9, TH * 0.24
+    n = 26
+    for k in range(n + 1):
+        a = math.pi * k / n            # left foot, over the top, right foot
+        x = cx - (cx - left) * math.cos(a) + rnd.randint(-9, 9)
+        # A round, broken top rather than a pointed arch (the first sheet).
+        y = TH - (TH - top) * max(0.0, math.sin(a)) ** 0.35 + rnd.randint(-12, 12)
+        pts.append((x, min(TH, y)))
+    pts = [(left + rnd.randint(-4, 4), TH)] + pts + [(right + rnd.randint(-4, 4), TH)]
+    hd.polygon(pts, fill=255)
+    rim = hole.filter(ImageFilter.MaxFilter(19))
+    from PIL import ImageChops
+    rim = ImageChops.subtract(rim, hole).filter(ImageFilter.GaussianBlur(2))
+
+    def project(m):
+        rgba = Image.new("RGBA", (TW, TH), (255, 255, 255, 0))
+        rgba.putalpha(m)
+        return to_wall(rgba, side).split()[3]
+    ph = Image.fromarray(((np.asarray(project(hole)) > 127) & inside).astype(np.uint8) * 255, "L")
+    pr = Image.fromarray(np.asarray(ph.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(2))), "L")
+    pr = ImageChops.subtract(pr, ph)
+    out = cell.copy()
+    r, g, b, a = out.split()
+    a = ImageChops.multiply(a, ImageChops.invert(ph))
+    dark = pr.point(lambda v: 255 - int(v * 0.55))
+    r, g, b = (ImageChops.multiply(ch, dark) for ch in (r, g, b))
+    return Image.merge("RGBA", (r, g, b, a))
+
+
+def cracks(rnd):
+    """Loose brickwork: a gnawed hole at the wall's foot, dark inside with a
+    ragged, lighter rim, and cracks running up from it through the mortar,
+    a few bricks round it outlined where the mortar has gone."""
+    tex = Image.new("RGBA", (TW, TH), (0, 0, 0, 0))
+    d = ImageDraw.Draw(tex)
+    cx, foot = TW // 2 + rnd.randint(-20, 20), TH
+    for row in range(5):
+        y0 = TH - 40 - row * 30
+        off = 0 if row % 2 else 32
+        for bx in range(-2, 3):
+            x0 = cx - 64 + bx * 64 + off
+            if rnd.random() < 0.55:
+                d.rectangle([x0 + 2, y0, x0 + 60, y0 + 26], outline=(18, 14, 12, 210), width=3)
+    for _ in range(7):
+        x, y = cx + rnd.randint(-40, 40), TH - 60
+        for _k in range(rnd.randint(8, 16)):
+            nx, ny = x + rnd.randint(-16, 16), y - rnd.randint(8, 20)
+            d.line([x, y, nx, ny], fill=(14, 12, 10, 230), width=rnd.choice((2, 3, 3, 4)))
+            x, y = nx, ny
+    w, h = 68, 56
+    rim = [(cx - w // 2 - 10 + rnd.randint(-4, 4), foot)]
+    hole = [(cx - w // 2, foot)]
+    for k in range(13):
+        a = math.pi * k / 12
+        rx, ry = math.cos(a), math.sin(a)
+        rim.append((cx - (w // 2 + 10) * rx + rnd.randint(-5, 5), foot - (h + 10) * ry + rnd.randint(-5, 5)))
+        hole.append((cx - (w // 2) * rx + rnd.randint(-4, 4), foot - h * ry + rnd.randint(-4, 4)))
+    rim.append((cx + w // 2 + 10, foot))
+    hole.append((cx + w // 2, foot))
+    d.polygon(rim, fill=(120, 100, 84, 230))
+    d.polygon(hole, fill=(6, 5, 5, 255))
+    for _ in range(14):       # gnaw marks round the rim
+        a = rnd.uniform(0.1, math.pi - 0.1)
+        x, y = cx - (w // 2 + 5) * math.cos(a), foot - (h + 5) * math.sin(a)
+        d.line([x, y, x + rnd.randint(-5, 5), y + rnd.randint(3, 9)], fill=(40, 30, 24, 240), width=2)
+    return weather(tex, rnd, 0.12, 1)
+
+
+def claws(rnd):
+    """Three or four gouges together, pale in the middle and dark along their
+    lips; two or three sets across the face at different heights."""
+    tex = Image.new("RGBA", (TW, TH), (0, 0, 0, 0))
+    d = ImageDraw.Draw(tex)
+    for _set in range(rnd.randint(2, 3)):
+        x0, y0 = rnd.randint(30, TW - 110), rnd.randint(int(TH * 0.35), int(TH * 0.8))
+        ang = rnd.uniform(-0.5, 0.5)
+        length = rnd.randint(70, 130)
+        for k in range(rnd.randint(3, 4)):
+            sx, sy = x0 + k * 18, y0 + k * 4
+            ex, ey = sx + length * math.sin(ang), sy + length * math.cos(ang) * 0.9
+            d.line([sx - 2, sy, ex - 2, ey], fill=(22, 16, 12, 230), width=7)
+            d.line([sx, sy, ex, ey], fill=(176, 160, 138, 235), width=3)
+    return weather(tex, rnd, 0.1, 1)
 
 
 def grime(rnd):
@@ -295,6 +497,55 @@ def floor_tex(kind, rnd):
             gd.ellipse([x - 7, y - 7, x + 7, y + 7], fill=230)
         tex.paste(Image.new("RGBA", (s, s), (205, 215, 225, 255)), (0, 0), g.filter(ImageFilter.GaussianBlur(4)))
         return tex
+    if kind == "hatch":
+        # A trapdoor cut into the floor: planks in a dark frame, two iron
+        # straps, a ring to pull it by.
+        m = 34
+        d.rectangle([m - 8, m - 8, s - m + 8, s - m + 8], fill=(34, 26, 18, 255))
+        boards = 4
+        bw = (s - 2 * m) / boards
+        for k in range(boards):
+            x0 = m + k * bw
+            tone = rnd.randint(-10, 10)
+            d.rectangle([x0 + 2, m, x0 + bw - 2, s - m], fill=(112 + tone, 80 + tone, 50 + tone, 255))
+            for _ in range(5):          # grain
+                gx = x0 + rnd.uniform(6, bw - 6)
+                d.line([gx, m + 4, gx + rnd.uniform(-3, 3), s - m - 4], fill=(90 + tone, 62 + tone, 38 + tone, 255), width=1)
+        for sy in (m + 26, s - m - 26):  # iron straps with rivets
+            d.rectangle([m - 2, sy - 7, s - m - 30, sy + 7], fill=(58, 56, 54, 255))
+            for rx in range(m + 8, s - m - 34, 28):
+                d.ellipse([rx - 3, sy - 3, rx + 3, sy + 3], fill=(120, 116, 110, 255))
+        cx, cy = s - m - 30, s // 2      # the ring
+        d.ellipse([cx - 14, cy - 14, cx + 14, cy + 14], outline=(70, 66, 60, 255), width=5)
+        d.rectangle([cx - 4, cy - 18, cx + 4, cy - 10], fill=(70, 66, 60, 255))
+        return tex.filter(ImageFilter.GaussianBlur(0.6))
+    if kind == "bones":
+        bone = (214, 206, 180, 240)
+        for _ in range(9):
+            x, y = rnd.randint(30, s - 70), rnd.randint(30, s - 50)
+            ln, ang = rnd.randint(22, 48), rnd.uniform(0, math.pi)
+            ex, ey = x + ln * math.cos(ang), y + ln * math.sin(ang)
+            d.line([x, y, ex, ey], fill=bone, width=5)
+            for px, py in ((x, y), (ex, ey)):
+                d.ellipse([px - 5, py - 5, px + 5, py + 5], fill=bone)
+        rx, ry = rnd.randint(70, 150), rnd.randint(70, 150)      # a ribcage
+        d.line([rx, ry, rx + 60, ry], fill=bone, width=5)
+        for k in range(5):
+            d.arc([rx + k * 12 - 10, ry - 22, rx + k * 12 + 10, ry + 22], 180, 360, fill=bone, width=3)
+        sx, sy = rnd.randint(50, 200), rnd.randint(50, 200)      # and a small skull
+        d.ellipse([sx - 14, sy - 11, sx + 14, sy + 11], fill=bone)
+        d.ellipse([sx - 8, sy - 4, sx - 2, sy + 2], fill=(30, 26, 20, 255))
+        d.ellipse([sx + 2, sy - 4, sx + 8, sy + 2], fill=(30, 26, 20, 255))
+        return tex.filter(ImageFilter.GaussianBlur(0.6))
+    if kind == "litter":
+        # Shredded cloth, paper and straw, dragged into a heap.
+        for _ in range(140):
+            cx, cy = s / 2 + rnd.gauss(0, 50), s / 2 + rnd.gauss(0, 45)
+            ang, ln = rnd.uniform(0, math.pi), rnd.randint(8, 26)
+            c = rnd.choice([(96, 84, 60, 235), (120, 104, 70, 235), (70, 62, 52, 235), (140, 132, 116, 230),
+                            (84, 40, 34, 230), (52, 58, 66, 230)])
+            d.line([cx, cy, cx + ln * math.cos(ang), cy + ln * math.sin(ang)], fill=c, width=rnd.choice((2, 3, 4)))
+        return tex.filter(ImageFilter.GaussianBlur(0.5))
     if kind == "smear":
         for k in range(40):
             t = k / 40
@@ -308,10 +559,21 @@ def floor_tex(kind, rnd):
 def draw(name, kind, rnd, vanilla):
     if kind.startswith("copy:"):
         return vanilla[kind[5:]]
+    if kind.startswith("copyfloor:"):
+        return vanilla[kind[10:]]
     if kind.startswith("lower:"):
         # Down from where vanilla draws it (oy 64) to the floor diamond (oy 192).
         cell = Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
         cell.alpha_composite(vanilla[kind[6:]].crop((0, 0, CW, CH - 128)), (0, 128))
+        return cell
+    if kind.startswith("breach:"):
+        src = kind[7:]
+        side = "W" if src in ("location_sewer_01_8", "location_sewer_01_0") else "N"
+        # Over the door frame the builder puts under it (SEW_Config doorFrame).
+        return breach(vanilla[src], side, rnd, vanilla["location_sewer_01_18" if side == "W" else "location_sewer_01_19"])
+    if kind == "corner:earth":
+        cell = to_wall(earth(rng_for("earth_W")), "W")
+        cell.alpha_composite(to_wall(earth(rng_for("earth_N")), "N"))
         return cell
     side = kind[-1] if kind.startswith("wall") else None
     base = name.rsplit("_", 1)[0]
@@ -321,6 +583,20 @@ def draw(name, kind, rnd, vanilla):
         tex = spray("SAFE\nKNOCK 3", (90, 200, 110, 235), 46, rnd, angle=2)
     elif base == "grime":
         tex = grime(rnd)
+    elif base == "cracks":
+        tex = cracks(rnd)
+    elif base == "claws":
+        tex = claws(rnd)
+    elif base == "earth":
+        # Exactly the shape of the concrete wall it covers, to the last pixel:
+        # the projection's soft edge let a line of concrete show round it.
+        face = to_wall(earth(rnd), side)
+        wall = vanilla["location_sewer_01_8" if side == "W" else "location_sewer_01_9"].split()[3]
+        out = Image.new("RGBA", (CW, CH), (58, 42, 28, 0))
+        out.putalpha(wall)
+        out.alpha_composite(face)
+        r, g, b, _a = out.split()
+        return Image.merge("RGBA", (r, g, b, wall))
     elif base.startswith("g_"):
         tex = graffiti(base[2:], rnd)
     else:
@@ -477,7 +753,9 @@ def review(cells, vanilla):
 
 
 def main():
-    vanilla = vanilla_cells({"location_sewer_01_32", "location_sewer_01_33", "location_sewer_01_26", "location_sewer_01_8",
+    vanilla = vanilla_cells({"location_sewer_01_32", "location_sewer_01_33", "location_sewer_01_26",
+                             "location_sewer_01_0", "location_sewer_01_1", "location_sewer_01_8",
+                             "location_sewer_01_18", "location_sewer_01_19", "street_decoration_01_15",
                              "location_sewer_01_9", "floors_interior_tilesandwood_01_24"})
     cells = []
     for name, kind, _ in TILES_DEF:

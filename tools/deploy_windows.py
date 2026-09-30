@@ -71,6 +71,9 @@ critical = [
     Path("42/media/scripts/sewars_items.txt"),
     Path("42/media/textures/Item_SEW_Plan.png"),
     Path("42/media/textures/Item_SEW_Journal.png"),
+    # The rats and the nest (0.5): without the definition there is no ROUS.
+    Path("42/media/lua/shared/SEW/SEW_Rats.lua"),
+    Path("42/media/lua/server/SEW/SEW_Nest.lua"),
 ]
 for rel in critical:
     if digest(SOURCE / rel) != digest(DESTINATION / rel):

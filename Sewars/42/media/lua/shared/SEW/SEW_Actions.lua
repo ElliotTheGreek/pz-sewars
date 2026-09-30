@@ -42,7 +42,11 @@ function SEWClimb:new(character, x, y, mode)
     o.stopOnWalk = true
     o.stopOnRun = true
     local ticks = C.ClimbTicks
-    if mode == "down" then
+    local shaft = S.shaftAt(x, y)
+    o.hatch = shaft ~= nil and shaft.hatch ~= nil
+    if mode == "down" and o.hatch then
+        ticks = C.HatchTicks
+    elseif mode == "down" then
         ticks = S.hasLiftTool(character) and C.LiftTicksCrowbar or C.LiftTicks
     end
     o.maxTime = U.try("instant", function() return character:isTimedActionInstant() end) and 1 or ticks
@@ -73,7 +77,8 @@ function SEWClimb:start()
     end)
     if not isServer() then
         self.sound = U.try("sound", function()
-            return self.character:playSound(self.mode == "down" and "SEW_Lid" or "SEW_Ladder")
+            -- A trapdoor has no iron lid to scrape.
+            return self.character:playSound((self.mode == "down" and not self.hatch) and "SEW_Lid" or "SEW_Ladder")
         end)
     end
 end
@@ -96,6 +101,67 @@ function SEWClimb:complete()
 end
 
 function SEWClimb:getDuration()
+    return self.maxTime
+end
+
+---------------------------------------------------------------------------
+-- SEWPry: pulling at one of the nest's walls (SEW_Nest.lua)
+---------------------------------------------------------------------------
+-- The same contract as SEWClimb, and global for the same reason: `new`'s
+-- parameter names are what the server rebuilds it from. `which` is "wall"
+-- (the false wall from the sewer) or "gate" (the gnawed wall into the hoard);
+-- x, y the square the player aimed at, for facing.
+
+SEWPry = ISBaseTimedAction:derive("SEWPry")
+
+function SEWPry:new(character, x, y, which)
+    local o = ISBaseTimedAction.new(self, character)
+    o.character = character
+    o.x = x
+    o.y = y
+    o.which = which
+    o.stopOnWalk = true
+    o.stopOnRun = true
+    local set = S.hasPryTool(character) and C.PryTicksTool or C.PryTicks
+    o.maxTime = U.try("instant", function() return character:isTimedActionInstant() end) and 1
+        or set[which] or C.PryTicks.wall
+    return o
+end
+
+function SEWPry:isValid()
+    local ax, ay, bx, by = S.gateSquares(self.which)
+    return ax ~= nil and S.below(self.character)
+        and (S.within(self.character, ax, ay, C.Reach + 0.8) or S.within(self.character, bx, by, C.Reach + 0.8))
+end
+
+function SEWPry:waitToStart()
+    U.try("face", function() self.character:faceLocation(self.x + 0.5, self.y + 0.5) end)
+    return false
+end
+
+function SEWPry:start()
+    self:setActionAnim("Loot")
+    U.try("lootLow", function() self.character:SetVariable("LootPosition", "Low") end)
+end
+
+function SEWPry:stop()
+    ISBaseTimedAction.stop(self)
+end
+
+function SEWPry:perform()
+    ISBaseTimedAction.perform(self)
+end
+
+function SEWPry:complete()
+    if SEW.Nest and SEW.Nest.pry then
+        U.try("pry", SEW.Nest.pry, self.character, self.which)
+    else
+        U.warnOnce("noNest", "SEWPry completed where SEW.Nest is not loaded")
+    end
+    return true
+end
+
+function SEWPry:getDuration()
     return self.maxTime
 end
 
