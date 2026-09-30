@@ -152,9 +152,15 @@ function instanceItem(id)
     local bare = id:match("%.(.+)$") or id
     SIM.nextItemId = SIM.nextItemId + 1
     local md, iid = {}, SIM.nextItemId
-    return { getFullType = function() return id end, getType = function() return bare end,
-             getWeight = function() return 1.0 end, getModData = function() return md end,
-             getID = function() return iid end, class = "InventoryItem" }
+    local it = { getFullType = function() return id end, getType = function() return bare end,
+                 getWeight = function() return 1.0 end, getModData = function() return md end,
+                 getID = function() return iid end, class = "InventoryItem", keyId = -1, name = bare }
+    -- InventoryItem.setKeyId / getKeyId / setName / getName (a key keeps its id: Key.save).
+    function it.setKeyId(self, v) self.keyId = v end
+    function it.getKeyId(self) return self.keyId end
+    function it.setName(self, v) self.name = v end
+    function it.getName(self) return self.name end
+    return it
 end
 
 local IsoObjectMT = {}
@@ -169,6 +175,20 @@ function IsoObjectMT:createContainersFromSpriteProperties()
     if p.container then self.container = Container(tonumber(p.ContainerCapacity) or 50) end
 end
 function IsoObjectMT:getNorth() return self.north end
+-- A door's key and locks (IsoObject.setKeyId, IsoDoor.setLockedByKey, which
+-- sets both locked and lockedByKey).
+function IsoObjectMT:setKeyId(v) self.keyId = v end
+function IsoObjectMT:getKeyId() return self.keyId or -1 end
+function IsoObjectMT:setLockedByKey(b) self.lockedByKey = b; self.locked = b end
+function IsoObjectMT:isLockedByKey() return self.lockedByKey == true end
+function IsoObjectMT:IsOpen() return self.open == true end
+-- IsoDoor.syncIsoObject(false, 0, nil, nil): vanilla's lock action sends the
+-- door's open and locked state this way, from a server.
+function IsoObjectMT:syncIsoObject(...)
+    if select("#", ...) ~= 4 then error("syncIsoObject: expected (bRemote, val, source, bb)") end
+    if SIM.role == "server" then SIM.outbox[#SIM.outbox + 1] = { "syncObject", self } end
+    self.synced = (self.synced or 0) + 1
+end
 -- Sprites attached to an object (IsoObject.AttachedAnimSprite): drawn, cut
 -- and saved with it (DEV_GUIDE, "A picture on a wall is part of the wall").
 -- The list is null until something is attached, as in the engine.
@@ -200,9 +220,14 @@ local function newObject(sq, name, class)
 end
 
 IsoObject = { new = function(sq, name, _) return newObject(sq, name) end }
+-- IsoDoor(cell, square, String, north) and IsoDoor(cell, square, IsoSprite,
+-- north): both overloads. Only the sprite one gets a sprite's forceLocked
+-- health (2000); the string one has 500 and no lock.
 IsoDoor = { new = function(_cell, sq, name, north)
-    local o = newObject(sq, name, "IsoDoor")
+    local bySprite = type(name) == "table"
+    local o = newObject(sq, bySprite and name:getName() or name, "IsoDoor")
     o.north = north
+    o.health = bySprite and 2000 or 500
     return o
 end }
 
@@ -210,8 +235,10 @@ function instanceof(o, class)
     if type(o) ~= "table" then return false end
     if class == "IsoDoor" then return o.class == "IsoDoor" end
     if class == "IsoWorldInventoryObject" then return o.class == "IsoWorldInventoryObject" end
-    if class == "IsoObject" then return o.class ~= nil and o.class ~= "InventoryItem" end
-    if class == "InventoryItem" then return o.class == "InventoryItem" end
+    if class == "IsoObject" then return o.class ~= nil and o.class ~= "InventoryItem" and o.class ~= "Clothing" end
+    if class == "InventoryItem" then return o.class == "InventoryItem" or o.class == "Clothing" end
+    if class == "Clothing" then return o.class == "Clothing" end
+    if class == "IsoAnimal" then return o.class == "IsoAnimal" end
     return false
 end
 
@@ -353,6 +380,8 @@ function PlayerMT:getUsername() return self.name end
 function PlayerMT:getVehicle() return self.vehicle end
 function PlayerMT:getInventory() return self.inv end
 function PlayerMT:getCurrentSquare()
+    -- Nothing under a player whose chunk is not loaded, as in the game.
+    if not SIM.loaded[chunkKey(self.x, self.y)] then return nil end
     return SIM.squares[key(math.floor(self.x), math.floor(self.y), math.floor(self.z))]
 end
 PlayerMT.getSquare = PlayerMT.getCurrentSquare
@@ -376,6 +405,58 @@ function PlayerMT:getBodyDamage()
             AddDamage = function(_, v) p.damage = (p.damage or 0) + v end,
         }
     end }
+end
+
+-- Stats (zombie.characters.Stats): get/set/add by CharacterStat, clamped to
+-- the stat's range. CharacterStat is a registry of static fields; one the
+-- build does not have is nil in the game, and an error here.
+CharacterStat = setmetatable({ POISON = "POISON", FOOD_SICKNESS = "FOOD_SICKNESS", SICKNESS = "SICKNESS" },
+    { __index = function(_, k) error("no CharacterStat " .. tostring(k)) end })
+local STAT_MAX = { POISON = 100, FOOD_SICKNESS = 100, SICKNESS = 1 }
+function PlayerMT:getStats()
+    local p = self
+    p.stats = p.stats or {}
+    local function clamp(k, v) return math.max(0, math.min(STAT_MAX[k], v)) end
+    return {
+        get = function(_, k) return p.stats[k] or 0 end,
+        set = function(_, k, v) p.stats[k] = clamp(k, v) end,
+        add = function(_, k, v) p.stats[k] = clamp(k, (p.stats[k] or 0) + v) end,
+    }
+end
+function PlayerMT:isFemale() return self.female == true end
+-- Worn clothing (IsoGameCharacter.getWornItems): the tests dress a player in
+-- SIM.newClothing pieces. A gas mask protects while its filter has anything
+-- left (isProtectedFromToxic, bci 0-143), and drainGasMask takes n times the
+-- filter's UseDelta off it, a no-op for anything that is not a mask with a filter.
+local ClothingMT = {}
+ClothingMT.__index = ClothingMT
+function ClothingMT:drainGasMask(n)
+    if not (self.mask and self.filter) or self.usedDelta <= 0 then return end
+    self.usedDelta = math.max(0, self.usedDelta - n * self.filterUseDelta)
+end
+function SIM.newClothing(mask, filter)
+    return setmetatable({ class = "Clothing", mask = mask, filter = filter, usedDelta = filter and 1 or 0,
+                          filterUseDelta = 0.01 }, ClothingMT)
+end
+function PlayerMT:getWornItems()
+    local list = self.worn or {}
+    return { size = function() return #list end, getItemByIndex = function(_, i) return list[i + 1] end }
+end
+function PlayerMT:isProtectedFromToxic(drain)
+    for _, c in ipairs(self.worn or {}) do
+        if c.mask and c.filter and c.usedDelta > 0 then
+            if drain then c:drainGasMask(0.01) end
+            return true
+        end
+    end
+    return false
+end
+-- syncPlayerStats: sends the stats named by the mask to that player, from a
+-- server; a no-op anywhere else (LuaManager$GlobalObject bci 0-35).
+SIM.statSyncs = {}
+function syncPlayerStats(p, mask)
+    if SIM.role ~= "server" then return end
+    SIM.statSyncs[#SIM.statSyncs + 1] = { p = p, mask = mask }
 end
 
 -- IsoPlayer.isOutside: a square, and no room on it. Not the exterior flag.
@@ -465,6 +546,18 @@ function screenToIsoY(_, _, y, _) return y end
 ---------------------------------------------------------------------------
 -- Zombies
 ---------------------------------------------------------------------------
+--- A zombie the tests can kill: its square, its outfit, an inventory that the
+--- engine empties before OnZombieDead and the corpse takes after it.
+function SIM.newZombie(x, y, z, outfit)
+    local zed = { x = x, y = y, z = z, outfit = outfit, inv = SIM.Container(100) }
+    function zed.getX(self) return self.x end
+    function zed.getY(self) return self.y end
+    function zed.getZ(self) return self.z end
+    function zed.getOutfitName(self) return self.outfit end
+    function zed.getInventory(self) return self.inv end
+    return zed
+end
+
 function addZombiesInOutfit(x, y, z, count, outfit, female, ...)
     if select("#", ...) ~= 7 then error("addZombiesInOutfit: expected the 13-argument overload") end
     if not SIM.outfits[outfit] then return List({}) end
@@ -581,7 +674,7 @@ function addAnimal(_, x, y, z, kind, breed)
     if not sq then error("addAnimal onto no square " .. x .. "," .. y .. "," .. z) end
     -- As given: a whole number is the square's corner (IsoPlayer.<init>).
     local a = setmetatable({ x = x, y = y, z = z, kind = kind, breed = breed.name, dead = false,
-                             def = defs()[kind] }, AnimalMT)
+                             def = defs()[kind], class = "IsoAnimal" }, AnimalMT)
     a.square = sq
     sq.animals:add(a)
     SIM.animals[#SIM.animals + 1] = a
@@ -639,6 +732,10 @@ function SIM.newMenu(x, y)
         self.options[#self.options + 1] = o
         return o
     end
+    -- ISContextMenu:getNew(parent) and addSubMenu(option, menu), as vanilla's
+    -- world menu builds its submenus.
+    function m:getNew(_) return SIM.newMenu(self.x, self.y) end
+    function m:addSubMenu(option, sub) option.subMenu = sub end
     return m
 end
 
@@ -912,9 +1009,32 @@ function require(name)
     return SIM.required[name]
 end
 
+--- SIM.streamRadius (chunks), when a test sets it: the chunks round each
+--- player load at the end of a tick, as the engine streams them in after a
+--- player arrives -- never before. A square a player jumps to is not there
+--- on the tick they land.
 function SIM.tickN(n)
     for _ = 1, n do
         SIM.tick = SIM.tick + 1
         SIM.fire("OnTick")
+        if SIM.streamRadius then
+            -- And not at once: a chunk is read from disk over a moment
+            -- (SIM.streamDelay ticks) after it is first wanted.
+            local r = SIM.streamRadius
+            SIM.streamWant = SIM.streamWant or {}
+            for _, p in ipairs(SIM.players) do
+                local cx, cy = math.floor(p.x / 8), math.floor(p.y / 8)
+                for dx = -r, r do for dy = -r, r do
+                    local k = (cx + dx) .. "," .. (cy + dy)
+                    if not SIM.loaded[k] then
+                        SIM.streamWant[k] = SIM.streamWant[k] or SIM.tick
+                        if SIM.tick - SIM.streamWant[k] >= (SIM.streamDelay or 30) then
+                            SIM.load(cx + dx, cy + dy)
+                            SIM.streamWant[k] = nil
+                        end
+                    end
+                end end
+            end
+        end
     end
 end

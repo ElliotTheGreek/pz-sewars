@@ -8,5 +8,8 @@
     "Tooltip_SEW_Hatch": "Somebody cut a trapdoor in this floor. A ladder goes down into the dark.",
     "Tooltip_SEW_HatchUp": "Up the ladder, through a trapdoor, into somebody's house.",
     "Tooltip_SEW_PryWall": "This stretch of wall is not like the rest. The mortar is gone, and something has gnawed a hole at its foot the size of a dog. A crowbar or a sledgehammer would be quicker than your hands.",
-    "Tooltip_SEW_PryGate": "Old brickwork, gnawed half through from this side. Whatever made the nest was trying to get at something behind it."
+    "Tooltip_SEW_PryGate": "Old brickwork, gnawed half through from this side. Whatever made the nest was trying to get at something behind it.",
+    "Tooltip_SEW_Key": "Stamped DPW - COUNTY SEWERS. Opens the locked grilles on the county's rooms under one town. Keep it in your hands or on a key ring: in a bag it does nothing.",
+    "Tooltip_SEW_Outfall": "An iron grate set into the bank where the town's storm water comes out. It lifts. A ladder goes down into the dark.",
+    "Tooltip_SEW_OutfallUp": "Up the ladder and out through the grate, onto the bank by the water."
 }

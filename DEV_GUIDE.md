@@ -55,19 +55,27 @@ media/lua/shared/SEW/SEW_Sewer.lua         read-only questions: which shaft, whi
 media/lua/shared/SEW/SEW_Actions.lua       SEWClimb, the timed action: down a cover, up a ladder (global, shared)
 media/lua/shared/SEW/SEW_Rats.lua          the ROUS: an animal definition of ours, copied from vanilla's rat
 media/lua/server/SEW/SEW_Nest.lua          rats on first build, the leash, the ROUS (spawn, chase, bite), the nest's walls that open
+media/lua/server/SEW/SEW_Gas.lua           sewer gas: the haze and placards, who is in it, the dose, the mask
+media/lua/server/SEW/SEW_Keys.lua          the county's maintenance keys: in its rooms, on its dead, the grilles' latch
 media/lua/shared/SEW/SEW_Compat.lua        below ground is indoors: isOutside wrapped for every Lua caller, other mods included
-media/lua/shared/SEW/SEW_Index.lua         GENERATED: towns, shafts, shelters -- small, every process
+media/lua/shared/SEW/SEW_Index.lua         GENERATED: towns, shafts, shelters, caves, journals, plans, the nest -- small, every process
 media/lua/server/SEW/SEW_Build.lua         raising a chunk of tunnel: floors, walls, doors, ladders, dressing, shelters, the dead
 media/lua/server/SEW/SEW_Server.lua        the authority: granting climbs, building round players below, rescues, console
-media/lua/server/SEW/Data/SEW_Town_*.lua   GENERATED: every town's squares, by chunk -- 1.3 MB, server only
-media/lua/client/SEW/SEW_Client.lua        the menus, the move, the vault switch, lamps, ambience
-media/lua/shared/Translate/EN/*.json       ContextMenu, Tooltip, IG_UI, Sandbox -- one file per category
-media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 36 tiles
+media/lua/server/SEW/SEW_Discovery.lua     what each player has found below, per username: the map's memory
+media/lua/server/SEW/SEW_Story.lua         reading plans and journals: reveals and marks, on the server
+media/lua/server/SEW/Data/SEW_Town_*.lua   GENERATED: every town's squares, by chunk -- 5 MB, server only
+media/lua/client/SEW/SEW_Client.lua        the menus, the move, the vault switch, lamps, ambience, the dev build's start
+media/lua/client/SEW/SEW_Map.lua           the sewer map: panel, fog, markers, the K key
+media/lua/client/SEW/SEW_StoryUI.lua       the Read menu on plans and journals, and the journal's page
+media/lua/shared/Translate/EN/*.json       ContextMenu, Tooltip, IG_UI, Sandbox, ItemName -- one file per category
+media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 48 tiles
+media/scripts/sewars_items.txt             our items: the sewer plan, the journal, the maintenance key
 media/scripts/sewars_sounds.txt, sound/SEW_*.wav   the sounds (wavs generated)
-media/sandbox-options.txt                  zombie density, their outfits, shelter supplies
+media/sandbox-options.txt                  zombie density, their outfits, shelter supplies, rats, sewer gas
 
 tools/dev.py              THE ENTRY POINT: build, check, mutate, deploy, run, log, package
 tools/gen_sewers.py       the map -> the tunnels (Data/ and SEW_Index.lua), and plans in design/art/plans/
+tools/layout_diff.py      what a save built from the old layout would see move: run before shipping a layout change
 tools/gen_sewer_art.py    our tiles: drawn, projected, packed; review sheet in design/art/
 tools/gen_sewer_sounds.py the four sounds, synthesised
 tools/render_sewer.py     a stretch of real tunnel drawn with the game's tiles -- look before you launch
@@ -81,6 +89,7 @@ tools/pzcatalog.py        every sprite and item id in the installed build
 tools/pzapi.py / javarefs.py / javadis.py   does it exist / what does it touch / under what condition
 tools/luacheck.py         Lua syntax through a real Lua VM
 tools/key_icon.py         generated icon on a key colour -> 64x64 transparent Item_*.png
+tools/gen_key_icon.py     the maintenance key's icon, drawn
 
 tests/sim.lua             the simulated engine and network, as unkind as the real one
 tests/test_flow.py        the whole loop: single player, then a server and a client
@@ -137,7 +146,13 @@ Everything tunable is in `SEW_Config.lua`. Change it, `python tools/dev.py`.
    plans**, then `python tools/render_sewer.py <town> [x y r]` and look at the
    tunnel itself.
 3. `python tools/dev.py`. `test_layout.py` walks every town again.
-4. The layout's revision is folded into the build revision by itself, so
+4. **Diff it against what shipped**: copy `SEW_Index.lua` and `Data/` aside
+   before regenerating, then `python tools/layout_diff.py <that copy>`. It
+   exits 1 if a shaft, shelter, journal, plan, cave, the nest or any piece of
+   furniture moved or was reordered (saves name them by place), and lists
+   every existing square whose record changed, by field. New squares are
+   fine; `d -> j` on 47 door edges was the point of the gates.
+5. The layout's revision is folded into the build revision by itself, so
    built chunks are revisited and their missing hull put back. **But moving a
    tunnel under a save is a migration, not a rebuild**: a player may have
    built in the old one, and nothing removes squares the new layout no longer
@@ -330,9 +345,8 @@ building. `IsoChunk.setMinMaxLevel` itself has no vanilla Lua call site and
 is never called by the mod: `getOrCreateGridSquare` reaches it through
 `setSquare`, which is the path vanilla's own upstairs building takes.
 
-**Still unproven, and only the game can prove it**: that a runtime z -1
-square is lit, pathed by zombies and saved the way a map-loaded basement is.
-The in-game checklist below starts there.
+**Proven in play since (0.2 to 0.5)**: a runtime z -1 square is lit, pathed
+by zombies and saved the way a map-loaded basement is.
 
 ### A sprite's properties decide whether it is a floor, not its picture
 
@@ -638,15 +652,148 @@ pushing each other, not walls. And the pathfinder is not told of levels a
 runtime square adds below 0 (`setMinMaxLevel` notifies nothing; a chunk's
 levels reach it when the chunk is added), so an animal wandering down here
 may path through our walls: the server leashes every animal below ground
-back onto the walkway (`SEW_Nest.leash`). Unproven either way; watch for it.
+back onto the walkway (`SEW_Nest.leash`); the play-test after it found them
+inside the walls. And a wild animal only flees; only a tame one attacks
+unprovoked (`attackIfStressed`, stress over 80).
 
-Also from the engine, for anyone adding an animal: `addAnimal` has no role
-check in Java (vanilla's `AnimalCheats` check is in its Lua); the constructor
-registers the animal and `AnimalSynchronizationManager` sends it to clients;
-a chunk saves its animals at every level (`AnimalPopulationManager.
-removeChunkFromWorld`); the definitions are read once, after mod Lua loads,
-so a shared file can add one. A wild animal only flees; only a tame one
-attacks unprovoked (`attackIfStressed`, stress over 80).
+### Sewer gas is poison the server gives, and only the server
+
+**New in this mod (0.5, sewer gas; checked in the bytecode).** The design is
+in DESIGN.md 4 (17) and 7b; this is what the engine does with it.
+
+```
+Stats.get/set/add(CharacterStat.X, v)   set and add clamp to the stat's range (CharacterStat.clamp)
+BodyDamage.Update 950-1285              POISON (0..100) decays by itself (PoisonLevelDecrease 0.001 an update);
+                                        while above 0 it grows FOOD_SICKNESS (the Sick moodle: queasy 25,
+                                        nauseous 50, sick 75, fever 90); above 10 it drains health.
+                                        On an MP client the method returns at once: the server simulates.
+NetworkPlayerManager.update             the server pushes every player's stats to its owner each second
+syncPlayerStats(player, 1 << index)     at once, from a server; a no-op anywhere else (POISON is index 14)
+IsoGameCharacter.isProtectedFromToxic   a worn gasmask / respirator / improvised mask with a filter whose
+                                        usedDelta > 0, or an activated SCBA with air; (true) drains 0.01
+Clothing.drainGasMask(n)                n x the filter's UseDelta x GameTime multiplier off usedDelta,
+                                        synced from a server; a no-op on anything else
+```
+
+So `SEW_Gas` runs on the server (single player: the same code), doses on
+`EveryOneMinute` (game time: sleeping and fast-forward are fair) up to the
+sandbox's cap, and lets the engine do the rest -- sickness, health, recovery.
+A **client** writing a stat is overwritten within a second; never do it.
+`SICKNESS` (0..1) is written by nothing in the engine and never decays: do not
+use it. `sendPlayerStat*` are client calls behind a capability. The
+generator's fumes (`IsoGameCharacter.updateInternal` 146-252) are the same
+shape at a lethal rate: copy the shape, never the rate. **The doses
+(`C.Gas`) are a first guess and are the play-test's to tune.**
+
+### A locked gate is a key id and a lock set before it is sent -- and a latch after
+
+**New in this mod (0.5, gates; checked in the bytecode).** The ROADMAP's
+research line said "`forceLocked` jail sprite"; that was half of it.
+
+```
+IsoDoor.<init>(cell, sq, String, north)     500 health, never locked: forceLocked is not read
+IsoDoor.<init>(cell, sq, IsoSprite, north)  2000 health, locked from the sprite's forceLocked
+                                            (vanilla calls it: client/Tests/TimedActionsTests.lua:67)
+IsoDoor.ToggleDoorActual 297-423            a player at a closed door that isLockedByKey() or has mod
+                                            data CustomLock needs inventory:haveThisKeyId(keyId);
+                                            with it, the door unlocks (locked and lockedByKey cleared)
+IsoDoor.couldBeOpen                         reads lockedByKey / CustomLock only: setIsLocked alone
+                                            offers "Open" and then fails
+ItemContainer.haveThisKeyId                 the main inventory and key rings only -- never a bag
+zombie door opening 60-117                  a zombie opens any closed door unless locked on an
+                                            exterior square (a tunnel is exterior)
+transmitCompleteItemToClients               sends save(): keyId, locks, health, mod data
+IsoDoor.syncIsoObject                       open and locks -- not keyId
+```
+
+So the gate is made from its **sprite**, keyed and `setLockedByKey(true)`,
+all **before** it is sent. A key-holder's opening clears the lock, so the
+server **latches** it again (`SEW_Keys.latch`), sending it as vanilla's lock
+action does (`ISLockDoor:complete`: `syncIsoObject(false, 0, nil, nil)`).
+
+**And a grille has a handle on the inside** (trekship DEV_GUIDE, *A door with
+no handle on the inside*). `canBeOpenFromInside` never fires down here --
+nobody below is "inside" to the engine -- so a player without the key who
+followed a key-holder in would be shut in by a locked grille. The first
+design also set `CustomLock`, which makes the engine ask *everyone* for the
+key, locked or not: a trap with no way out, found writing this section up,
+before the game did. So no `CustomLock`, and the latch works both ways: a
+grille whose room has anybody in it is **unlocked**; one that is shut with
+its room empty is **locked**. Never one standing open, never a door not ours.
+
+A key id of ours is above 100,000,000: vanilla's own never reach it
+(`Rand.Next(100000000)` for buildings and cars). The key item is `base:key`
+and **not** `base:buildingkey`, or loot would re-key it (`takeKeyId`).
+
+### The dead carry what `OnZombieDead` gives them
+
+**New in this mod (0.5).** `IsoZombie.onKilled` -> `DoZombieInventory` empties
+the zombie's inventory (bci 36-40), fires `OnZombieDead` (48), and the corpse
+takes the inventory after. So an item added to `zombie:getInventory()` in the
+event lies on the body. `addItemToSpawnAtDeath` looks like the tool for it and
+is not: an in-memory list, lost when the zombie unloads (the reason the 0.3
+line *plans on sanitation workers* waited). The server decides by what it can
+see at death -- below ground, `getOutfitName() == "Sanitation"`, the town under
+it -- so nothing about the zombie has to be remembered.
+
+### Water is four tiles, and a swimming pool is one of them
+
+**New in this mod (0.5, outfalls).** Only `blends_natural_02_0`, `_5`, `_6`,
+`_7` carry the `water` property in the whole build; the shore blends lie over
+dry ground and carry none. Backyard pools use the same tiles: a body of water
+counts at 300 squares or more (`OUTFALL_WATER`). And a bank square must be
+natural ground and grass *only* (`water_facts`): no tree, bush, rock or fence
+for the grate to lie under. Irvington's pond is paved all round and gets no
+outfall; that is the rule working. The cache (`tools/_cache/water_*.npz`) is
+keyed by cell only: delete those files if the rule in `water_facts` changes,
+or the generator keeps reading the old answer.
+
+### One-wide is "in no 2x2 of walkway", not "one square from the rock"
+
+**Found on the first plan of the gas (0.5).** "A narrow culvert" was written
+as walkway one square from the rock (`distance_transform_cdt == 1`) -- which
+is every edge square of every wide tunnel too. The first stretch of gas ran
+down the side of a main with a "way in" at each of its 26 squares. A square
+is 1-wide when no 2x2 block of walkway contains it. And count ways in on
+everything a player stands on (vaults included), or a culvert opening into a
+vault has none and gets no placard.
+
+### A pass that takes a thing away and puts it back passes a presence check
+
+**Found by a mutation (0.5, gates).** `unwall` takes away our structural
+pieces the record no longer asks for, and the builder then puts back what it
+does ask for. With `j` missing from `unwall`'s list, a revision pass took
+every grille's frame out and put a new one in -- and "the frame is there
+after the pass" still passed. In the game the grille would be left hanging in
+nothing. The test now keeps the frame object and asserts the **same** one is
+there after. Anywhere a pass may remove and re-add, test identity, not presence.
+
+### A dev teleport is a climb too
+
+**Found in play (0.5).** The dev menu's *Go into sewer gas* dropped the player
+straight onto a square below ground a town away. That chunk was not loaded, so
+its tunnel was not built, the player stood on nothing, and the rescue sent
+them to the nearest ladder -- every time ("it keeps teleporting me away from
+the gas"). Any move below ground takes the climb's order: onto the street
+above, let the chunk stream in, build, then down (`Client.devArrive`). The
+tests missed it because the sim was kind twice over: it had every chunk loaded
+already, and it let a player stand on squares of a chunk that was not. Now
+`SIM.streamRadius` streams chunks in only after a player arrives (and
+`SIM.streamDelay` ticks later), and `getCurrentSquare` answers nil in an
+unloaded chunk, as the engine does.
+
+### A mutation caught once can be missed later: run them all before a release
+
+**Found by the full mutation run (0.5).** The ROADMAP recorded the ROUS's
+*never through a wall* guard as caught. Then the nest moved (the play-test's
+fixes put its walls on the north and west), the chase in the test no longer
+crossed any wall, and the guard went untested -- the full run said `MISSED`,
+and the same mutation on the 0.5.0 commit (a `git worktree` of HEAD) proved
+it had been so since. The test now draws them at a player in the hoard behind
+the shut gnawed wall. That found a second fault: a rat a step from a player
+behind a wall bit through it; the bite now needs an open edge
+(`isBlockedTo`). Run `python tools/dev.py mutate` in full before every release,
+not only the new mutations.
 
 ### The shell mangles escapes, and it will do it to you
 
@@ -660,7 +807,9 @@ tool then could not match the line, which is how it was found
 Write Python and Lua with the Write/Edit tools, or a script file written by
 them. Never a heredoc for anything with a backslash in it. (0.5: twice more,
 a `\n` in a patch fed through a heredoc; both caught because the patch
-asserted its match and wrote nothing.)
+asserted its match and wrote nothing. And building gas, gates and outfalls,
+a long quoted heredoc stopped the shell dead on its own quotes: the edit
+script went into a file written by the Write tool, and ran from there.)
 
 ---
 
@@ -719,10 +868,10 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | Check | Catches |
 |---|---|
 | `tools/luacheck.py` | Lua syntax, generated data included |
-| `tests/test_assets.py` (71 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call |
-| `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (49 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue, somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 68 guards broken one at a time; every one must be caught |
+| `tests/test_assets.py` (142 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call |
+| `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover -- and a self-check that the walker really reads walls |
+| `tests/test_flow.py` (233 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue, somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, no WARN, no unknown sprite or text key |
+| `tests/mutate.py` (`dev.py mutate`) | 105 guards broken one at a time; every one must be caught |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -744,6 +893,10 @@ Debug console (single player, or an admin's server log):
 | `SEW_Rebuild()` | forget which chunks are built; the next pass puts back missing hull (never furniture or the dead twice) |
 | `SEW_GoLair()` | into the house by the hatch nearest the rats' nest under Louisville |
 | `SEW_Lair()` | the nest: where, which of its walls are open, how many ROUS are alive near it |
+| `SEW_Caves(town)` / `SEW_GoCave(n)` | list a town's caves / onto the cover over the n-th cave |
+| `SEW_Gas(town)` / `SEW_GoGas(n)` | a town's stretches of gas, and your poison / into the middle of the n-th |
+| `SEW_Gates(town)` / `SEW_GoGate(n)` / `SEW_Key(town)` | a town's locked gates and key / beside the n-th gate / the town's key in your hands |
+| `SEW_Hatches(town)` / `SEW_GoHatch(n, town)` | list a town's hatches and whether each is open / beside the n-th hatch |
 
 ### On a dedicated server
 
@@ -786,81 +939,78 @@ gets verified.
 
 ## Current state
 
-Version **0.5.0** (staged for the Workshop, 2026-09-30; 0.3.2 never went up), build revision **5**,
-layout from `tools/gen_sewers.py`. 2026-09-29. **Workshop:** item
-**3810188405**, public, 0.3.1 uploaded 2026-09-29; `WORKSHOP_ID` is set in
-`tools/package_workshop.py`.
+Version **0.5.0**, build revision **5**, layout from `tools/gen_sewers.py`.
+**Workshop:** item **3810188405**, public since 0.3.1 (2026-09-29);
+`WORKSHOP_ID` is set in `tools/package_workshop.py`. 0.5.0 is staged
+(`package --install`, 2026-09-30); 0.3.2 never went up on its own.
 
-**Built and passing every static test**: the whole loop (covers, the climb
-down, tunnels under 31 towns -- 442 shafts under the map's covers and 732
-under covers of ours, 239 shelters, 152 caves, 189 hatches, 475,777 walkable
-squares, 4 covers left shut because they are over buildings), ladders out,
-vaults and the sludge channel, shelters behind steel doors with stocked
-crates and shelves and sometimes their dead, zombies below by sandbox
-density, rescue, lamps at the shafts and shelters, ambience, 36 tiles of our
-own, four sounds, the poster, the Workshop package (unpublished, private).
+**Built, passing every static test, and play-tested by the author**
+(2026-09-30): the whole loop (covers, the climb down, tunnels under 31 towns
+-- 442 shafts under the map's covers and 732 under covers of ours, 239
+shelters, 152 caves, 189 hatches, 475,777 walkable squares, 4 covers left shut
+because they are over buildings), ladders out, vaults and the sludge channel,
+shelters behind steel doors with stocked crates and shelves and sometimes
+their dead, zombies below by sandbox density, rescue, lamps, ambience, the
+map and its K key, plans and journals, caves, houses with a way down,
+Louisville's covers, nothing drawn over the character, rats and the rats'
+nest, 44 tiles of our own, four sounds, the poster.
 
-**Not yet seen in game** -- the checklist, in order:
+**Built, passing every static test, and play-tested by the author** (2026-09-30):
+sewer gas (97 stretches in 17 towns), locked gates (47 grilles in 13 towns,
+a key per town), storm-drain outfalls (16 under 10 towns); 48 tiles; the
+layout grew by 867 squares of outfall culvert and moved nothing a save holds
+(`tools/layout_diff.py`). The dev build starts a new character on the bank
+by Muldraugh's outfall, with a gas mask and a spare filter in the kit. A
+0.5.0 save loads it: gas and placards reach its built chunks the next time
+a player is near; its county rooms keep their steel doors (new rooms only).
+The version is still 0.5.0: bump it (mod.info and `C.Version`) when this goes
+up.
 
-1. **Muldraugh, any manhole in the road.** Right-click: *Climb down into the
-   sewer*. The bar, the lid's scrape, and you are at the foot of a ladder.
-   `console.txt`: `[SEW] ... climbs down at x,y (muldraugh; N chunks built)`.
-2. **Below.** Is the street gone from view? Is it dark with a pool of light
-   under the cover? Walls, the grating under you, the ladder on the wall.
-3. **Walk.** Tunnels ahead build as you go; no falling, no stuck spots.
-   Doors of the shelters open and shut. Crates hold loot.
-4. **The dead.** Are there some, do they come at you, do they path round
-   corners?
-5. **Build something** down there, leave, come back: still there.
-6. **Another ladder.** *Climb out to the street*: up on the right cover.
-7. **Save and reload below.** Still standing on the floor; lamps come back.
-8. **Rain** on the street while you are below: none in the tunnel. The
-   engine still calls the tunnel outdoors (*Below ground is outdoors to the
-   engine*); if rain is drawn down there, that is why.
-9. **A dedicated server** (above): the same, and a second player sees what the
-   first opened.
-10. **Other mods think you are indoors.** `console.txt` at load:
-    `[SEW] compat: below ground is indoors (IsoGridSquare, IsoGameCharacter,
-    IsoPlayer)` -- a `WARN` there means a class was not found. With Flying
-    Birds on: flocks on the street, none below.
-11. **A cave (0.4).** A new character in SewarsDev starts on the cover
-    nearest a Muldraugh cave (`[SEW] dev build: started at the cover ...`,
-    which names the breach). Down, a short walk to a hole knocked through the
-    wall, a dirt passage, a hideout with a candle's glow, a bedroll and two
-    crates. `SEW_Caves()` lists them, `SEW_GoCave(n)` hops to any.
-12. **A house with a way down (0.4).** `SEW_GoHatch()` puts you in a Muldraugh
-    house with a hatch; within a few seconds `[SEW] hatch at ... opened` and
-    a trapdoor in the floor. *Climb down through the hatch*, the culvert, the
-    ladder back up into the house. `SEW_Hatches()` says which are open. The
-    open question: whether B42's random basements are in z -1 when the server
-    first looks (see ROADMAP).
+**The new checklist, in order** (`python tools/dev.py run --debug` for the
+console; a **new world** with Sewars [DEV]):
 
-13. **Louisville (0.4).** Walk its streets: covers appear in the road at
-    junctions within a few seconds of coming near (the server puts them in;
-    a cover further off appears as you approach). Down one: tunnels under
-    the streets, shelters, caves. The old strip at x 12860-13009 is still
-    its own network.
-14. **Nothing draws over the character** (0.4, a player's report): walk over
-    a puddle and a light pool, past graffiti, a ladder, an earth wall.
+1. **The outfall.** You start on a Muldraugh bank (`[SEW] dev build: started
+   on the bank by the outfall ...`). Within a few seconds an iron grate is in
+   the ground at your feet. Right-click it: *Climb into the storm drain* --
+   no lid scrape, the note *Down into the storm drain*. The culvert runs back
+   to town. The ladder under the grate: *Climb out onto the bank*, and up
+   onto the bank. `K`: the outfall is on the map in blue, the water faint
+   above.
+2. **The gas.** `SEW_Gas()` lists Muldraugh's stretches, `SEW_GoGas(n)` puts
+   you in one (or find one: the yellow-green haze, the DANGER placards at its
+   ends). Without the mask: *The air here is thick and sour*, a cough, and
+   within a few game minutes queasy, then sick; stay and health drops
+   (Harmful). Walk out: it wears off. `SEW_Gas()` prints your poison. With
+   the mask on (it is in your bag): *Your mask hisses*, a muffled cough, no
+   sickness, the filter going down. The stretch is on the map after. **Tune**:
+   how fast it bites and how long it lasts -- `C.Gas.dose` / `C.Gas.cap`.
+3. **The gates.** `SEW_Gates()` lists Muldraugh's, `SEW_GoGate(n)` puts you
+   beside one. Bars you can see through; *Open* is refused (vanilla's "locked").
+   `SEW_Key()` puts the town's key in your hands (or find one: an unlocked
+   maintenance room's crate, or a dead sanitation worker). With it the grille
+   opens; step in, shut it, step out and shut it again: a couple of seconds
+   later it is locked (the latch). With the key in a bag instead: refused.
+   **The trap check**: a second player without the key follows you in and
+   shuts it -- they must be able to open it again from inside.
+4. **Old save.** Load a 0.5.0 world: no WARN at load; walk a built stretch
+   with gas: the haze and placards appear; its county rooms keep their
+   steel doors.
+5. **A dedicated server**: the gas makes the joining player sick (the server
+   doses and syncs), a grille keyed to its town reaches them locked, the
+   latch works for both.
 
-15. **The rats' nest (0.5).** A new character in SewarsDev starts in a
-    Louisville house by its hatch (`[SEW] dev build: started by the hatch
-    ...`, which names the false wall). Down the hatch, along the culvert to the
-    street tunnel, and a few squares on: a wall with cracks and a gnawed hole
-    at its foot on the trunk's west wall, and *R.O.U.S. THEY EXIST* nearby.
-    Right-click it: *Pull at the loose bricks*. The run, the nest, and four
-    big rats. **Do they come at you, and do they bite?** (*It bites!*, a
-    scratch or a cut on a limb.) Do they walk smoothly or glide (glide: the
-    engine's path failed below ground and they are walked by hand)? **Can
-    you shoot and hit them**, and how many hits do they take? Every hit is
-    logged: `[SEW] a ROUS was hit by ... health ...` -- no line at all means
-    the shots never reach them. *Tear through the gnawed wall* (the clawed
-    brick on the nest's west side) is refused while one lives, and gives
-    after; the hoard behind it. `SEW_Lair()` says what the server sees.
-16. **Rats (0.5).** In any tunnel opened up in a new world: vanilla's rats,
-    running from you, and none beyond the walls (a new world: the first test's
-    rats were put on the corners of their squares). Save and reload below:
-    are they still there?
+**Still open in game** (ROADMAP):
+
+1. **Weather below.** Rain on the street while you are below: is it drawn in
+   the tunnel, do you get wet, is it the outdoor temperature? The engine still
+   calls the tunnel outdoors (*Below ground is outdoors to the engine*); if
+   so, that is why (ROADMAP 0.3.3).
+2. **Other mods think you are indoors.** `console.txt` at load:
+   `[SEW] compat: below ground is indoors (IsoGridSquare, IsoGameCharacter,
+   IsoPlayer)`. With Flying Birds on: flocks on the street, none below.
+3. **Random basements and hatches.** Whether B42 stamps a random basement into
+   z -1 before the server first looks at a hatch's house: watch for
+   `hatch ... opened` over a house that has one.
 
 Known limits: only named streets get full tunnels (unnamed lanes and car
 parks get the culverts that join their covers); the art is procedural until

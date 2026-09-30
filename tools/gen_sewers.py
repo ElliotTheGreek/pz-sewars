@@ -110,7 +110,23 @@ LAIR_ORIGIN = (11776, 1024)
 LAIR_CLEAR = 14       # rock round the nest's middle, clear of everything by two squares
 LAIR_NEST_R = 6
 LAIR_ROUS = 4
-N4 = [(0, -1), (-1, 0), (1, 0), (0, 1)]
+# Sewer gas (vent_gas): one stretch for so many shafts in a town, this many
+# squares of culvert each, this far apart, and this far from any street ladder.
+GAS_PER_SHAFTS = 12
+GAS_MIN, GAS_MAX = 16, 48
+GAS_GAP = 60
+GAS_CLEAR = 10
+# Storm-drain outfalls (dig_outfalls): a body of water this big or more (a
+# swimming pool is smaller), culverts this long, banks this far apart, and at
+# most this many to a town.
+OUTFALL_WATER = 300
+OUTFALL_MIN, OUTFALL_REACH = 8, 80
+OUTFALL_GAP = 120
+OUTFALL_MAX = 4
+# Locked gates (gate_shelters): every town's key id is this plus a hash below
+# 90,000,000 -- clear of vanilla's ids, which stay under 100,000,000.
+GATE_KEY_BASE = 1900000000
+N4 =[(0, -1), (-1, 0), (1, 0), (0, 1)]
 
 
 # --- reading the map ------------------------------------------------------------------------
@@ -239,6 +255,53 @@ def clear_road(cx, cy):
                 clear[y - cy * CELL, x - cx * CELL] = True
     np.savez_compressed(path, clear=clear)
     return clear
+
+
+WATER_TILES = ("blends_natural_02_0", "blends_natural_02_5", "blends_natural_02_6", "blends_natural_02_7")
+
+
+def water_facts(cx, cy):
+    """(water, ground) for one cell, cached, 256x256 bool [y, x] at street
+    level: `water`, a square whose floor is one of vanilla's water tiles (the
+    only four with the `water` property: tools/_catalog/tiles.json);
+    `ground`, a dry square holding nothing but natural ground and its shore
+    blends -- no tree, rock, fence or anything built -- where an outfall's
+    grate can lie (DESIGN.md 7c)."""
+    os.makedirs(CACHE, exist_ok=True)
+    path = os.path.join(CACHE, "water_%d_%d.npz" % (cx, cy))
+    if os.path.exists(path):
+        z = np.load(path)
+        return z["water"], z["ground"]
+    water = np.zeros((CELL, CELL), bool)
+    ground = np.zeros((CELL, CELL), bool)
+    if os.path.exists(os.path.join(pzmap.MAP, "%d_%d.lotheader" % (cx, cy))):
+        for (x, y), ts in pzmap.cell_squares(cx, cy, 0).items():
+            if not ts:
+                continue
+            if any(t in WATER_TILES for t in ts):
+                water[y - cy * CELL, x - cx * CELL] = True
+            elif all(t.startswith(("blends_natural_", "blends_grassoverlays_")) for t in ts):
+                ground[y - cy * CELL, x - cx * CELL] = True
+    np.savez_compressed(path, water=water, ground=ground)
+    return water, ground
+
+
+def water_region(x0, y0, x1, y1):
+    """(water, ground) for a world rectangle (inclusive), as [y, x] arrays."""
+    w, h = x1 - x0 + 1, y1 - y0 + 1
+    water = np.zeros((h, w), bool)
+    ground = np.zeros((h, w), bool)
+    for cx in range(x0 // CELL, x1 // CELL + 1):
+        for cy in range(y0 // CELL, y1 // CELL + 1):
+            wa, gr = water_facts(cx, cy)
+            ax0, ay0 = max(x0, cx * CELL), max(y0, cy * CELL)
+            ax1, ay1 = min(x1, cx * CELL + CELL - 1), min(y1, cy * CELL + CELL - 1)
+            if ax0 > ax1 or ay0 > ay1:
+                continue
+            sl = (slice(ay0 - cy * CELL, ay1 - cy * CELL + 1), slice(ax0 - cx * CELL, ax1 - cx * CELL + 1))
+            water[ay0 - y0:ay1 - y0 + 1, ax0 - x0:ax1 - x0 + 1] = wa[sl]
+            ground[ay0 - y0:ay1 - y0 + 1, ax0 - x0:ax1 - x0 + 1] = gr[sl]
+    return water, ground
 
 
 def sparse_districts(holes, names):
@@ -778,6 +841,17 @@ def lay_out(tid, holes, streets_all, district=None, forbid=frozenset()):
         dead = walk & (deg == 1) & ndi.binary_dilation(channel)
         channel &= ~ndi.binary_dilation(dead, iterations=3)
 
+    # Storm-drain outfalls, after the nest and from a generator of their own:
+    # culverts out to a creek, river or lake bank, each a new way in and out.
+    # New squares only; nothing above moves.
+    outfalls = dig_outfalls(tid, x0, y0, tunnel, channel, keep_all, room_id, rooms, cave_id, caves, hatches,
+                            lair, lair_id, shafts)
+    # Sewer gas, last of all and from a generator of its own: it adds no
+    # square and moves nothing, it only says which squares are foul. Clear of
+    # every ladder, the outfalls' too.
+    gas = vent_gas(tid, tunnel, channel, chamber, room_id, rooms, cave_id, caves, hatches, lair,
+                   list(shafts) + [o["bank"] for o in outfalls])
+
     # The street each shaft is under, for the note on the way down.
     street_of = {}
     if names:
@@ -792,7 +866,187 @@ def lay_out(tid, holes, streets_all, district=None, forbid=frozenset()):
                 trunk=trunk, channel=channel, sk=sk, shafts=shafts, dropped=dropped,
                 rooms=rooms, room_id=room_id, junctions=placed, street_of=street_of,
                 caves=caves, cave_id=cave_id, hatches=hatches, made=bool(district), tid=tid,
-                lair=lair, lair_id=lair_id)
+                lair=lair, lair_id=lair_id, gas=gas, outfalls=outfalls)
+
+
+def dig_outfalls(tid, x0, y0, tunnel, channel, keep, room_id, rooms, cave_id, caves, hatches, lair, lair_id, shafts):
+    """Storm-drain outfalls (ROADMAP 0.4; DESIGN.md 7c): a culvert from the
+    network out to the bank of a creek, river or lake, ending under a grate
+    in the bank with a ladder up to it -- a way in and out that no street
+    cover shows. Mutates `tunnel` (the culverts join it).
+
+    A bank is a dry square of natural ground and nothing else, beside a body
+    of water of at least OUTFALL_WATER squares (not a swimming pool), clear of
+    every building and of anything the map has below ground. The culvert is
+    the shortest way from a bank to plain walkway, OUTFALL_MIN..OUTFALL_REACH
+    squares, never under water, a building, a shelter, a cave, the nest or a
+    hatch's culvert, and with a square of rock between it and every other
+    space until it meets the tunnel end-on. Banks are taken shortest first,
+    one per body of water before a second on any, OUTFALL_GAP apart, up to
+    min(OUTFALL_MAX, 1 + shafts // 40). Returns [{bank, path, body}], local
+    coords, the path from the bank to the square before the tunnel.
+    """
+    H, W = tunnel.shape
+    water, ground = water_region(x0, y0, x0 + W - 1, y0 + H - 1)
+    lab, n = ndi.label(water)
+    if not n:
+        return []
+    sizes = ndi.sum(water, lab, range(1, n + 1))
+    big = np.isin(lab, [i + 1 for i, v in enumerate(sizes) if v >= OUTFALL_WATER])
+    if not big.any():
+        return []
+    under = ndi.binary_dilation(under_map(x0, y0, x0 + W - 1, y0 + H - 1), iterations=2)
+    others = (room_id > 0) | (cave_id > 0) | (lair_id > 0)
+    blocked = keep | water | under | ndi.binary_dilation(others, iterations=2)
+    for h in hatches:
+        for (x, y) in h["path"] + [h["hatch"]]:
+            blocked[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = True
+    blocked[:3, :] = blocked[-3:, :] = blocked[:, :3] = blocked[:, -3:] = True
+    # Met end-on on plain walkway: away from the channel, the ladders, the
+    # shelters' doors, the caves' breaches and the nest's false wall.
+    target = tunnel & ~ndi.binary_dilation(channel, iterations=3)
+    marks = list(shafts) + [r["door"] for r in rooms] + [r["inside"] for r in rooms] + [c["breach"] for c in caves]
+    if lair:
+        marks.append(lair["entry"])
+    for (x, y) in marks:
+        target[max(0, y - 3):y + 4, max(0, x - 3):x + 4] = False
+    near_tunnel = ndi.binary_dilation(tunnel) & ~tunnel
+    # Breadth first, out from every square that touches exactly one target
+    # square and no other tunnel (the culvert's last square), through rock
+    # that touches no tunnel at all.
+    dist = np.full((H, W), -1, int)
+    prev = {}
+    q = collections.deque()
+    ys, xs = np.nonzero(near_tunnel & ~blocked)
+    for x, y in sorted(zip(xs.tolist(), ys.tolist())):
+        touch = [(x + dx, y + dy) for dx, dy in N4 if tunnel[y + dy, x + dx]]
+        if len(touch) == 1 and target[touch[0][1], touch[0][0]]:
+            dist[y, x] = 1
+            prev[(x, y)] = None
+            q.append((x, y))
+    ok = ~blocked & ~tunnel & ~near_tunnel
+    while q:
+        x, y = q.popleft()
+        if dist[y, x] >= OUTFALL_REACH:
+            continue
+        for dx, dy in N4:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < W and 0 <= ny < H and ok[ny, nx] and dist[ny, nx] < 0:
+                dist[ny, nx] = dist[y, x] + 1
+                prev[(nx, ny)] = (x, y)
+                q.append((nx, ny))
+    bank = ground & ~blocked & ndi.binary_dilation(big) & (dist >= OUTFALL_MIN)
+    ys, xs = np.nonzero(bank)
+    if not len(xs):
+        return []
+    rng = random.Random(SEED * 3571 + h32("outfalls", tid))
+    cands = []
+    for x, y in zip(xs.tolist(), ys.tolist()):
+        body = max(int(lab[y + dy, x + dx]) for dx, dy in N4)
+        cands.append((int(dist[y, x]), rng.random(), x, y, body))
+    cands.sort()
+    want = min(OUTFALL_MAX, 1 + len(shafts) // 40)
+    out, bodies = [], set()
+    for second in (False, True):
+        for d, _r, x, y, body in cands:
+            if len(out) >= want:
+                break
+            if (body in bodies) != second:
+                continue
+            if any(abs(x - o["bank"][0]) + abs(y - o["bank"][1]) < OUTFALL_GAP for o in out):
+                continue
+            path, cur = [], (x, y)
+            while cur:
+                path.append(cur)
+                cur = prev[cur]
+            # Two culverts must not touch either.
+            if any(abs(px - qx) + abs(py - qy) <= 2 for o in out for qx, qy in o["path"] for px, py in path):
+                continue
+            out.append(dict(bank=(x, y), path=path, body=body, length=d))
+            bodies.add(body)
+    for o in out:
+        for x, y in o["path"]:
+            tunnel[y, x] = True
+    return out
+
+
+def vent_gas(tid, tunnel, channel, chamber, room_id, rooms, cave_id, caves, hatches, lair, shafts):
+    """Stretches of sewer gas (ROADMAP 0.5): foul air lying in the narrow
+    culverts, away from the ladders, where nothing moves it on.
+
+    Each is a run of 1-wide walkway grown out from a seed a square at a time,
+    GAS_MIN..GAS_MAX squares, kept GAS_CLEAR squares from every street ladder
+    (a player who climbs down never lands in it, and the way out is always
+    clean air), off every shelter, cave, hatch culvert and the rats' nest.
+    Returns [{id, squares: [(x, y)], signs: [(x, y, edge-less spot outside,
+    entrance square inside)]}], local coords; `encode` hangs the county's
+    placard on a wall at each way in and lays the haze.
+    """
+    H, W = tunnel.shape
+    rng = random.Random(SEED * 7727 + h32("gas", tid))
+    walk = tunnel & ~channel & ~chamber
+    # 1-wide: in no 2x2 block of walkway. (Not "one square from the rock":
+    # that is every edge square of a wide tunnel too -- the first try laid gas
+    # down the side of a main, with a way in at every square.)
+    block = walk[:-1, :-1] & walk[1:, :-1] & walk[:-1, 1:] & walk[1:, 1:]
+    in_block = np.zeros((H, W), bool)
+    in_block[:-1, :-1] |= block
+    in_block[1:, :-1] |= block
+    in_block[:-1, 1:] |= block
+    in_block[1:, 1:] |= block
+    narrow = walk & ~in_block
+    # Where a player can stand, vaults included: the ways in are counted on it.
+    stand = tunnel & ~channel
+    near_ladder = np.zeros((H, W), bool)
+    for x, y in shafts:
+        near_ladder[max(0, y - GAS_CLEAR):y + GAS_CLEAR + 1, max(0, x - GAS_CLEAR):x + GAS_CLEAR + 1] = True
+    avoid = near_ladder | ndi.binary_dilation((room_id > 0) | (cave_id > 0), iterations=3)
+    for r in rooms:
+        (x, y) = r["door"]
+        avoid[max(0, y - 3):y + 4, max(0, x - 3):x + 4] = True
+    for c in caves:
+        (x, y) = c["breach"]
+        avoid[max(0, y - 3):y + 4, max(0, x - 3):x + 4] = True
+    for h in hatches:
+        for (x, y) in h["path"] + [h["hatch"]]:
+            avoid[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = True
+    if lair:
+        (x, y) = lair["entry"]
+        avoid[max(0, y - 6):y + 7, max(0, x - 6):x + 7] = True
+    ok = narrow & ~avoid
+    want = round(len(shafts) / GAS_PER_SHAFTS)
+    ys, xs = np.nonzero(ok)
+    seeds = sorted(zip(xs.tolist(), ys.tolist()))
+    rng.shuffle(seeds)
+    taken = np.zeros((H, W), bool)
+    out = []
+    for sx, sy in seeds:
+        if len(out) >= want:
+            break
+        if taken[sy, sx] or any(abs(sx - g["seed"][0]) + abs(sy - g["seed"][1]) < GAS_GAP for g in out):
+            continue
+        size = rng.randint(GAS_MIN, GAS_MAX)
+        region, frontier, seen = [], [(sx, sy)], {(sx, sy)}
+        while frontier and len(region) < size:
+            x, y = frontier.pop(0)
+            region.append((x, y))
+            nbrs = [(x + dx, y + dy) for dx, dy in N4]
+            rng.shuffle(nbrs)
+            for nx, ny in nbrs:
+                if (nx, ny) not in seen and 0 <= nx < W and 0 <= ny < H and ok[ny, nx] and not taken[ny, nx]:
+                    seen.add((nx, ny))
+                    frontier.append((nx, ny))
+        if len(region) < GAS_MIN:
+            continue
+        mine = set(region)
+        # The ways in: a walkway square outside, beside a square of the gas.
+        signs = sorted({(x + dx, y + dy, x, y) for x, y in region for dx, dy in N4
+                        if (x + dx, y + dy) not in mine and 0 <= x + dx < W and 0 <= y + dy < H
+                        and stand[y + dy, x + dx]})
+        for x, y in region:
+            taken[y, x] = True
+        out.append(dict(id=len(out) + 1, seed=(sx, sy), squares=sorted(region), signs=signs))
+    return out
 
 
 def house_links(tid, x0, y0, tunnel, channel, keep, room_id, rooms, cave_id, caves, shafts):
@@ -1228,12 +1482,56 @@ def shelters(tid, tunnel, keep, shafts, rng):
     return rooms, room_id
 
 
+# --- locked gates ----------------------------------------------------------------------------
+
+COUNTY = ("maintenance", "pump")
+
+
+def gate_shelters(tid, rooms):
+    """The county rooms behind a locked grille (ROADMAP 0.5; DESIGN.md 7, Locked gates): in a
+    town with at least two maintenance rooms and pump stations, half of them
+    (at least one), chosen by a generator of its own. A town with one keeps
+    it open: the key has to be somewhere a player can reach. Returns the
+    set of room ids. Squats and last stands never: nobody locked those."""
+    county = [r["id"] for r in rooms if r["kind"] in COUNTY]
+    if len(county) < 2:
+        return set()
+    rng = random.Random(SEED * 6007 + h32("gates", tid))
+    rng.shuffle(county)
+    return set(county[:max(1, len(county) // 2)])
+
+
+def gate_key(tid):
+    """The town's key id: above anything vanilla hands out (Rand.Next(100000000)
+    for a building's or a car's key), stable per town."""
+    return GATE_KEY_BASE + h32("key", tid) % 90000000
+
+
+def key_spots(t, furniture):
+    """[(x, y)] world coords: the first stocked container of every unlocked
+    county room, in a town with gates -- where the town's key is left."""
+    if not t.get("gated"):
+        return []
+    x0, y0 = t["x0"], t["y0"]
+    out = []
+    for r in t["rooms"]:
+        if r["kind"] not in COUNTY or r["id"] in t["gated"]:
+            continue
+        rx, ry, w, h = r["rect"]
+        for fx, fy, _spr, loot, _extra in furniture:
+            if loot and x0 + rx <= fx < x0 + rx + w and y0 + ry <= fy < y0 + ry + h:
+                out.append((fx, fy))
+                break
+    return out
+
+
 # --- squares ---------------------------------------------------------------------------------
 #
 # Legend (SEW_Data.lua decodes it):
 #   floor    . none  t tunnel  k vault  s shelter  g grating  w channel (sludge, not walkable)  r rock (outside, under a wall)
 #            m cave (dug earth)
 #   walls    . none  c concrete  b brick  d a door frame, with its steel door  e earth (a cave's)
+#            j a door frame, with a locked grille (a county room: gate_shelters)
 #            o a breach, broken through concrete  q a breach, broken through brick (both walked through)
 #   fixture  . none  L ladder on the N edge  l ladder on the W edge  P pillar (concrete)  Q pillar (brick)
 #   dressing . none  p pipe  e EXIT stencil  a-g graffiti  h SAFE stencil  i grime  u puddle  v debris  x light pool  y smear
@@ -1300,7 +1598,8 @@ def encode(t):
                 x = int(x)
                 r = rec(x0 + x, y0 + y)
                 if (x, y, edge) in doors:
-                    r[col] = "d"
+                    # A county room behind a locked grille (gate_shelters): j.
+                    r[col] = "j" if doors[(x, y, edge)]["id"] in t.get("gated", ()) else "d"
                 elif (x, y, edge) in breaches:
                     r[col] = breaches[(x, y, edge)]
                 elif (x, y, edge) in gates:
@@ -1317,12 +1616,12 @@ def encode(t):
 
     # Pillars where a north wall and a west wall end at the same corner from the north-west.
     for (wx, wy), r in list(sq.items()):
-        if r[3] not in "cbdxyz":
+        if r[3] not in "cbdjxyz":
             continue
         px, py = wx + 1, wy
         north = sq.get((px, py - 1))
         here = sq.get((px, py))
-        if north and north[4] in "cbdxyz" and not (here and (here[3] != "." or here[4] != ".")):
+        if north and north[4] in "cbdjxyz" and not (here and (here[3] != "." or here[4] != ".")):
             if r[5] == ".":
                 r[5] = "Q" if (r[3] in "byz" or north[4] in "byz") else "P"
 
@@ -1377,6 +1676,8 @@ def encode(t):
     ladders = [hang(sx, sy, True) + (t["street_of"].get((sx, sy), ""),) for sx, sy in t["shafts"]]
     # A hatch's ladder: the same, but no daylight through a wooden hatch.
     t["hatch_ladders"] = [hang(h["hatch"][0], h["hatch"][1], False) + (h,) for h in t["hatches"]]
+    # An outfall's ladder: daylight through its grate, like a cover's.
+    t["outfall_ladders"] = [hang(o["bank"][0], o["bank"][1], True) + (o,) for o in t.get("outfalls", [])]
 
     # Dressing, deterministic by position.
     near_shaft = set()
@@ -1721,13 +2022,50 @@ def story(tid, t, ladders, journals, plans):
     return extras
 
 
+# --- sewer gas, written ----------------------------------------------------------------------
+
+GAS_IDS = "123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def place_gas(t, chunks):
+    """({(cx, cy): "xyi..."}, {(cx, cy): [(x, y, edge)]}) -- world coords.
+
+    The gas's squares, three characters each: x and y in the chunk and the
+    stretch's id in GAS_IDS. And the county's placard at each way in: on a
+    wall of ours on the north or west edge of the walkway square just outside
+    (seen as you come up to it), or failing that of the first square inside;
+    a way in with no such wall gets none. One placard per way in."""
+    x0, y0 = t["x0"], t["y0"]
+    sq = {}
+    for rows in chunks.values():
+        sq.update(rows)
+    gas_rows = collections.defaultdict(list)
+    signs = collections.defaultdict(list)
+    if len(t["gas"]) >= len(GAS_IDS):
+        raise SystemExit("%s: %d gas stretches, more than GAS_IDS can name" % (t["tid"], len(t["gas"])))
+    for g in t["gas"]:
+        code = GAS_IDS[g["id"] - 1]
+        for x, y in g["squares"]:
+            wx, wy = x0 + x, y0 + y
+            gas_rows[(wx // 8, wy // 8)].append("%d%d%s" % (wx % 8, wy % 8, code))
+        for ox, oy, ix, iy in g["signs"]:
+            for (px, py) in ((ox, oy), (ix, iy)):
+                r = sq.get((x0 + px, y0 + py))
+                edge = "N" if r and r[3] in "cb" else "W" if r and r[4] in "cb" else None
+                if edge:
+                    wx, wy = x0 + px, y0 + py
+                    signs[(wx // 8, wy // 8)].append((wx, wy, edge))
+                    break
+    return {k: "".join(v) for k, v in gas_rows.items()}, signs
+
+
 # --- writing ---------------------------------------------------------------------------------
 
 def lua_str(s):
     return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def write_town(tid, name, chunks, furniture, dead, cave_furniture=(), cave_dead=()):
+def write_town(tid, name, chunks, furniture, dead, cave_furniture=(), cave_dead=(), gas=None, keys=()):
     os.makedirs(DATA, exist_ok=True)
 
     def furn(items):
@@ -1749,15 +2087,29 @@ def write_town(tid, name, chunks, furniture, dead, cave_furniture=(), cave_dead=
         "SEW = SEW or {}",
         "SEW.Data = SEW.Data or {}",
         "local T = { id = %s, name = %s, chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, "
-        "caveClaimed = {} }" % (lua_str(tid), lua_str(name)),
+        "caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }" % (lua_str(tid), lua_str(name)),
         "SEW.Data[%s] = T" % lua_str(tid),
         "local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed",
+        "local g, p, k = T.gas, T.gasSigns, T.keys",
     ]
     for (cx, cy), squares in sorted(chunks.items()):
         lines.append('c["%d,%d"]=%s' % (cx, cy, lua_str("".join(v for _, v in sorted(squares.items())))))
     for letter, table in (("f", fx), ("z", zx), ("v", vx), ("u", ux)):
         for (cx, cy), items in sorted(table.items()):
             lines.append('%s["%d,%d"]={%s}' % (letter, cx, cy, ",".join(items)))
+    # Sewer gas (place_gas): its squares, and the placards at its ways in.
+    gas_rows, signs = gas or ({}, {})
+    for (cx, cy), body in sorted(gas_rows.items()):
+        lines.append('g["%d,%d"]=%s' % (cx, cy, lua_str(body)))
+    for (cx, cy), items in sorted(signs.items()):
+        lines.append('p["%d,%d"]={%s}' % (cx, cy, ",".join("{%d,%d,%s}" % (x, y, lua_str(e))
+                                                           for x, y, e in sorted(items))))
+    # The town's maintenance key (gate_shelters): the containers it is left in.
+    by = collections.defaultdict(list)
+    for x, y in keys:
+        by[(x // 8, y // 8)].append("{%d,%d}" % (x, y))
+    for (cx, cy), items in sorted(by.items()):
+        lines.append('k["%d,%d"]={%s}' % (cx, cy, ",".join(items)))
     lines.append("return T")
     path = os.path.join(DATA, "SEW_Town_%s.lua" % tid)
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
@@ -1772,10 +2124,10 @@ def write_index(towns, rev, journals=(), plans=()):
         "-- loaded everywhere: the client lights the shafts and names the street, the",
         "-- server knows which manhole leads where. The squares are server-only (Data/).",
         "SEW = SEW or {}",
-        "local I = { rev = %s, towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil }"
-        % lua_str(rev),
+        "local I = { rev = %s, towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil, "
+        "gas = {}, gates = {} }" % lua_str(rev),
         "SEW.Index = I",
-        "local S, H, J, P, V = I.shafts, I.shelters, I.journals, I.plans, I.caves",
+        "local S, H, J, P, V, G, K = I.shafts, I.shelters, I.journals, I.plans, I.caves, I.gas, I.gates",
     ]
     for j in journals:
         lines.append("J[#J+1]={town=%s,x=%d,y=%d,kind=%s,text=%s,street=%s,dir=%s}"
@@ -1785,9 +2137,14 @@ def write_index(towns, rev, journals=(), plans=()):
         lines.append("P[#P+1]={town=%s,i=%d,j=%d}" % (lua_str(pl["town"]), pl["i"], pl["j"]))
     for tid, name, t, ladders in towns:
         tw, th = t["map_tiles"]
-        lines.append("I.towns[%s] = { name = %s, x0 = %d, y0 = %d, x1 = %d, y1 = %d, tw = %d, th = %d, chunks = %d }"
+        # `key`: the id of the town's maintenance key, where it has locked gates.
+        key = (", key = %d" % gate_key(tid)) if t.get("gated") else ""
+        lines.append("I.towns[%s] = { name = %s, x0 = %d, y0 = %d, x1 = %d, y1 = %d, tw = %d, th = %d, chunks = %d%s }"
                      % (lua_str(tid), lua_str(name), t["x0"], t["y0"], t["x0"] + t["W"] - 1, t["y0"] + t["H"] - 1,
-                        tw, th, t["n_chunks"]))
+                        tw, th, t["n_chunks"], key))
+        # Each locked gate: the square holding the door edge, and which edge.
+        for x, y, edge in t.get("gates", []):
+            lines.append('K[#K+1]={town=%s,x=%d,y=%d,edge="%s"}' % (lua_str(tid), x, y, edge))
         # `made`: a cover of ours, in a district the map gives few; the server
         # puts it into the road when a player first comes near (SEW_Build.cover).
         made = ",made=true" if t.get("made") else ""
@@ -1801,6 +2158,12 @@ def write_index(towns, rev, journals=(), plans=()):
             under = ",".join("%d,%d" % (t["x0"] + x, t["y0"] + y) for x, y in h["under"])
             lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="%s",street="",hatch=%s,under={%s}}'
                          % (sx, sy, lua_str(tid), sx, sy, lx, ly, edge, lua_str(h["room"]), under))
+        # Outfalls: shafts too, up through a grate in a riverbank. `made` like a
+        # cover of ours: the server sets the grate into the bank when a player
+        # up there first comes near (SEW_Build.cover).
+        for sx, sy, lx, ly, edge, o in t.get("outfall_ladders", []):
+            lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="%s",street="",made=true,outfall=true}'
+                         % (sx, sy, lua_str(tid), sx, sy, lx, ly, edge))
         for r in t["rooms"]:
             rx, ry, w, h = r["rect"]
             lines.append("H[#H+1]={town=%s,kind=%s,x=%d,y=%d,w=%d,h=%d}"
@@ -1814,6 +2177,14 @@ def write_index(towns, rev, journals=(), plans=()):
             lines.append("V[#V+1]={town=%s,x=%d,y=%d,bx=%d,by=%d,sx=%d,sy=%d}"
                          % (lua_str(tid), t["x0"] + hx, t["y0"] + hy, t["x0"] + bx, t["y0"] + by,
                             t["x0"] + sx, t["y0"] + sy))
+        # Each stretch of sewer gas (vent_gas): its id in the town's data, the
+        # square nearest its middle (where the map marks it), and its size.
+        for g in t.get("gas", []):
+            mx = sum(x for x, _ in g["squares"]) / len(g["squares"])
+            my = sum(y for _, y in g["squares"]) / len(g["squares"])
+            cx, cy = min(g["squares"], key=lambda q: (q[0] - mx) ** 2 + (q[1] - my) ** 2)
+            lines.append("G[#G+1]={town=%s,id=%s,x=%d,y=%d,n=%d}"
+                         % (lua_str(tid), lua_str(GAS_IDS[g["id"] - 1]), t["x0"] + cx, t["y0"] + cy, len(g["squares"])))
     # The rats' nest (dig_lair): the tunnel square at its false wall (tx, ty)
     # and the first square through it (ex, ey), the middle of the nest, the
     # gnawed wall into the hoard (nest side gx, gy; hoard side vx, vy), where
@@ -1855,6 +2226,8 @@ def map_images(tid, t):
     space = t["tunnel"] | (t["room_id"] > 0) | (t["cave_id"] > 0)
     rgba = np.zeros((H, W, 4), np.uint8)
     rgba[t["road"] & ~space] = (120, 104, 80, 60)             # the streets above, faint
+    water = water_region(t["x0"], t["y0"], t["x0"] + W - 1, t["y0"] + H - 1)[0]
+    rgba[water & ~space] = (70, 96, 120, 90)                    # creeks, rivers and lakes above, fainter
     outline = ndi.binary_dilation(space) & ~space
     rgba[outline] = (58, 46, 34, 255)                           # walls, in ink
     rgba[t["tunnel"]] = (226, 214, 184, 255)
@@ -1879,6 +2252,7 @@ def plan(t, path):
     im = np.zeros((H, W, 3), np.uint8)
     im[:] = (14, 14, 18)
     im[t["road"]] = (48, 48, 54)
+    im[water_region(t["x0"], t["y0"], t["x0"] + W - 1, t["y0"] + H - 1)[0]] = (20, 40, 90)
     im[t["keep"]] = (40, 26, 26)
     im[t["tunnel"]] = (120, 120, 110)
     im[t["trunk"] & t["tunnel"]] = (150, 130, 100)
@@ -1889,6 +2263,9 @@ def plan(t, path):
     for c in t["caves"]:
         x, y = c["breach"]
         im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (255, 120, 255)
+    for g in t.get("gas", []):
+        for x, y in g["squares"]:
+            im[y, x] = (190, 230, 40)
     for h in t["hatches"]:
         x, y = h["hatch"]
         im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (0, 255, 255)
@@ -1897,6 +2274,9 @@ def plan(t, path):
         im[t["lair_id"] == 2] = (255, 215, 0)
     for x, y in t["shafts"]:
         im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (255, 210, 0)
+    for o in t.get("outfalls", []):
+        x, y = o["bank"]
+        im[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = (255, 255, 255)
     for a, b in t["dropped"]:
         x, y = a - t["x0"], b - t["y0"]
         im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (255, 0, 0)
@@ -1945,15 +2325,19 @@ def main():
             used[base] -= 1          # no clear road for a cover: no town, and no name used up
             print("  (%s: no cover of ours fits; left out)" % name)
             return
+        t["gated"] = gate_shelters(tid, t["rooms"])
         chunks, ladders = encode(t)
         taken.update(chunks)
         extras = story(tid, t, ladders, journals, plans)
         furniture, dead = furnish(t, extras)
+        t["keys"] = key_spots(t, furniture)
+        t["gates"] = sorted((x, y, "N" if r[3] == "j" else "W") for rows in chunks.values()
+                            for (x, y), r in rows.items() if "j" in (r[3], r[4]))
         cave_furniture, cave_dead = furnish_caves(t)
         if t.get("lair"):
             cave_furniture = list(cave_furniture) + furnish_lair(t)
             t["lair_access"] = lair_access(t, ladders)
-        write_town(tid, name, chunks, furniture, dead, cave_furniture, cave_dead)
+        write_town(tid, name, chunks, furniture, dead, cave_furniture, cave_dead, place_gas(t, chunks), t["keys"])
         t["map_tiles"] = map_images(tid, t)
         t["n_chunks"] = len(chunks)
         towns.append((tid, name, t, ladders))
@@ -1966,9 +2350,12 @@ def main():
         totals["shelters"] += len(t["rooms"])
         totals["caves"] += len(t["caves"])
         totals["hatches"] += len(t["hatches"])
-        print("  %-18s %3d %s %7d squares %4d chunks %3d shelters %3d vaults %3d caves %3d hatches%s"
+        totals["gas"] += len(t["gas"])
+        totals["gates"] += len(t["gates"])
+        totals["outfalls"] += len(t["outfalls"])
+        print("  %-18s %3d %s %7d squares %4d chunks %3d shelters %3d vaults %3d caves %3d hatches %2d gas %d outfalls%s"
               % (tid, len(ladders), "covers ours" if t["made"] else "manholes   ", squares, len(chunks),
-                 len(t["rooms"]), len(t["junctions"]), len(t["caves"]), len(t["hatches"]),
+                 len(t["rooms"]), len(t["junctions"]), len(t["caves"]), len(t["hatches"]), len(t["gas"]), len(t["outfalls"]),
                  ("  (%d over buildings, left shut)" % len(t["dropped"])) if t["dropped"] else ""))
         if a.plans:
             plan(t, os.path.join(PLANS, "%s.png" % tid))
@@ -1986,7 +2373,8 @@ def main():
     write_index(towns, digest.hexdigest()[:12], journals, plans)
     print("story: %d journals, %d plans" % (len(journals), len(plans)))
     print("total: %(squares)d squares, %(shafts)d shafts under the map's covers and %(made)d under ours, "
-          "%(shelters)d shelters, %(caves)d caves, %(hatches)d hatches, "
+          "%(shelters)d shelters (%(gates)d locked), %(caves)d caves, %(hatches)d hatches, %(outfalls)d outfalls, "
+          "%(gas)d stretches of gas, "
           "%(dropped)d manholes left shut" % totals)
     if totals["shafts"] + totals["dropped"] != len(holes):
         raise SystemExit("a manhole was neither given a shaft nor reported: %d + %d != %d"

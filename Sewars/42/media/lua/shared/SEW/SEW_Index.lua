@@ -3,9 +3,9 @@
 -- loaded everywhere: the client lights the shafts and names the street, the
 -- server knows which manhole leads where. The squares are server-only (Data/).
 SEW = SEW or {}
-local I = { rev = "cc83b339b522", towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil }
+local I = { rev = "cf7400289c6f", towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil, gas = {}, gates = {} }
 SEW.Index = I
-local S, H, J, P, V = I.shafts, I.shelters, I.journals, I.plans, I.caves
+local S, H, J, P, V, G, K = I.shafts, I.shelters, I.journals, I.plans, I.caves, I.gas, I.gates
 J[#J+1]={town="west_point",x=12055,y=6896,kind="squat",text="squat_2",street="Main St",dir="south"}
 J[#J+1]={town="west_point",x=12132,y=6904,kind="pump",text="pump_1",street="2nd St",dir="west"}
 J[#J+1]={town="west_point",x=11395,y=6787,kind="laststand",text="laststand_2",street="9th St",dir="north"}
@@ -354,7 +354,13 @@ P[#P+1]={town="echo_creek",i=0,j=1}
 P[#P+1]={town="brandenburg_3",i=1,j=1}
 P[#P+1]={town="irvington_2",i=0,j=0}
 P[#P+1]={town="irvington_3",i=0,j=0}
-I.towns["west_point"] = { name = "West Point", x0 = 10876, y0 = 6648, x1 = 12338, y1 = 7217, tw = 6, th = 3, chunks = 2021 }
+I.towns["west_point"] = { name = "West Point", x0 = 10876, y0 = 6648, x1 = 12338, y1 = 7217, tw = 6, th = 3, chunks = 2029, key = 1978695210 }
+K[#K+1]={town="west_point",x=11004,y=6899,edge="N"}
+K[#K+1]={town="west_point",x=11554,y=6815,edge="W"}
+K[#K+1]={town="west_point",x=11801,y=6772,edge="N"}
+K[#K+1]={town="west_point",x=12134,y=6902,edge="N"}
+K[#K+1]={town="west_point",x=12243,y=6899,edge="N"}
+K[#K+1]={town="west_point",x=12295,y=6745,edge="W"}
 S["10916,6902"]={town="west_point",x=10916,y=6902,lx=10916,ly=6902,edge="W",street="Main St"}
 S["10951,6898"]={town="west_point",x=10951,y=6898,lx=10951,ly=6898,edge="N",street="Main St"}
 S["10963,6693"]={town="west_point",x=10963,y=6693,lx=10963,ly=6693,edge="N",street="Oak St"}
@@ -508,6 +514,8 @@ S["11857,6790"]={town="west_point",x=11857,y=6790,lx=11857,ly=6790,edge="N",stre
 S["11136,6869"]={town="west_point",x=11136,y=6869,lx=11136,ly=6869,edge="N",street="",hatch="laundry",under={11136,6869,11136,6870,11136,6871,11136,6872}}
 S["12149,7039"]={town="west_point",x=12149,y=7039,lx=12149,ly=7039,edge="N",street="",hatch="storageunit",under={12149,7039,12150,7039,12151,7039}}
 S["11460,6884"]={town="west_point",x=11460,y=6884,lx=11460,ly=6884,edge="N",street="",hatch="kitchen",under={11460,6884,11460,6885,11460,6886,11460,6887,11460,6888}}
+S["12302,6753"]={town="west_point",x=12302,y=6753,lx=12302,ly=6753,edge="N",street="",made=true,outfall=true}
+S["12235,6700"]={town="west_point",x=12235,y=6700,lx=12235,ly=6700,edge="N",street="",made=true,outfall=true}
 H[#H+1]={town="west_point",kind="maintenance",x=12041,y=6831,w=5,h=4}
 H[#H+1]={town="west_point",kind="maintenance",x=12242,y=6895,w=6,h=4}
 H[#H+1]={town="west_point",kind="maintenance",x=11374,y=6850,w=8,h=6}
@@ -550,7 +558,23 @@ V[#V+1]={town="west_point",x=12202,y=6857,bx=12178,by=6869,sx=12209,sy=6897}
 V[#V+1]={town="west_point",x=11231,y=6737,bx=11249,by=6750,sx=11259,sy=6731}
 V[#V+1]={town="west_point",x=11754,y=6731,bx=11757,by=6709,sx=11750,sy=6710}
 V[#V+1]={town="west_point",x=10938,y=6656,bx=10960,by=6657,sx=10963,sy=6693}
-I.towns["muldraugh"] = { name = "Muldraugh", x0 = 10557, y0 = 9198, x1 = 11126, y1 = 10697, tw = 3, th = 6, chunks = 2215 }
+G[#G+1]={town="west_point",id="1",x=11235,y=6774,n=44}
+G[#G+1]={town="west_point",id="2",x=12284,y=6700,n=42}
+G[#G+1]={town="west_point",id="3",x=11682,y=7052,n=32}
+G[#G+1]={town="west_point",id="4",x=12178,y=7109,n=32}
+G[#G+1]={town="west_point",id="5",x=12178,y=6943,n=37}
+G[#G+1]={town="west_point",id="6",x=12178,y=7061,n=44}
+G[#G+1]={town="west_point",id="7",x=11625,y=6663,n=31}
+G[#G+1]={town="west_point",id="8",x=11763,y=6939,n=17}
+G[#G+1]={town="west_point",id="9",x=12225,y=6817,n=38}
+G[#G+1]={town="west_point",id="a",x=12002,y=7163,n=40}
+G[#G+1]={town="west_point",id="b",x=11625,y=6733,n=30}
+I.towns["muldraugh"] = { name = "Muldraugh", x0 = 10557, y0 = 9198, x1 = 11126, y1 = 10697, tw = 3, th = 6, chunks = 2223, key = 1954948615 }
+K[#K+1]={town="muldraugh",x=10634,y=9736,edge="N"}
+K[#K+1]={town="muldraugh",x=10720,y=10617,edge="N"}
+K[#K+1]={town="muldraugh",x=10825,y=10107,edge="W"}
+K[#K+1]={town="muldraugh",x=10854,y=10303,edge="N"}
+K[#K+1]={town="muldraugh",x=11023,y=9844,edge="W"}
 S["10597,10163"]={town="muldraugh",x=10597,y=10163,lx=10597,ly=10163,edge="N",street="Dixie Highway (Route 31W)"}
 S["10603,9526"]={town="muldraugh",x=10603,y=9526,lx=10603,ly=9526,edge="N",street="Dixie Highway (Route 31W)"}
 S["10604,10235"]={town="muldraugh",x=10604,y=10235,lx=10604,ly=10235,edge="N",street="Dixie Highway (Route 31W)"}
@@ -666,6 +690,7 @@ S["10733,9802"]={town="muldraugh",x=10733,y=9802,lx=10733,ly=9802,edge="W",stree
 S["10750,9551"]={town="muldraugh",x=10750,y=9551,lx=10750,ly=9551,edge="W",street="",hatch="kitchen",under={10750,9551,10750,9550,10750,9549,10750,9548}}
 S["10959,9521"]={town="muldraugh",x=10959,y=9521,lx=10959,ly=9521,edge="N",street="",hatch="kitchen",under={10959,9521,10958,9521,10957,9521,10956,9521}}
 S["10664,10079"]={town="muldraugh",x=10664,y=10079,lx=10664,ly=10079,edge="W",street="",hatch="shed",under={10664,10079,10664,10078,10664,10077,10664,10076}}
+S["10703,9245"]={town="muldraugh",x=10703,y=9245,lx=10703,ly=9245,edge="N",street="",made=true,outfall=true}
 H[#H+1]={town="muldraugh",kind="laststand",x=10829,y=10017,w=7,h=5}
 H[#H+1]={town="muldraugh",kind="pump",x=10960,y=9684,w=8,h=4}
 H[#H+1]={town="muldraugh",kind="laststand",x=10595,y=10402,w=6,h=5}
@@ -698,7 +723,18 @@ V[#V+1]={town="muldraugh",x=10797,y=10561,bx=10791,by=10545,sx=10763,sy=10565}
 V[#V+1]={town="muldraugh",x=10725,y=9767,bx=10714,by=9773,sx=10762,sy=9772}
 V[#V+1]={town="muldraugh",x=10576,y=9810,bx=10590,by=9800,sx=10617,sy=9781}
 V[#V+1]={town="muldraugh",x=10757,y=9519,bx=10747,by=9509,sx=10777,sy=9508}
-I.towns["rosewood"] = { name = "Rosewood", x0 = 7870, y0 = 11341, x1 = 8502, y1 = 12053, tw = 3, th = 3, chunks = 1106 }
+G[#G+1]={town="muldraugh",id="1",x=11003,y=9882,n=30}
+G[#G+1]={town="muldraugh",id="2",x=11102,y=9439,n=41}
+G[#G+1]={town="muldraugh",id="3",x=11102,y=9334,n=26}
+G[#G+1]={town="muldraugh",id="4",x=10894,y=10112,n=22}
+G[#G+1]={town="muldraugh",id="5",x=10898,y=9713,n=37}
+G[#G+1]={town="muldraugh",id="6",x=11034,y=9396,n=45}
+G[#G+1]={town="muldraugh",id="7",x=10899,y=9509,n=35}
+G[#G+1]={town="muldraugh",id="8",x=10925,y=9560,n=20}
+I.towns["rosewood"] = { name = "Rosewood", x0 = 7870, y0 = 11341, x1 = 8502, y1 = 12053, tw = 3, th = 3, chunks = 1108, key = 1974609105 }
+K[#K+1]={town="rosewood",x=8148,y=11643,edge="W"}
+K[#K+1]={town="rosewood",x=8433,y=11678,edge="N"}
+K[#K+1]={town="rosewood",x=8459,y=12014,edge="N"}
 S["7910,11515"]={town="rosewood",x=7910,y=11515,lx=7910,ly=11515,edge="W",street=""}
 S["7914,11476"]={town="rosewood",x=7914,y=11476,lx=7914,ly=11477,edge="N",street="Quiet St"}
 S["7916,11382"]={town="rosewood",x=7916,y=11382,lx=7916,ly=11382,edge="N",street="Snake St"}
@@ -772,6 +808,7 @@ S["8216,11720"]={town="rosewood",x=8216,y=11720,lx=8216,ly=11720,edge="N",street
 S["8453,11559"]={town="rosewood",x=8453,y=11559,lx=8453,ly=11559,edge="N",street="",hatch="garagestorage",under={8453,11559,8453,11560,8453,11561,8453,11562}}
 S["8163,11595"]={town="rosewood",x=8163,y=11595,lx=8163,ly=11595,edge="N",street="",hatch="kitchen",under={8163,11595,8162,11595,8161,11595,8160,11595}}
 S["8155,11680"]={town="rosewood",x=8155,y=11680,lx=8155,ly=11680,edge="N",street="",hatch="kitchen",under={8155,11680,8154,11680,8153,11680,8152,11680,8151,11680,8150,11680}}
+S["8173,11729"]={town="rosewood",x=8173,y=11729,lx=8173,ly=11729,edge="N",street="",made=true,outfall=true}
 H[#H+1]={town="rosewood",kind="squat",x=8134,y=11478,w=7,h=6}
 H[#H+1]={town="rosewood",kind="pump",x=8393,y=12036,w=8,h=6}
 H[#H+1]={town="rosewood",kind="squat",x=8164,y=11975,w=6,h=5}
@@ -793,7 +830,13 @@ V[#V+1]={town="rosewood",x=8128,y=11976,bx=8107,by=11963,sx=8104,sy=11743}
 V[#V+1]={town="rosewood",x=8163,y=11468,bx=8185,by=11475,sx=8126,sy=11478}
 V[#V+1]={town="rosewood",x=7943,y=11418,bx=7941,by=11429,sx=7963,sy=11381}
 V[#V+1]={town="rosewood",x=8243,y=11647,bx=8235,by=11655,sx=8239,sy=11657}
-I.towns["riverside"] = { name = "Riverside", x0 = 5676, y0 = 5170, x1 = 6834, y1 = 5574, tw = 5, th = 2, chunks = 1149 }
+G[#G+1]={town="rosewood",id="1",x=7913,y=11490,n=24}
+G[#G+1]={town="rosewood",id="2",x=7945,y=11592,n=34}
+G[#G+1]={town="rosewood",id="3",x=8052,y=11922,n=18}
+G[#G+1]={town="rosewood",id="4",x=8153,y=11465,n=19}
+G[#G+1]={town="rosewood",id="5",x=8440,y=12013,n=23}
+I.towns["riverside"] = { name = "Riverside", x0 = 5676, y0 = 5170, x1 = 6834, y1 = 5574, tw = 5, th = 2, chunks = 1152, key = 1904109787 }
+K[#K+1]={town="riverside",x=5977,y=5282,edge="N"}
 S["5716,5401"]={town="riverside",x=5716,y=5401,lx=5716,ly=5402,edge="N",street="Rag Road"}
 S["5755,5248"]={town="riverside",x=5755,y=5248,lx=5755,ly=5248,edge="N",street="Fern Road"}
 S["5879,5402"]={town="riverside",x=5879,y=5402,lx=5879,ly=5402,edge="W",street="Rock Ridge Road"}
@@ -845,6 +888,8 @@ S["6642,5425"]={town="riverside",x=6642,y=5425,lx=6642,ly=5425,edge="N",street="
 S["6056,5377"]={town="riverside",x=6056,y=5377,lx=6056,ly=5377,edge="W",street="",hatch="kitchen",under={6056,5377,6056,5376,6056,5375,6056,5374,6056,5373,6056,5372,6056,5371}}
 S["6023,5364"]={town="riverside",x=6023,y=5364,lx=6023,ly=5364,edge="N",street="",hatch="kitchen",under={6023,5364,6024,5364,6025,5364,6026,5364,6027,5364,6028,5364,6029,5364}}
 S["6307,5560"]={town="riverside",x=6307,y=5560,lx=6307,ly=5560,edge="N",street="",hatch="kitchen",under={6307,5560,6306,5560,6305,5560,6304,5560}}
+S["6315,5223"]={town="riverside",x=6315,y=5223,lx=6315,ly=5223,edge="N",street="",made=true,outfall=true}
+S["6355,5546"]={town="riverside",x=6355,y=5546,lx=6355,ly=5546,edge="W",street="",made=true,outfall=true}
 H[#H+1]={town="riverside",kind="maintenance",x=5976,y=5276,w=7,h=6}
 H[#H+1]={town="riverside",kind="maintenance",x=6331,y=5286,w=8,h=4}
 H[#H+1]={town="riverside",kind="squat",x=6514,y=5402,w=8,h=4}
@@ -860,7 +905,14 @@ V[#V+1]={town="riverside",x=6649,y=5367,bx=6638,by=5354,sx=6569,sy=5317}
 V[#V+1]={town="riverside",x=6221,y=5310,bx=6222,by=5285,sx=6244,sy=5281}
 V[#V+1]={town="riverside",x=5789,y=5244,bx=5802,by=5248,sx=5755,sy=5248}
 V[#V+1]={town="riverside",x=6662,y=5547,bx=6655,by=5538,sx=6389,sy=5534}
-I.towns["ekron"] = { name = "Ekron", x0 = 263, y0 = 9522, x1 = 886, y1 = 10024, tw = 3, th = 2, chunks = 764 }
+G[#G+1]={town="riverside",id="1",x=6258,y=5326,n=27}
+G[#G+1]={town="riverside",id="2",x=5932,y=5218,n=26}
+G[#G+1]={town="riverside",id="3",x=6421,y=5236,n=24}
+G[#G+1]={town="riverside",id="4",x=6591,y=5317,n=24}
+I.towns["ekron"] = { name = "Ekron", x0 = 263, y0 = 9522, x1 = 886, y1 = 10024, tw = 3, th = 2, chunks = 764, key = 1919584706 }
+K[#K+1]={town="ekron",x=388,y=9650,edge="W"}
+K[#K+1]={town="ekron",x=677,y=9676,edge="N"}
+K[#K+1]={town="ekron",x=778,y=9679,edge="N"}
 S["303,9851"]={town="ekron",x=303,y=9851,lx=303,ly=9852,edge="N",street="Hutchins Dr"}
 S["309,9811"]={town="ekron",x=309,y=9811,lx=309,ly=9811,edge="N",street="Hutchins Dr"}
 S["384,9678"]={town="ekron",x=384,y=9678,lx=384,ly=9678,edge="N",street="Broad St"}
@@ -922,7 +974,11 @@ V[#V+1]={town="ekron",x=470,y=9699,bx=475,by=9709,sx=475,sy=9678}
 V[#V+1]={town="ekron",x=513,y=9685,bx=515,by=9678,sx=511,sy=9677}
 V[#V+1]={town="ekron",x=526,y=9839,bx=547,by=9824,sx=595,sy=9807}
 V[#V+1]={town="ekron",x=849,y=9872,bx=846,by=9894,sx=846,sy=9856}
-I.towns["fallas_lake"] = { name = "Fallas Lake", x0 = 7065, y0 = 8111, x1 = 7438, y1 = 8570, tw = 2, th = 2, chunks = 442 }
+G[#G+1]={town="ekron",id="1",x=424,y=9935,n=21}
+G[#G+1]={town="ekron",id="2",x=547,y=9618,n=21}
+G[#G+1]={town="ekron",id="3",x=547,y=9539,n=35}
+I.towns["fallas_lake"] = { name = "Fallas Lake", x0 = 7065, y0 = 8111, x1 = 7438, y1 = 8570, tw = 2, th = 2, chunks = 443, key = 1945315383 }
+K[#K+1]={town="fallas_lake",x=7218,y=8321,edge="W"}
 S["7105,8256"]={town="fallas_lake",x=7105,y=8256,lx=7105,ly=8257,edge="N",street="Victoria St"}
 S["7106,8342"]={town="fallas_lake",x=7106,y=8342,lx=7106,ly=8342,edge="W",street="Victoria St"}
 S["7106,8386"]={town="fallas_lake",x=7106,y=8386,lx=7106,ly=8386,edge="W",street="Victoria St"}
@@ -958,6 +1014,7 @@ S["7296,8134"]={town="fallas_lake",x=7296,y=8134,lx=7296,ly=8134,edge="N",street
 S["7134,8393"]={town="fallas_lake",x=7134,y=8393,lx=7134,ly=8393,edge="N",street="",hatch="kitchen",under={7134,8393,7135,8393,7136,8393,7137,8393,7138,8393,7139,8393}}
 S["7211,8203"]={town="fallas_lake",x=7211,y=8203,lx=7211,ly=8203,edge="W",street="",hatch="kitchen",under={7211,8203,7211,8202,7211,8201,7211,8200}}
 S["7338,8538"]={town="fallas_lake",x=7338,y=8538,lx=7338,ly=8538,edge="N",street="",hatch="kitchen",under={7338,8538,7338,8539,7338,8540,7338,8541}}
+S["7076,8145"]={town="fallas_lake",x=7076,y=8145,lx=7076,ly=8145,edge="N",street="",made=true,outfall=true}
 H[#H+1]={town="fallas_lake",kind="squat",x=7137,y=8164,w=6,h=5}
 H[#H+1]={town="fallas_lake",kind="pump",x=7212,y=8320,w=6,h=4}
 H[#H+1]={town="fallas_lake",kind="squat",x=7327,y=8156,w=6,h=5}
@@ -968,7 +1025,11 @@ V[#V+1]={town="fallas_lake",x=7370,y=8285,bx=7380,by=8276,sx=7385,sy=8273}
 V[#V+1]={town="fallas_lake",x=7131,y=8312,bx=7108,by=8304,sx=7106,sy=8342}
 V[#V+1]={town="fallas_lake",x=7199,y=8272,bx=7191,by=8275,sx=7191,sy=8300}
 V[#V+1]={town="fallas_lake",x=7183,y=8535,bx=7194,by=8561,sx=7266,sy=8530}
-I.towns["louisville"] = { name = "Louisville", x0 = 12860, y0 = 2398, x1 = 13009, y1 = 2961, tw = 1, th = 3, chunks = 325 }
+G[#G+1]={town="fallas_lake",id="1",x=7156,y=8452,n=34}
+G[#G+1]={town="fallas_lake",id="2",x=7291,y=8183,n=27}
+G[#G+1]={town="fallas_lake",id="3",x=7231,y=8181,n=23}
+I.towns["louisville"] = { name = "Louisville", x0 = 12860, y0 = 2398, x1 = 13009, y1 = 2961, tw = 1, th = 3, chunks = 325, key = 1911855446 }
+K[#K+1]={town="louisville",x=12899,y=2534,edge="W"}
 S["12900,2438"]={town="louisville",x=12900,y=2438,lx=12900,ly=2438,edge="N",street="Ulster St"}
 S["12900,2540"]={town="louisville",x=12900,y=2540,lx=12900,ly=2540,edge="N",street="Ulster St"}
 S["12900,2640"]={town="louisville",x=12900,y=2640,lx=12900,ly=2640,edge="N",street="Ulster St"}
@@ -983,6 +1044,7 @@ S["12874,2936"]={town="louisville",x=12874,y=2936,lx=12874,ly=2936,edge="N",stre
 H[#H+1]={town="louisville",kind="maintenance",x=12892,y=2531,w=7,h=5}
 H[#H+1]={town="louisville",kind="maintenance",x=12936,y=2491,w=5,h=4}
 V[#V+1]={town="louisville",x=12924,y=2636,bx=12923,by=2640,sx=12900,sy=2640}
+G[#G+1]={town="louisville",id="1",x=12921,y=2540,n=22}
 I.towns["muldraugh_2"] = { name = "Muldraugh", x0 = 11420, y0 = 8755, x1 = 11870, y1 = 8896, tw = 2, th = 1, chunks = 159 }
 S["11460,8836"]={town="muldraugh_2",x=11460,y=8836,lx=11460,ly=8836,edge="W",street=""}
 S["11482,8798"]={town="muldraugh_2",x=11482,y=8798,lx=11482,ly=8798,edge="N",street=""}
@@ -994,6 +1056,7 @@ S["11830,8848"]={town="muldraugh_2",x=11830,y=8848,lx=11830,ly=8848,edge="N",str
 S["11730,8822"]={town="muldraugh_2",x=11730,y=8822,lx=11730,ly=8822,edge="N",street="",hatch="kitchen",under={11730,8822,11731,8822,11732,8822,11733,8822}}
 H[#H+1]={town="muldraugh_2",kind="maintenance",x=11533,y=8834,w=6,h=4}
 V[#V+1]={town="muldraugh_2",x=11845,y=8785,bx=11851,by=8791,sx=11830,sy=8848}
+G[#G+1]={town="muldraugh_2",id="1",x=11741,y=8832,n=16}
 I.towns["muldraugh_3"] = { name = "Muldraugh", x0 = 10274, y0 = 9197, x1 = 10397, y1 = 9461, tw = 1, th = 2, chunks = 48 }
 S["10314,9421"]={town="muldraugh_3",x=10314,y=9421,lx=10314,ly=9421,edge="N",street=""}
 S["10322,9383"]={town="muldraugh_3",x=10322,y=9383,lx=10322,ly=9383,edge="W",street=""}
@@ -1036,7 +1099,24 @@ V[#V+1]={town="west_point_3",x=10376,y=7440,bx=10386,by=7449,sx=10375,sy=7448}
 I.towns["knox_county_2"] = { name = "Knox County", x0 = 14993, y0 = 780, x1 = 15073, y1 = 860, tw = 1, th = 1, chunks = 4 }
 S["15033,820"]={town="knox_county_2",x=15033,y=820,lx=15033,ly=820,edge="N",street=""}
 H[#H+1]={town="knox_county_2",kind="pump",x=15031,y=814,w=5,h=5}
-I.towns["louisville_3"] = { name = "Louisville", x0 = 11776, y0 = 1024, x1 = 14335, y1 = 3839, tw = 10, th = 11, chunks = 13647 }
+I.towns["louisville_3"] = { name = "Louisville", x0 = 11776, y0 = 1024, x1 = 14335, y1 = 3839, tw = 10, th = 11, chunks = 13664, key = 1922783205 }
+K[#K+1]={town="louisville_3",x=12360,y=3447,edge="N"}
+K[#K+1]={town="louisville_3",x=12391,y=1781,edge="W"}
+K[#K+1]={town="louisville_3",x=12511,y=3234,edge="W"}
+K[#K+1]={town="louisville_3",x=12544,y=2999,edge="N"}
+K[#K+1]={town="louisville_3",x=12557,y=3444,edge="N"}
+K[#K+1]={town="louisville_3",x=12574,y=2153,edge="N"}
+K[#K+1]={town="louisville_3",x=12597,y=1127,edge="W"}
+K[#K+1]={town="louisville_3",x=12698,y=2261,edge="N"}
+K[#K+1]={town="louisville_3",x=12868,y=1236,edge="N"}
+K[#K+1]={town="louisville_3",x=12913,y=1239,edge="N"}
+K[#K+1]={town="louisville_3",x=12997,y=1468,edge="W"}
+K[#K+1]={town="louisville_3",x=13178,y=1953,edge="N"}
+K[#K+1]={town="louisville_3",x=13413,y=2936,edge="W"}
+K[#K+1]={town="louisville_3",x=13413,y=3381,edge="N"}
+K[#K+1]={town="louisville_3",x=13740,y=1635,edge="W"}
+K[#K+1]={town="louisville_3",x=13762,y=2929,edge="W"}
+K[#K+1]={town="louisville_3",x=13941,y=2867,edge="N"}
 S["12061,3287"]={town="louisville_3",x=12061,y=3287,lx=12061,ly=3287,edge="W",street="KY-1394",made=true}
 S["12064,3174"]={town="louisville_3",x=12064,y=3174,lx=12064,ly=3174,edge="W",street="KY-1394",made=true}
 S["12065,2069"]={town="louisville_3",x=12065,y=2069,lx=12065,ly=2069,edge="N",street="Bourbon Way",made=true}
@@ -1585,6 +1665,10 @@ S["13544,2243"]={town="louisville_3",x=13544,y=2243,lx=13544,ly=2243,edge="N",st
 S["13480,2560"]={town="louisville_3",x=13480,y=2560,lx=13480,ly=2560,edge="N",street="",hatch="kitchen",under={13480,2560,13479,2560,13478,2560,13477,2560,13476,2560,13475,2560}}
 S["13818,2624"]={town="louisville_3",x=13818,y=2624,lx=13818,ly=2624,edge="W",street="",hatch="kitchen",under={13818,2624,13818,2623,13818,2622,13818,2621,13818,2620,13819,2620}}
 S["13485,1682"]={town="louisville_3",x=13485,y=1682,lx=13485,ly=1682,edge="N",street="",hatch="kitchen",under={13485,1682,13486,1682,13487,1682}}
+S["12587,1036"]={town="louisville_3",x=12587,y=1036,lx=12587,ly=1036,edge="N",street="",made=true,outfall=true}
+S["13199,1200"]={town="louisville_3",x=13199,y=1200,lx=13199,ly=1200,edge="N",street="",made=true,outfall=true}
+S["12265,1198"]={town="louisville_3",x=12265,y=1198,lx=12265,ly=1198,edge="N",street="",made=true,outfall=true}
+S["12145,1197"]={town="louisville_3",x=12145,y=1197,lx=12145,ly=1197,edge="N",street="",made=true,outfall=true}
 H[#H+1]={town="louisville_3",kind="pump",x=12504,y=3231,w=7,h=5}
 H[#H+1]={town="louisville_3",kind="laststand",x=12977,y=3025,w=7,h=5}
 H[#H+1]={town="louisville_3",kind="squat",x=12655,y=2514,w=6,h=6}
@@ -1738,7 +1822,50 @@ V[#V+1]={town="louisville_3",x=12332,y=1868,bx=12323,by=1858,sx=12298,sy=1857}
 V[#V+1]={town="louisville_3",x=14286,y=2853,bx=14269,by=2846,sx=14267,sy=2824}
 V[#V+1]={town="louisville_3",x=12422,y=3506,bx=12441,by=3509,sx=12476,sy=3533}
 V[#V+1]={town="louisville_3",x=12144,y=1591,bx=12155,by=1604,sx=12159,sy=1575}
-I.towns["irvington"] = { name = "Irvington", x0 = 1536, y0 = 13824, x1 = 3071, y1 = 14847, tw = 6, th = 4, chunks = 2183 }
+G[#G+1]={town="louisville_3",id="1",x=12952,y=1877,n=23}
+G[#G+1]={town="louisville_3",id="2",x=13322,y=3290,n=17}
+G[#G+1]={town="louisville_3",id="3",x=13199,y=1288,n=28}
+G[#G+1]={town="louisville_3",id="4",x=12489,y=2699,n=23}
+G[#G+1]={town="louisville_3",id="5",x=13013,y=1854,n=18}
+G[#G+1]={town="louisville_3",id="6",x=13100,y=1262,n=29}
+G[#G+1]={town="louisville_3",id="7",x=12646,y=2903,n=40}
+G[#G+1]={town="louisville_3",id="8",x=13389,y=3380,n=39}
+G[#G+1]={town="louisville_3",id="9",x=13392,y=2180,n=44}
+G[#G+1]={town="louisville_3",id="a",x=12430,y=3354,n=38}
+G[#G+1]={town="louisville_3",id="b",x=12270,y=2348,n=41}
+G[#G+1]={town="louisville_3",id="c",x=13046,y=3173,n=28}
+G[#G+1]={town="louisville_3",id="d",x=12311,y=2005,n=18}
+G[#G+1]={town="louisville_3",id="e",x=12274,y=1298,n=23}
+G[#G+1]={town="louisville_3",id="f",x=13254,y=2075,n=20}
+G[#G+1]={town="louisville_3",id="g",x=12668,y=3268,n=37}
+G[#G+1]={town="louisville_3",id="h",x=12981,y=3402,n=38}
+G[#G+1]={town="louisville_3",id="i",x=12687,y=3735,n=45}
+G[#G+1]={town="louisville_3",id="j",x=12163,y=2533,n=18}
+G[#G+1]={town="louisville_3",id="k",x=12635,y=2100,n=41}
+G[#G+1]={town="louisville_3",id="l",x=12757,y=3664,n=37}
+G[#G+1]={town="louisville_3",id="m",x=12424,y=1827,n=46}
+G[#G+1]={town="louisville_3",id="n",x=13684,y=3132,n=39}
+G[#G+1]={town="louisville_3",id="o",x=13029,y=3024,n=41}
+G[#G+1]={town="louisville_3",id="p",x=12793,y=2153,n=29}
+G[#G+1]={town="louisville_3",id="q",x=12661,y=2698,n=23}
+G[#G+1]={town="louisville_3",id="r",x=13572,y=3199,n=38}
+G[#G+1]={town="louisville_3",id="s",x=13046,y=3283,n=29}
+G[#G+1]={town="louisville_3",id="t",x=13309,y=3154,n=25}
+G[#G+1]={town="louisville_3",id="u",x=12262,y=2261,n=47}
+G[#G+1]={town="louisville_3",id="v",x=12800,y=1459,n=44}
+G[#G+1]={town="louisville_3",id="w",x=12710,y=3496,n=16}
+G[#G+1]={town="louisville_3",id="x",x=12626,y=2727,n=42}
+G[#G+1]={town="louisville_3",id="y",x=12235,y=2171,n=31}
+G[#G+1]={town="louisville_3",id="z",x=13251,y=1789,n=44}
+G[#G+1]={town="louisville_3",id="A",x=13458,y=3380,n=28}
+G[#G+1]={town="louisville_3",id="B",x=12773,y=2827,n=18}
+G[#G+1]={town="louisville_3",id="C",x=13467,y=2238,n=43}
+G[#G+1]={town="louisville_3",id="D",x=12800,y=1364,n=17}
+G[#G+1]={town="louisville_3",id="E",x=12265,y=1217,n=17}
+I.towns["irvington"] = { name = "Irvington", x0 = 1536, y0 = 13824, x1 = 3071, y1 = 14847, tw = 6, th = 4, chunks = 2183, key = 1917619463 }
+K[#K+1]={town="irvington",x=2254,y=14228,edge="W"}
+K[#K+1]={town="irvington",x=2517,y=14098,edge="N"}
+K[#K+1]={town="irvington",x=2901,y=14591,edge="N"}
 S["1565,14666"]={town="irvington",x=1565,y=14666,lx=1565,ly=14666,edge="N",street="Cornwell Road",made=true}
 S["1566,14839"]={town="irvington",x=1566,y=14839,lx=1566,ly=14839,edge="N",street="KY-79",made=true}
 S["1567,14592"]={town="irvington",x=1567,y=14592,lx=1567,ly=14592,edge="N",street="Straight Road",made=true}
@@ -1867,7 +1994,18 @@ V[#V+1]={town="irvington",x=2758,y=14098,bx=2766,by=14080,sx=2701,sy=14098}
 V[#V+1]={town="irvington",x=2686,y=14095,bx=2673,by=14080,sx=2701,sy=14098}
 V[#V+1]={town="irvington",x=2571,y=13838,bx=2566,by=13844,sx=2600,sy=13882}
 V[#V+1]={town="irvington",x=1713,y=14827,bx=1729,by=14837,sx=1724,sy=14839}
-I.towns["brandenburg_2"] = { name = "Brandenburg", x0 = 1280, y0 = 5632, x1 = 2303, y1 = 6655, tw = 4, th = 4, chunks = 1800 }
+G[#G+1]={town="irvington",id="1",x=2400,y=13900,n=21}
+G[#G+1]={town="irvington",id="2",x=1797,y=14773,n=30}
+G[#G+1]={town="irvington",id="3",x=2491,y=13985,n=17}
+G[#G+1]={town="irvington",id="4",x=2952,y=14453,n=21}
+G[#G+1]={town="irvington",id="5",x=1567,y=14818,n=20}
+G[#G+1]={town="irvington",id="6",x=2029,y=14401,n=16}
+G[#G+1]={town="irvington",id="7",x=2578,y=14072,n=26}
+I.towns["brandenburg_2"] = { name = "Brandenburg", x0 = 1280, y0 = 5632, x1 = 2303, y1 = 6655, tw = 4, th = 4, chunks = 1809, key = 1920095465 }
+K[#K+1]={town="brandenburg_2",x=1749,y=5926,edge="W"}
+K[#K+1]={town="brandenburg_2",x=1752,y=5881,edge="W"}
+K[#K+1]={town="brandenburg_2",x=2112,y=6262,edge="W"}
+K[#K+1]={town="brandenburg_2",x=2129,y=6070,edge="N"}
 S["1345,5773"]={town="brandenburg_2",x=1345,y=5773,lx=1345,ly=5774,edge="N",street="Battlefield Road",made=true}
 S["1471,5771"]={town="brandenburg_2",x=1471,y=5771,lx=1471,ly=5771,edge="N",street="Battlefield Road",made=true}
 S["1471,5856"]={town="brandenburg_2",x=1471,y=5856,lx=1471,ly=5856,edge="W",street="Court Road",made=true}
@@ -1944,6 +2082,8 @@ S["2155,6348"]={town="brandenburg_2",x=2155,y=6348,lx=2155,ly=6348,edge="W",stre
 S["2040,5873"]={town="brandenburg_2",x=2040,y=5873,lx=2040,ly=5873,edge="W",street="",hatch="kitchen",under={2040,5873,2040,5872,2040,5871,2040,5870}}
 S["2150,5968"]={town="brandenburg_2",x=2150,y=5968,lx=2150,ly=5968,edge="W",street="",hatch="kitchen",under={2150,5968,2150,5967,2150,5966,2150,5965}}
 S["2151,6008"]={town="brandenburg_2",x=2151,y=6008,lx=2151,ly=6008,edge="N",street="",hatch="kitchen",under={2151,6008,2150,6008,2149,6008,2148,6008,2147,6008}}
+S["1880,6495"]={town="brandenburg_2",x=1880,y=6495,lx=1880,ly=6495,edge="W",street="",made=true,outfall=true}
+S["1691,5635"]={town="brandenburg_2",x=1691,y=5635,lx=1691,ly=5635,edge="N",street="",made=true,outfall=true}
 H[#H+1]={town="brandenburg_2",kind="maintenance",x=1308,y=5774,w=7,h=6}
 H[#H+1]={town="brandenburg_2",kind="maintenance",x=2189,y=6179,w=5,h=4}
 H[#H+1]={town="brandenburg_2",kind="pump",x=2106,y=6261,w=6,h=4}
@@ -1965,7 +2105,14 @@ V[#V+1]={town="brandenburg_2",x=1708,y=6108,bx=1700,by=6128,sx=1659,sy=6127}
 V[#V+1]={town="brandenburg_2",x=1950,y=6017,bx=1966,by=6001,sx=1966,sy=6024}
 V[#V+1]={town="brandenburg_2",x=2164,y=6275,bx=2174,by=6284,sx=2196,sy=6327}
 V[#V+1]={town="brandenburg_2",x=2151,y=6334,bx=2148,by=6331,sx=2112,sy=6329}
-I.towns["march_ridge"] = { name = "March Ridge", x0 = 9728, y0 = 12544, x1 = 10495, y1 = 13311, tw = 3, th = 3, chunks = 883 }
+G[#G+1]={town="brandenburg_2",id="1",x=1924,y=6291,n=16}
+G[#G+1]={town="brandenburg_2",id="2",x=1606,y=5999,n=21}
+G[#G+1]={town="brandenburg_2",id="3",x=2236,y=6024,n=45}
+G[#G+1]={town="brandenburg_2",id="4",x=1726,y=5999,n=30}
+G[#G+1]={town="brandenburg_2",id="5",x=2276,y=5912,n=48}
+G[#G+1]={town="brandenburg_2",id="6",x=1928,y=6128,n=24}
+I.towns["march_ridge"] = { name = "March Ridge", x0 = 9728, y0 = 12544, x1 = 10495, y1 = 13311, tw = 3, th = 3, chunks = 883, key = 1945824644 }
+K[#K+1]={town="march_ridge",x=9993,y=12910,edge="W"}
 S["9803,12663"]={town="march_ridge",x=9803,y=12663,lx=9803,ly=12663,edge="N",street="MacArthur St",made=true}
 S["9803,12761"]={town="march_ridge",x=9803,y=12761,lx=9803,ly=12761,edge="W",street="MacArthur St",made=true}
 S["9803,12896"]={town="march_ridge",x=9803,y=12896,lx=9803,ly=12896,edge="N",street="MacArthur St",made=true}
@@ -2013,6 +2160,8 @@ V[#V+1]={town="march_ridge",x=9977,y=13136,bx=9959,by=13140,sx=9927,sy=13142}
 V[#V+1]={town="march_ridge",x=9935,y=12853,bx=9929,by=12855,sx=9927,sy=12896}
 V[#V+1]={town="march_ridge",x=9859,y=13092,bx=9863,by=13094,sx=9864,sy=13142}
 V[#V+1]={town="march_ridge",x=10162,y=12781,bx=10170,by=12798,sx=10171,sy=12834}
+G[#G+1]={town="march_ridge",id="1",x=9835,y=13072,n=45}
+G[#G+1]={town="march_ridge",id="2",x=9835,y=12977,n=36}
 I.towns["valley_station"] = { name = "Valley Station", x0 = 13568, y0 = 5376, x1 = 14335, y1 = 6143, tw = 3, th = 3, chunks = 197 }
 S["13576,5720"]={town="valley_station",x=13576,y=5720,lx=13576,ly=5721,edge="N",street="Bearcamp Road",made=true}
 S["13662,5720"]={town="valley_station",x=13662,y=5720,lx=13662,ly=5721,edge="N",street="Bearcamp Road",made=true}
@@ -2029,6 +2178,7 @@ S["13890,5474"]={town="valley_station",x=13890,y=5474,lx=13890,ly=5474,edge="N",
 H[#H+1]={town="valley_station",kind="squat",x=13708,y=5721,w=5,h=5}
 H[#H+1]={town="valley_station",kind="pump",x=13573,y=5714,w=8,h=4}
 V[#V+1]={town="valley_station",x=13726,y=5733,bx=13740,by=5720,sx=13751,sy=5718}
+G[#G+1]={town="valley_station",id="1",x=14176,y=5922,n=18}
 I.towns["riverside_2"] = { name = "Riverside", x0 = 5120, y0 = 5632, x1 = 5631, y1 = 6143, tw = 2, th = 2, chunks = 211 }
 S["5310,5986"]={town="riverside_2",x=5310,y=5986,lx=5310,ly=5986,edge="W",street="Scenic Grove Road",made=true}
 S["5342,6073"]={town="riverside_2",x=5342,y=6073,lx=5342,ly=6073,edge="N",street="Scenic Grove Road",made=true}
@@ -2046,7 +2196,9 @@ S["5394,6060"]={town="riverside_2",x=5394,y=6060,lx=5394,ly=6060,edge="N",street
 H[#H+1]={town="riverside_2",kind="laststand",x=5341,y=5948,w=5,h=5}
 H[#H+1]={town="riverside_2",kind="laststand",x=5460,y=5981,w=8,h=6}
 V[#V+1]={town="riverside_2",x=5454,y=6015,bx=5457,by=6034,sx=5459,sy=6060}
-I.towns["muldraugh_5"] = { name = "Muldraugh", x0 = 11520, y0 = 9728, x1 = 12031, y1 = 10239, tw = 2, th = 2, chunks = 155 }
+G[#G+1]={town="riverside_2",id="1",x=5310,y=5952,n=46}
+I.towns["muldraugh_5"] = { name = "Muldraugh", x0 = 11520, y0 = 9728, x1 = 12031, y1 = 10239, tw = 2, th = 2, chunks = 155, key = 1938629127 }
+K[#K+1]={town="muldraugh_5",x=11891,y=9967,edge="W"}
 S["11547,9864"]={town="muldraugh_5",x=11547,y=9864,lx=11547,ly=9864,edge="W",street="Haulage Road",made=true}
 S["11547,9936"]={town="muldraugh_5",x=11547,y=9936,lx=11547,ly=9936,edge="W",street="Haulage Road",made=true}
 S["11549,9747"]={town="muldraugh_5",x=11549,y=9747,lx=11549,ly=9747,edge="N",street="Haulage Road",made=true}
@@ -2062,7 +2214,9 @@ S["11906,9807"]={town="muldraugh_5",x=11906,y=9807,lx=11906,ly=9807,edge="N",str
 H[#H+1]={town="muldraugh_5",kind="pump",x=11891,y=9964,w=8,h=6}
 H[#H+1]={town="muldraugh_5",kind="maintenance",x=11891,y=9903,w=7,h=5}
 V[#V+1]={town="muldraugh_5",x=11535,y=10179,bx=11547,by=10173,sx=11549,sy=10107}
-I.towns["valley_station_2"] = { name = "Valley Station", x0 = 12544, y0 = 4096, x1 = 13055, y1 = 4863, tw = 2, th = 3, chunks = 167 }
+G[#G+1]={town="muldraugh_5",id="1",x=11927,y=9737,n=20}
+I.towns["valley_station_2"] = { name = "Valley Station", x0 = 12544, y0 = 4096, x1 = 13055, y1 = 4863, tw = 2, th = 3, chunks = 170, key = 1916045453 }
+K[#K+1]={town="valley_station_2",x=12902,y=4850,edge="W"}
 S["12555,4584"]={town="valley_station_2",x=12555,y=4584,lx=12556,ly=4584,edge="W",street="Oliver Road",made=true}
 S["12571,4456"]={town="valley_station_2",x=12571,y=4456,lx=12572,ly=4456,edge="W",street="Oliver Road",made=true}
 S["12599,4357"]={town="valley_station_2",x=12599,y=4357,lx=12599,ly=4357,edge="N",street="Station Road",made=true}
@@ -2072,10 +2226,11 @@ S["12830,4662"]={town="valley_station_2",x=12830,y=4662,lx=12830,ly=4662,edge="N
 S["12890,4738"]={town="valley_station_2",x=12890,y=4738,lx=12891,ly=4738,edge="W",street="Tinsley Road",made=true}
 S["12901,4846"]={town="valley_station_2",x=12901,y=4846,lx=12902,ly=4846,edge="W",street="Tinsley Road",made=true}
 S["12880,4782"]={town="valley_station_2",x=12880,y=4782,lx=12880,ly=4782,edge="N",street="",hatch="garagestorage",under={12880,4782,12881,4782,12882,4782,12883,4782}}
+S["12766,4334"]={town="valley_station_2",x=12766,y=4334,lx=12766,ly=4334,edge="N",street="",made=true,outfall=true}
 H[#H+1]={town="valley_station_2",kind="pump",x=12811,y=4647,w=5,h=6}
 H[#H+1]={town="valley_station_2",kind="maintenance",x=12902,y=4847,w=6,h=6}
 V[#V+1]={town="valley_station_2",x=12661,y=4343,bx=12664,by=4357,sx=12690,sy=4357}
-I.towns["louisville_4"] = { name = "Louisville", x0 = 15104, y0 = 2816, x1 = 15615, y1 = 3327, tw = 2, th = 2, chunks = 221 }
+I.towns["louisville_4"] = { name = "Louisville", x0 = 15104, y0 = 2816, x1 = 15615, y1 = 3327, tw = 2, th = 2, chunks = 225 }
 S["15324,3218"]={town="louisville_4",x=15324,y=3218,lx=15324,ly=3218,edge="N",street="Midfield Access Road",made=true}
 S["15324,3305"]={town="louisville_4",x=15324,y=3305,lx=15324,ly=3305,edge="N",street="Midfield Access Road",made=true}
 S["15368,3114"]={town="louisville_4",x=15368,y=3114,lx=15368,ly=3115,edge="N",street="Midfield Access Road",made=true}
@@ -2086,10 +2241,12 @@ S["15508,3324"]={town="louisville_4",x=15508,y=3324,lx=15508,ly=3324,edge="N",st
 S["15560,3114"]={town="louisville_4",x=15560,y=3114,lx=15560,ly=3115,edge="N",street="Midfield Access Road",made=true}
 S["15601,3188"]={town="louisville_4",x=15601,y=3188,lx=15602,ly=3188,edge="W",street="Terminal Dr",made=true}
 S["15601,3269"]={town="louisville_4",x=15601,y=3269,lx=15602,ly=3269,edge="W",street="Terminal Dr",made=true}
+S["15264,3323"]={town="louisville_4",x=15264,y=3323,lx=15264,ly=3323,edge="N",street="",made=true,outfall=true}
 H[#H+1]={town="louisville_4",kind="pump",x=15441,y=3169,w=7,h=5}
 H[#H+1]={town="louisville_4",kind="laststand",x=15362,y=3319,w=6,h=5}
 V[#V+1]={town="louisville_4",x=15349,y=3127,bx=15362,by=3114,sx=15368,sy=3114}
-I.towns["echo_creek"] = { name = "Echo Creek", x0 = 1792, y0 = 10496, x1 = 2047, y1 = 11007, tw = 1, th = 2, chunks = 131 }
+G[#G+1]={town="louisville_4",id="1",x=15289,y=3323,n=25}
+I.towns["echo_creek"] = { name = "Echo Creek", x0 = 1792, y0 = 10496, x1 = 2047, y1 = 11007, tw = 1, th = 2, chunks = 132 }
 S["1849,10853"]={town="echo_creek",x=1849,y=10853,lx=1849,ly=10854,edge="N",street="Smith Road",made=true}
 S["1907,10779"]={town="echo_creek",x=1907,y=10779,lx=1907,ly=10780,edge="N",street="Steelworks Road",made=true}
 S["1926,10853"]={town="echo_creek",x=1926,y=10853,lx=1926,ly=10854,edge="N",street="Smith Road",made=true}
@@ -2098,8 +2255,10 @@ S["2007,10776"]={town="echo_creek",x=2007,y=10776,lx=2007,ly=10776,edge="N",stre
 S["2022,10851"]={town="echo_creek",x=2022,y=10851,lx=2022,ly=10851,edge="N",street="Smith Road",made=true}
 S["2031,10992"]={town="echo_creek",x=2031,y=10992,lx=2031,ly=10992,edge="N",street="Lakehook Road",made=true}
 S["1921,10965"]={town="echo_creek",x=1921,y=10965,lx=1921,ly=10965,edge="N",street="",hatch="shed",under={1921,10965,1921,10966,1921,10967}}
+S["2022,10863"]={town="echo_creek",x=2022,y=10863,lx=2022,ly=10863,edge="W",street="",made=true,outfall=true}
 H[#H+1]={town="echo_creek",kind="maintenance",x=1910,y=10780,w=5,h=6}
 V[#V+1]={town="echo_creek",x=1909,y=10938,bx=1894,by=10942,sx=1948,sy=10972}
+G[#G+1]={town="echo_creek",id="1",x=1889,y=10967,n=40}
 I.towns["brandenburg_3"] = { name = "Brandenburg", x0 = 3584, y0 = 6144, x1 = 4095, y1 = 6655, tw = 2, th = 2, chunks = 116 }
 S["3752,6235"]={town="brandenburg_3",x=3752,y=6235,lx=3752,ly=6235,edge="W",street="KY-60",made=true}
 S["3752,6338"]={town="brandenburg_3",x=3752,y=6338,lx=3752,ly=6338,edge="W",street="KY-60",made=true}
@@ -2126,6 +2285,7 @@ S["5813,6639"]={town="riverside_3",x=5813,y=6639,lx=5813,ly=6639,edge="N",street
 S["5884,6638"]={town="riverside_3",x=5884,y=6638,lx=5884,ly=6638,edge="N",street="West Maple St",made=true}
 H[#H+1]={town="riverside_3",kind="squat",x=5679,y=6512,w=7,h=6}
 V[#V+1]={town="riverside_3",x=5833,y=6562,bx=5815,by=6556,sx=5813,sy=6639}
+G[#G+1]={town="riverside_3",id="1",x=5852,y=6638,n=42}
 I.towns["muldraugh_6"] = { name = "Muldraugh", x0 = 9728, y0 = 10752, x1 = 10239, y1 = 11007, tw = 2, th = 1, chunks = 92 }
 S["9959,10799"]={town="muldraugh_6",x=9959,y=10799,lx=9960,ly=10799,edge="W",street="Inferno Road",made=true}
 S["10013,10879"]={town="muldraugh_6",x=10013,y=10879,lx=10013,ly=10880,edge="N",street="Inferno Road",made=true}

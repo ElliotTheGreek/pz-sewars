@@ -143,6 +143,13 @@ def main():
           "the steel doors face the way the config says")
     check("DoorWallN" in tiles["location_sewer_01_19"] and "DoorWallW" in tiles["location_sewer_01_18"],
           "the door frames are door frames")
+    # The locked grilles (DESIGN.md 7, Locked gates): vanilla's cell doors, bars, each facing
+    # its edge, and never hoppable (ToggleDoorActual unlocks a hoppable door).
+    gate = re.search(r'\bgate\s*=\s*\{ N = "([^"]+)", W = "([^"]+)" \}', config)
+    gn, gw = (tiles.get(gate.group(1), {}), tiles.get(gate.group(2), {})) if gate else ({}, {})
+    check(gate and "doorN" in gn and "doorW" in gw and gn.get("Material2") == gw.get("Material2") == "MetalBars"
+          and "Hoppable" not in gn and "Hoppable" not in gw,
+          "the gates are barred doors facing the way the config says (%s)" % (gate.groups() if gate else None,))
 
     # Items.
     items = json.load(open(os.path.join(CAT, "items.json")))
@@ -173,6 +180,9 @@ def main():
     check(len(named) >= 2 and named <= set(ours), "every mod item in the config is declared (%s)" % sorted(named - set(ours)))
     names_json = json.load(open(os.path.join(LUA, "shared", "Translate", "EN", "ItemName.json"), encoding="utf-8"))
     tips_json = json.load(open(os.path.join(LUA, "shared", "Translate", "EN", "Tooltip.json"), encoding="utf-8"))
+    key = ours.get(re.search(r'C\.KeyItem\s*=\s*"([^"]+)"', config).group(1), "")
+    check("ItemType = base:key" in key and "base:buildingkey" not in key,
+          "the maintenance key is a key (haveThisKeyId counts it) and not a building key (loot would re-key it)")
     for full, body in sorted(ours.items()):
         icon = re.search(r"Icon\s*=\s*(\w+)", body)
         tip = re.search(r"Tooltip\s*=\s*(\w+)", body)
@@ -232,6 +242,8 @@ def main():
     used = set()
     for s in src.values():
         used |= set(re.findall(r'play(?:Sound|SoundLocal)\("(\w+)"\)', s))
+        # Picked by who is coughing: `playSound(female and "VoiceFemaleCough" or ...)`.
+        used |= set(re.findall(r'"(Voice\w+)"', s))
         used |= set(re.findall(r'"(SEW_\w+)"', s)) & (declared | {"SEW_Lid", "SEW_Ladder", "SEW_Drip", "SEW_Groan"})
     used |= set(re.findall(r'"([A-Z]\w+)"', re.search(r"C\.Ambience\s*=\s*\{([^}]*)\}", config).group(1)))
     unknown = sorted(u for u in used if u not in declared and u not in vanilla_sounds)
@@ -268,6 +280,12 @@ def main():
           % (len(texts), len(kinds)))
     for t in texts:
         used |= {"IGUI_SEW_J_%s_Title" % t, "IGUI_SEW_J_%s_Body" % t}
+    # The dev build's menu: "ContextMenu_SEW_Dev_" .. each stop it lists.
+    client = src[os.path.join(LUA, "client", "SEW", "SEW_Client.lua")]
+    stops = re.search(r'for _, what in ipairs\(\{([^}]*)\}\) do\s*sub:addOption', client)
+    check(stops is not None, "the dev menu's stops read from SEW_Client")
+    if stops:
+        used |= {"ContextMenu_SEW_Dev_%s" % w for w in re.findall(r'"(\w+)"', stops.group(1))}
     used |= {"IGUI_SEW_Shelter_%s" % k for k in kinds}
     gen = open(os.path.join(ROOT, "tools", "gen_sewers.py"), encoding="utf-8").read()
     variants = dict(re.findall(r'"(\w+)": (\d+)', re.search(r"JOURNAL_VARIANTS = \{([^}]*)\}", gen).group(1)))

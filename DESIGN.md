@@ -67,14 +67,10 @@ The three facts it rests on (DEV_GUIDE, *Below ground is real*):
   rooms or buildings there are. That rule is what vanilla's basements use,
   and it keys on the player's z alone.
 
-What only the game can settle, and the first thing to look at (DEV_GUIDE,
-*Current state*): lighting of runtime squares below ground, zombie pathing on
-them, and a save and reload.
-
-The fallback, kept in case the game disagrees: the trekship's way -- the
-tunnels in a mapped black void region, each cover a long move to its copy.
-Everything above the builder would carry over; the builder would take an
-offset.
+What only the game could settle, and has since (0.2 to 0.5): runtime squares
+below ground are lit, zombies path on them, and they survive a save and
+reload. The fallback (the trekship's way: tunnels in a mapped black void
+region, each cover a long move to its copy) was never needed.
 
 ## 4. Laying the tunnels out from the streets
 
@@ -163,8 +159,36 @@ server builds from the Lua. Nothing in the game reads a map file.
     names its squares, where its rodents sleep, and the hatch and cover
     nearest it by walking the tunnels.
 
+15. **Storm-drain outfalls** (0.5), after the nest, from their own
+    generator (`dig_outfalls`): culverts from plain walkway out to the bank
+    of a creek, the river or a lake -- dry natural ground beside a body of
+    water of 300 squares or more (a pool is smaller), clear of buildings and
+    the map's own underground -- 8 to 80 squares, never under water or
+    beside other space, meeting the tunnel end-on. Shortest first, one per
+    body of water before a second, 120 apart, up to 4 a town: 16 under 10
+    towns. Each ends in a shaft whose top is a grate of ours in the bank,
+    `made` like a cover of ours (the server sets it in as a player comes
+    near). New squares only.
+
+16. **Locked gates** (0.5, `gate_shelters`): in a town with two or more
+    county rooms (maintenance rooms and pump stations), half of them sit
+    behind a locked grille -- the door edge is `j` instead of `d`, nothing
+    else changes. One key per town (`gate_key`: an id above anything vanilla
+    hands out), left in the first crate of every **unlocked** county room
+    (`key_spots`), so a town with one county room has no gate. 47 gates in
+    13 towns.
+
+17. **Sewer gas** (0.5, `vent_gas`), last of all: stretches of 1-wide culvert
+    (in no 2x2 block of walkway), 16-48 squares, 60 apart, one per twelve
+    shafts, never within 10 of any ladder (the outfalls' included), off
+    every shelter, cave, hatch culvert and the nest. It adds no square: it
+    lists gas squares (`g`) and a placard at each way in (`p`, on a wall of
+    ours by the way in) in the town's data, and each stretch in the index.
+    97 stretches in 17 towns.
+
 `design/art/plans/<town>.png` is each town's plan over its streets (caves in
-ochre, breaches pink, hatches cyan); look at it after any change. `tools/render_sewer.py` draws a stretch with the real tiles.
+ochre, breaches pink, hatches cyan, gas yellow-green, water blue, outfalls
+white); look at it after any change. `tools/render_sewer.py` draws a stretch with the real tiles.
 
 ## 5. Building a stretch
 
@@ -237,6 +261,56 @@ Random, found, and the reason to explore.
 - **Some are claimed**: a zombie survivor in a sleeping bag, or a note saying
   where they went.
 
+### Locked gates and the county's key (0.5)
+
+- **Half the county's rooms are locked** (section 4, 16) behind vanilla's
+  barred cell door: you can see the crates, and it will not open.
+- **One key per town**, the *Sewer Maintenance Key* named for it, in the
+  crates of the county rooms that are not locked, and on some of the dead in
+  sanitation overalls (who also carry the town's plans). It works from the
+  hands or a key ring, as every key in the game does -- not from a bag.
+- **A latch, with a handle on the inside.** The server locks a shut grille
+  again once its room is empty, so the dead never follow a key-holder in;
+  while anybody is in the room it stays unlocked, so nobody is ever shut in
+  (DEV_GUIDE, *A locked gate is a key id and a lock set before it is sent*).
+- **New rooms only**: the grille goes in on a room's first build, and the key
+  with the room's first stocking. A room a save has already built keeps its
+  steel door; nothing a player may have made theirs is taken away.
+- A sledgehammer still takes one down. (**Open**: set pieces behind gates, as
+  they land.)
+
+## 7b. Sewer gas (0.5)
+
+- **Where**: some narrow culverts well away from the ladders (section 4,
+  17), with a yellow-green haze on the floor and the county's placard --
+  *DANGER / SEWER GAS / MASK REQUIRED* -- at every way in.
+- **What**: each game minute in it without a gas mask or respirator adds
+  poison up to the sandbox's cap; the engine turns poison into sickness and,
+  past 10, lost health, and lets it wear off once you are out. A mask with
+  a filter keeps it out and uses the filter up.
+- **Sandbox, Sewer gas**: Off / Mild (queasy at worst) / Harmful / Deadly --
+  a dose of poison a game minute and a cap, `C.Gas`: 1 up to 10 (poison
+  under 10 costs no health), 2 up to 20 (the worst drink of tainted water,
+  held), 4 up to 40. A first guess for the play-test to tune.
+- **Built once**: the haze and placards go down once per chunk (`s.gas`),
+  first build or not, so a save from before the gas gets them the next time
+  a player is near; a player who scrubs the haze away keeps it away. Not
+  while the sandbox has gas off.
+- **The map**: a stretch walked into, or on the sheet of a plan read, is
+  marked on the sewer map.
+
+## 7c. Storm-drain outfalls (0.5)
+
+- A grate in a riverbank or lakeshore near town (section 4, 15): a way in
+  nobody on the street sees, and a way out onto the bank, away from the
+  streets. Blue on the sewer map once used, and the map now shows the water
+  above faintly. (**Open**: flooding through them, section 10.)
+- To the code it is a cover of ours (`made`): the server sets the grate
+  (`sewars_01_47`, a floor decal) into the bank when a player up top first
+  comes near, and the climb is SEWClimb's, quicker than a lid and with no
+  scrape. A rescue may send a player to an outfall's ladder: it is a real
+  way out.
+
 ## 8. Art
 
 Vanilla's `location_sewer_01` is the base, because it matches the game and
@@ -259,22 +333,25 @@ pipeline.
 
 | # | What | Status |
 |---|---|---|
-| 0 | Can a runtime square exist at z -1, and is the street hidden from below | **settled from bytecode** (section 3); the game confirms lighting, pathing, saving |
-| 1 | *Climb down* / *Climb out* | **built**, tested single player and client-server |
-| 2 | The generator, every town | **built**: 16 towns, 442 shafts, plans rendered |
-| 3 | The server builds as players walk | **built**, sliced, current-revision tracked |
-| 4 | Zombies below | **built** (sandbox density and outfit mix, never on a player); falling in through open covers: not yet |
-| 5 | Shelters | **built**: 93, four kinds, stocked once |
-| 6 | Art | procedural pass **built** (36 tiles, wall variants); image-model pass next |
-| 7 | In game | **waiting on the author's first run** (DEV_GUIDE, *Current state*) |
+| 0 | Can a runtime square exist at z -1, and is the street hidden from below | **settled** from bytecode (section 3), and in play: lit, pathed, saved |
+| 1 | *Climb down* / *Climb out* | **done**, single player, hosted and dedicated |
+| 2 | The generator, every town | **done**: 31 towns, 442 shafts under the map's covers and 732 under ours |
+| 3 | The server builds as players walk | **done**, sliced, current-revision tracked |
+| 4 | Zombies below | **done** (sandbox density and outfit mix, never on a player); falling in through open covers: not yet |
+| 5 | Shelters | **done**: 239, four kinds, stocked once, a journal in each; 47 county rooms behind locked grilles |
+| 6 | The map, plans and journals | **done** (0.3) |
+| 7 | Caves, hatches, Louisville's covers, rats, the nest | **done** (0.4, 0.5) |
+| 8 | Art | procedural pass **done** (48 tiles); image-model pass next |
+| 9 | Danger and reward: gas, gates, outfalls | **built** and tested offline; waiting on the author's play-test |
 
 ## 10. Open decisions for the author
 
-- **Section 3**: A or B, after spike 0.
 - **Covers**: once opened, do they stay open? Can they be closed from below?
   Can a player weld or weigh one shut?
 - **Storm drains**: too small to use, or a crawl-in for later?
 - **Flooding**: does rain raise the water in the channels?
 - **Depth**: one level of tunnels, or a deeper storm-relief level under the
   trunks?
-- **Sandbox**: zombie density, their outfits and shelter supplies are options (0.3.2); shelter frequency and whether covers need a tool are not.
+- **The ROUS**: should they ever come back?
+- **Sandbox**: zombie density, their outfits, shelter supplies and rats are
+  options; shelter frequency and whether covers need a tool are not.

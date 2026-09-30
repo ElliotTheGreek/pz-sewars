@@ -10,6 +10,7 @@
                  n the rats' nest and its run (dug earth)  v the rats' hoard
                  . none
         walls    c concrete  b brick  d a door frame with its steel door
+                 j a door frame with a locked grille (a county room: DESIGN.md 7, Locked gates)
                  e earth  o breach through concrete  q breach through brick
                  x y the false wall into the nest (concrete, brick): a wall
                  until it is pulled away, then a breach
@@ -81,6 +82,9 @@ function B.state()
     s.lair = s.lair or {}
     s.lair.open = s.lair.open or {}
     s.lair.rous = s.lair.rous or {}
+    -- Chunks whose sewer gas has its haze and placards (SEW_Gas.dress): once,
+    -- first build or not, so gas reaches chunks built before there was any.
+    s.gas = s.gas or {}
     return s
 end
 
@@ -148,14 +152,35 @@ local function hasDoor(sq, north)
     return false
 end
 
---- A steel door on the square's north (or west) edge. **Found by class and
---- edge, never by sprite**: an open door wears a different picture
---- (pz_trekship DEV_GUIDE, "Never find a door by its sprite").
-local function putDoor(sq, north)
+--- A steel door on the square's north (or west) edge -- or, given a key id,
+--- a county room's locked grille. **Found by class and edge, never by
+--- sprite**: an open door wears a different picture (pz_trekship DEV_GUIDE,
+--- "Never find a door by its sprite").
+---
+--- The grille (DEV_GUIDE, *A locked gate is a key id and a lock set before
+--- it is sent*) is vanilla's cell door made from its sprite (the IsoSprite
+--- overload: 2000 health, as vanilla's own test builds one), keyed to its
+--- town and locked by key -- before it is sent: transmitCompleteItemToClients
+--- carries the key id and the locks, and a later sync() would not carry the
+--- key id. Not CustomLock: that asks everybody for the key, from inside too,
+--- and would shut in a player without one (SEW_Keys.latch is the handle on
+--- the inside).
+local function putDoor(sq, north, key)
     if hasDoor(sq, north) then return false end
-    local sprite = north and C.Sprites.door.N or C.Sprites.door.W
-    local door = U.try("IsoDoor.new", function() return IsoDoor.new(getCell(), sq, sprite, north) end)
-    if not door then return false end
+    local door
+    if key then
+        local sprite = north and C.Sprites.gate.N or C.Sprites.gate.W
+        door = U.try("IsoDoor.gate", function() return IsoDoor.new(getCell(), sq, getSprite(sprite), north) end)
+        if not door then return false end
+        U.try("gate.lock", function()
+            door:setKeyId(key)
+            door:setLockedByKey(true)
+        end)
+    else
+        local sprite = north and C.Sprites.door.N or C.Sprites.door.W
+        door = U.try("IsoDoor.new", function() return IsoDoor.new(getCell(), sq, sprite, north) end)
+        if not door then return false end
+    end
     tag(door)
     return U.try("AddSpecialObject", function()
         sq:AddSpecialObject(door)
@@ -204,6 +229,14 @@ local GATE = { x = { which = "wall", shut = "c", open = "o" },
                y = { which = "wall", shut = "b", open = "q" },
                z = { which = "gate", shut = "b", open = "q" } }
 B.GATE = GATE
+
+--- The id of the maintenance key of the town whose tunnel x, y is in, or nil
+--- (a town with no locked gates has none).
+function B.townKey(x, y)
+    local tid = B.townOf(math.floor(x / 8) .. "," .. math.floor(y / 8))
+    local t = tid and SEW.Index and SEW.Index.towns[tid]
+    return t and t.key or nil
+end
 
 --- True when the nest's "wall" or "gate" has been opened in this save.
 function B.gateOpen(which)
@@ -259,8 +292,8 @@ end
 function B.unwall(sq, walls, n, w, fix)
     local want = {}
     for _, v in ipairs(walls) do want[v] = true end
-    if n == "d" then want[C.Sprites.doorFrame.N] = true end
-    if w == "d" then want[C.Sprites.doorFrame.W] = true end
+    if n == "d" or n == "j" then want[C.Sprites.doorFrame.N] = true end
+    if w == "d" or w == "j" then want[C.Sprites.doorFrame.W] = true end
     if BREACH[n] then want[C.Sprites.breach[n].N], want[C.Sprites.doorFrame.N] = true, true end
     if BREACH[w] then want[C.Sprites.breach[w].W], want[C.Sprites.doorFrame.W] = true, true end
     if n == "e" then want[C.Sprites.earthFace.N] = true end
@@ -298,7 +331,8 @@ local function overlayEdge(name)
     if not overlayEdges then
         overlayEdges = {}
         local Sp = C.Sprites
-        local sets = { Sp.earthFace, Sp.ladder, Sp.exit, Sp.safe, Sp.grime, Sp.cracks, Sp.claws, Sp.rousWarning }
+        local sets = { Sp.earthFace, Sp.ladder, Sp.exit, Sp.safe, Sp.grime, Sp.cracks, Sp.claws, Sp.rousWarning,
+                       Sp.gasSign }
         for _, set in pairs(Sp.breach) do sets[#sets + 1] = set end
         for _, set in pairs(Sp.graffiti) do sets[#sets + 1] = set end
         for _, set in ipairs(sets) do
@@ -459,16 +493,16 @@ function B.square(x, y, rec, first, caves)
 
     -- Walls. A door frame stands in for the wall on its edge.
     local nw, ww = n, w
-    if n == "d" or BREACH[n] then nw = "." end
-    if w == "d" or BREACH[w] then ww = "." end
+    if n == "d" or n == "j" or BREACH[n] then nw = "." end
+    if w == "d" or w == "j" or BREACH[w] then ww = "." end
     local walls = wallSprites(nw ~= "." and nw or nil, ww ~= "." and ww or nil, x, y)
     -- A revised layout can open an edge an older one walled (0.3 joined streets
     -- that used to stop short of the trunk). A revision pass takes away our own
     -- wall pieces the record no longer asks for -- only ours, never a player's.
     if not first then B.unwall(sq, walls, n, w, fix) end
     for _, spr in ipairs(walls) do put(sq, spr) end
-    if n == "d" then put(sq, C.Sprites.doorFrame.N) end
-    if w == "d" then put(sq, C.Sprites.doorFrame.W) end
+    if n == "d" or n == "j" then put(sq, C.Sprites.doorFrame.N) end
+    if w == "d" or w == "j" then put(sq, C.Sprites.doorFrame.W) end
     -- Ours on vanilla's: hung on the wall or frame, so it is drawn, cut and
     -- saved with it ("Pictures on walls" above).
     if BREACH[n] then put(sq, C.Sprites.doorFrame.N) end
@@ -481,6 +515,13 @@ function B.square(x, y, rec, first, caves)
     if first then
         if n == "d" then putDoor(sq, true) end
         if w == "d" then putDoor(sq, false) end
+        if n == "j" or w == "j" then
+            local key = B.townKey(x, y)
+            if not key then
+                U.warnOnce("gateKey:" .. x .. "," .. y, "a locked gate at %d,%d with no town key", x, y)
+            elseif n == "j" then putDoor(sq, true, key)
+            else putDoor(sq, false, key) end
+        end
     end
 
     if fix == "L" then hang(sq, C.Sprites.ladder.N)
@@ -619,10 +660,10 @@ function B.hatch(shaft)
     return "open"
 end
 
---- A cover of ours (ROADMAP 0.4: the towns the map gives few). Put into the
---- road the first time its square is loaded with a floor there; recorded, so
---- a player who lifts it away is not given another. Returns "placed", or nil
---- when it cannot tell yet.
+--- A cover of ours (ROADMAP 0.4: the towns the map gives few), or an
+--- outfall's grate in a riverbank (DESIGN.md 7c). Put in the first time its
+--- square is loaded with a floor there; recorded, so a player who lifts it
+--- away is not given another. Returns "placed", or nil when it cannot tell yet.
 function B.cover(shaft)
     if not shaft or not shaft.made then return nil end
     local s = B.state()
@@ -631,7 +672,8 @@ function B.cover(shaft)
     if not U.chunkLoaded(shaft.x, shaft.y) then return nil end
     local top = U.square(shaft.x, shaft.y, 0, false)
     if not top or not U.floorOf(top) then return nil end
-    if not U.findSprite(top, C.Sprites.cover) and not put(top, C.Sprites.cover) then return nil end
+    local sprite = shaft.outfall and C.Sprites.outfall or C.Sprites.cover
+    if not U.findSprite(top, sprite) and not put(top, sprite) then return nil end
     s.covers[key] = "placed"
     U.debug("cover at %d,%d (%s) placed", shaft.x, shaft.y, shaft.town)
     return "placed"
@@ -695,6 +737,11 @@ function B.chunk(key)
             end
         end
         for _, z in ipairs(T.claimed[key] or {}) do B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2])) end
+        -- The town's maintenance key, in the unlocked county rooms' crates
+        -- (DESIGN.md 7, Locked gates): once, with the rest of the stocking.
+        if SEW.Keys then
+            for _, k in ipairs(T.keys and T.keys[key] or {}) do U.try("key", SEW.Keys.stock, k[1], k[2], tid) end
+        end
         -- And the rats, vanilla's own, on the walkway (SEW_Nest).
         if SEW.Nest then U.try("rats", SEW.Nest.rats, open, cx, cy) end
         s.first[key] = B.rev()
@@ -707,6 +754,13 @@ function B.chunk(key)
         -- The rodents of unusual size, where the nest is in this chunk.
         if nest > 0 and SEW.Nest then U.try("rous", SEW.Nest.lairChunk, key) end
         s.caves[key] = B.rev()
+    end
+    -- Sewer gas: the haze on its floor and the placards at its ways in, once
+    -- (SEW_Gas). Not while the sandbox has it off: a server that turns it on
+    -- later gets them then.
+    if s.gas[key] == nil and SEW.Gas and SEW.Gas.strength() > 1 and SEW.Gas.inChunk(key) then
+        U.try("gas", SEW.Gas.dress, key)
+        s.gas[key] = B.rev()
     end
     s.built[key] = B.rev()
     U.debug("built chunk %s (%s): %d squares%s", key, tid, built, first and ", first" or "")

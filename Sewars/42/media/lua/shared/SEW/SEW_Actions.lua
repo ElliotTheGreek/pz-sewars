@@ -44,7 +44,9 @@ function SEWClimb:new(character, x, y, mode)
     local ticks = C.ClimbTicks
     local shaft = S.shaftAt(x, y)
     o.hatch = shaft ~= nil and shaft.hatch ~= nil
-    if mode == "down" and o.hatch then
+    -- An outfall's grate lifts like a trapdoor: no iron lid to prise up.
+    o.outfall = shaft ~= nil and shaft.outfall == true
+    if mode == "down" and (o.hatch or o.outfall) then
         ticks = C.HatchTicks
     elseif mode == "down" then
         ticks = S.hasLiftTool(character) and C.LiftTicksCrowbar or C.LiftTicks
@@ -78,7 +80,8 @@ function SEWClimb:start()
     if not isServer() then
         self.sound = U.try("sound", function()
             -- A trapdoor has no iron lid to scrape.
-            return self.character:playSound((self.mode == "down" and not self.hatch) and "SEW_Lid" or "SEW_Ladder")
+            return self.character:playSound((self.mode == "down" and not self.hatch and not self.outfall)
+                                            and "SEW_Lid" or "SEW_Ladder")
         end)
     end
 end

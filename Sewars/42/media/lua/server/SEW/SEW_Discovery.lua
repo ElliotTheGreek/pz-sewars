@@ -7,6 +7,8 @@
         s  shelters entered (index in SEW.Index.shelters)
         l  ladders used ("x,y" of the cover)
         m  marks given by journals and plans (id -> { x, y, kind })
+        g  stretches of sewer gas walked into, or read of on a plan (index
+           in SEW.Index.gas)
 
     It is server mod data (C.SeenKey) and **never transmitted whole**: it grows
     with every chunk anybody walks (DEV_GUIDE, "State that is transmitted whole
@@ -45,9 +47,10 @@ function D.record(p)
     local name = D.nameOf(p)
     local r = all[name]
     if not r then
-        r = { c = {}, s = {}, l = {}, m = {} }
+        r = { c = {}, s = {}, l = {}, m = {}, g = {} }
         all[name] = r
     end
+    r.g = r.g or {}
     return r
 end
 
@@ -107,6 +110,15 @@ function D.reveal(p, town, x0, y0, x1, y1)
     return #new
 end
 
+--- A stretch of sewer gas on the player's map (index in SEW.Index.gas).
+function D.gas(p, i)
+    local r = D.record(p)
+    if not i or r.g[i] then return false end
+    r.g[i] = 1
+    tell(p, "g", i)
+    return true
+end
+
 --- A mark on the player's map, from a journal: id is stable per journal.
 function D.mark(p, id, x, y, kind)
     local r = D.record(p)
@@ -118,11 +130,12 @@ end
 
 Net.onServer("mapState", function(p)
     local r = D.record(p)
-    local c, s, l = {}, {}, {}
+    local c, s, l, g = {}, {}, {}, {}
     for k in pairs(r.c) do c[#c + 1] = k end
     for k in pairs(r.s) do s[#s + 1] = k end
     for k in pairs(r.l) do l[#l + 1] = k end
-    Net.toClient(p, "mapState", { c = c, s = s, l = l, m = r.m })
+    for k in pairs(r.g) do g[#g + 1] = k end
+    Net.toClient(p, "mapState", { c = c, s = s, l = l, m = r.m, g = g })
 end)
 
 return D

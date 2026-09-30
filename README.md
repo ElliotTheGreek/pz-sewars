@@ -3,9 +3,9 @@
 A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
 > Status: **0.5.0**: caves, houses with a way down, Louisville, rats and the
-> nest. Every static and
-> simulated test passes; the in-game checklist is in `DEV_GUIDE.md`,
-> *Current state*.
+> nest, play-tested. Next, built and passing every static and simulated test,
+> waiting on its play-test: sewer gas, locked gates and storm-drain outfalls
+> (the checklist is in `DEV_GUIDE.md`, *Current state*).
 
 ## What a player gets
 
@@ -47,19 +47,53 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 - **Random shelters.** Somewhere along the tunnels, other survivors dug out a
   refuge before you: a maintenance room, a pump station, a squat behind a
   bricked-up junction. Some are stocked. Some still have their builders.
+- **Locked gates.** Half the county's maintenance rooms and pump stations sit
+  behind barred grilles. Each town has one key, the *Sewer Maintenance Key*,
+  in the rooms that are not locked, and on some of the dead in sanitation
+  overalls. Keep it in your hands or on a key ring. The grille latches behind
+  you once the room is empty; it never shuts anybody in.
+- **Sewer gas.** Some narrow culverts, well away from the ladders, hold foul
+  air: a yellow-green haze on the floor and the county's warning placards at
+  every way in. Without a gas mask or respirator it makes you sick, and it
+  costs health if you stay; with one, it uses up your filter.
+- **Storm-drain outfalls.** Down on the banks of the river, the creeks and the
+  lakes, an iron grate in the ground: a way into the sewers nobody on the
+  street sees, and a way out of town the dead will not be waiting at.
 
 ## Sandbox options
 
 - **The dead in the sewers**: none, few, some or many.
 - **Shelter supplies**: what a shelter's or hideout's crates and shelves hold
-  when found -- none, scarce, normal or plenty. Journals and plans are always
+  when found: none, scarce, normal or plenty. Journals and plans are always
   there.
 - **Rats in the sewers**: none, few, some or swarming.
 - **Who the dead were**: mostly ordinary people (sewer workers, drifters,
   townsfolk; hardly any with a bag), mixed, or survivors who came down with a
   full pack.
+- **Sewer gas**: off, mild (queasy at worst), harmful or deadly.
 
 Each applies to tunnels and shelters not yet found.
+
+## Can I add it to an existing save or server?
+
+Yes. Nothing is built ahead of time: the sewers are built a stretch at a time
+as players come near, so a world that never had the mod simply fills in as
+people explore it. The way in is the manhole covers the map already has; the
+mod's own covers, the house hatches and the storm-drain grates are put in the
+first time a player comes near. Shelters, loot, the dead and the rats go in
+when a stretch is first opened up, so an old world gets the same as a new one.
+Anything already underground that is not the mod's (a basement, another
+mod's build) is left alone.
+
+- On a server: add the mod and its Workshop ID (3810188405) to the server's
+  config and restart. Every player needs the mod.
+- A save that never had the mod uses the default sandbox settings for it; an
+  admin can change them in the server's sandbox settings.
+- In a house someone already lives in, a hatch's trapdoor can turn up under
+  their furniture, and a cover the mod adds can turn up under something built
+  on the road. Both are only pictures on the floor.
+- Taking the mod out of a save is the risky direction: what it built below
+  ground loses its pictures. Be up on the street before you remove it.
 
 ## Requirements
 
@@ -69,9 +103,10 @@ servers.
 ## In numbers
 
 31 towns, 1,174 manholes that open (732 of them covers the mod adds where the
-map has few, Louisville above all), 239 shelters, 152 caves, 189 houses with a
-way down, 475,972 walkable squares of tunnel, one nest, laid out from the game's own
-street map.
+map has few, Louisville above all), 16 storm-drain outfalls, 239 shelters (47
+behind locked gates), 152 caves, 189 houses with a way down, 97 stretches of
+sewer gas, 476,399 walkable squares of tunnel, one nest, laid out from the
+game's own street map.
 
 ## For developers
 

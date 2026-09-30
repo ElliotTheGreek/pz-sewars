@@ -7,5 +7,13 @@
     "ContextMenu_SEW_HatchDown": "Climb down through the hatch",
     "ContextMenu_SEW_HatchUp": "Climb up through the hatch",
     "ContextMenu_SEW_PryWall": "Pull at the loose bricks",
-    "ContextMenu_SEW_PryGate": "Tear through the gnawed wall"
+    "ContextMenu_SEW_PryGate": "Tear through the gnawed wall",
+    "ContextMenu_SEW_OutfallDown": "Climb into the storm drain",
+    "ContextMenu_SEW_OutfallUp": "Climb out onto the bank",
+    "ContextMenu_SEW_Dev": "Sewars (dev)",
+    "ContextMenu_SEW_Dev_outfall": "Go to the outfall",
+    "ContextMenu_SEW_Dev_gas": "Go into sewer gas (next)",
+    "ContextMenu_SEW_Dev_poison": "How poisoned am I?",
+    "ContextMenu_SEW_Dev_gate": "Go to a locked gate (next)",
+    "ContextMenu_SEW_Dev_key": "Give me this town's key"
 }

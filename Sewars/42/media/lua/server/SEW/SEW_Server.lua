@@ -32,6 +32,8 @@ require "SEW/SEW_Build"
 require "SEW/SEW_Discovery"
 require "SEW/SEW_Story"
 require "SEW/SEW_Nest"
+require "SEW/SEW_Gas"
+require "SEW/SEW_Keys"
 
 SEW = SEW or {}
 local C = SEW.Config
@@ -75,7 +77,7 @@ function Server.grant(player, x, y, mode)
         U.log("%s climbs down at %d,%d (%s; %d chunks built, %d waiting)",
               nameOf(player), x, y, shaft.town, done, left)
         Net.toClient(player, "go", { x = x, y = y, z = C.Z, street = shaft.street or "", mode = "down",
-                                     hatch = shaft.hatch ~= nil })
+                                     hatch = shaft.hatch ~= nil, outfall = shaft.outfall == true })
         return true
     elseif mode == "up" then
         if not S.below(player) then return refuse(player, "level") end
@@ -86,7 +88,7 @@ function Server.grant(player, x, y, mode)
         SEW.Discovery.ladder(player, x, y)
         U.log("%s climbs out at %d,%d (%s)", nameOf(player), x, y, shaft.town)
         Net.toClient(player, "go", { x = x, y = y, z = 0, street = shaft.street or "", mode = "up",
-                                     hatch = shaft.hatch ~= nil })
+                                     hatch = shaft.hatch ~= nil, outfall = shaft.outfall == true })
         return true
     end
     return refuse(player, "mode")
