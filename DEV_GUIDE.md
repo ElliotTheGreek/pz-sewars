@@ -57,6 +57,10 @@ media/lua/shared/SEW/SEW_Rats.lua          the ROUS: an animal definition of our
 media/lua/server/SEW/SEW_Nest.lua          rats on first build, the leash, the ROUS (spawn, chase, bite), the nest's walls that open
 media/lua/server/SEW/SEW_Gas.lua           sewer gas: the haze and placards, who is in it, the dose, the mask
 media/lua/server/SEW/SEW_Keys.lua          the county's maintenance keys: in its rooms, on its dead, the grilles' latch
+media/lua/server/SEW/SEW_Mine.lua          digging and blasting: the records a pick or a bomb changes, and the refusals
+media/lua/server/SEW/SEW_Maps.lua          annotated maps to the temple and the nest: made, and handed out four ways
+media/lua/shared/StashDescriptions/SewarsStashDesc.lua   what is drawn on them (vanilla's stash descriptions, no building)
+media/lua/client/SEW/SEW_MapSheets.lua     the sheet of the game's map each one shows (LootMaps.Init)
 media/lua/shared/SEW/SEW_Compat.lua        below ground is indoors: isOutside wrapped for every Lua caller, other mods included
 media/lua/shared/SEW/SEW_Index.lua         GENERATED: towns, shafts, shelters, caves, journals, plans, the nest -- small, every process
 media/lua/server/SEW/SEW_Build.lua         raising a chunk of tunnel: floors, walls, doors, ladders, dressing, shelters, the dead
@@ -66,19 +70,22 @@ media/lua/server/SEW/SEW_Story.lua         reading plans and journals: reveals a
 media/lua/server/SEW/Data/SEW_Town_*.lua   GENERATED: every town's squares, by chunk -- 5 MB, server only
 media/lua/client/SEW/SEW_Client.lua        the menus, the move, the vault switch, lamps, ambience, the dev build's start
 media/lua/client/SEW/SEW_Map.lua           the sewer map: panel, fog, markers, the K key
+media/lua/client/SEW/SEW_Street.lua        the street does not hear the sewer: a zombie overhead going to a player's noise below is stopped
 media/lua/client/SEW/SEW_StoryUI.lua       the Read menu on plans and journals, and the journal's page
 media/lua/shared/Translate/EN/*.json       ContextMenu, Tooltip, IG_UI, Sandbox, ItemName -- one file per category
-media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 48 tiles
+media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 72 tiles
 media/scripts/sewars_items.txt             our items: the sewer plan, the journal, the maintenance key
 media/scripts/sewars_sounds.txt, sound/SEW_*.wav   the sounds (wavs generated)
-media/sandbox-options.txt                  zombie density, their outfits, shelter supplies, rats, sewer gas
+media/sandbox-options.txt                  zombie density, their outfits, shelter supplies, rats, sewer gas, digging, the street's hearing
 
 tools/dev.py              THE ENTRY POINT: build, check, mutate, deploy, run, log, package
 tools/gen_sewers.py       the map -> the tunnels (Data/ and SEW_Index.lua), and plans in design/art/plans/
+tools/gen_temple.py       the temple and the passages the cult dug to it, run last by gen_sewers (DESIGN.md 7d)
 tools/layout_diff.py      what a save built from the old layout would see move: run before shipping a layout change
 tools/gen_sewer_art.py    our tiles: drawn, projected, packed; review sheet in design/art/
 tools/gen_sewer_sounds.py the four sounds, synthesised
 tools/render_sewer.py     a stretch of real tunnel drawn with the game's tiles -- look before you launch
+tools/worldmap.py         a piece of the game's own world map (M), from its data and colours, with a place marked
 tools/gen_poster.py       poster.png and the Workshop preview, cut from the ladder screenshot (a render without it)
 tools/gen_store_art.py    the Steam gallery images (workshop/store/) from design/art/screens/
 tools/package_workshop.py stage the Workshop upload (WORKSHOP_ID and VISIBILITY live here)
@@ -97,7 +104,8 @@ tests/test_layout.py      every generated town read back and walked from its lad
 tests/test_assets.py      every sprite, item, outfit, sound and text key against the game
 tests/mutate.py           breaks each guard on purpose; every one must be caught
 
-design/art/               raws, review sheets, renders, plans, screens/ (the author's screenshots) -- never deployed
+design/art/               raws (cult/: the image model's, for the temple), review sheets, renders, plans,
+                          screens/ (the author's screenshots) -- never deployed
 workshop/                 description.txt, preview.png, store/ (gallery images); workshop/Sewars is the staged package
 ```
 
@@ -158,6 +166,18 @@ Everything tunable is in `SEW_Config.lua`. Change it, `python tools/dev.py`.
    built in the old one, and nothing removes squares the new layout no longer
    uses. Write the old extent down and decide what happens to it before
    shipping (trekship: `C.LegacyCabin`).
+
+### Changing the temple
+
+Its plan is code, not a search: `ROOMS`, `DOORS`, `GATES` and `furnish()` at
+the top of `tools/gen_temple.py`, in the plan's own squares. Check a change
+without the three-minute run -- `plan()` and `furnish()` import and run in a
+second, and the generator's own checks (a picture with no wall behind it,
+furniture off its floor, one of the dead on furniture) are quick to repeat by
+hand -- then `python tools/gen_sewers.py --plans`, look at
+`design/art/plans/temple.png`, and `python tools/render_sewer.py temple
+11530 8562 14` for the hall. Moving a room is a layout change like any
+other: once it has shipped, diff it.
 
 ### Changing what the builder puts on a square
 
@@ -795,6 +815,305 @@ behind a wall bit through it; the bite now needs an open edge
 (`isBlockedTo`). Run `python tools/dev.py mutate` in full before every release,
 not only the new mutations.
 
+### Digging changes the records, not the objects
+
+**New in this mod (0.7).** The obvious way to dig is to take the wall object
+away and put a floor down. It lasts until the next revision: *a revision puts
+back floors, walls, ladders and door frames that are missing*, and a wall a
+player knocked through is a wall that is missing. So a dig is a change to
+the **record** (`B.setRecord`: the players' own, by chunk, in the server's
+state) and the builder is asked to build the square from it (`B.square`, as a
+revision would): it takes our wall away because the record no longer has
+one, turns a corner piece into the one wall that is left, stands earth where
+rock is newly exposed, and hangs its face. Every later pass reads the same
+record. Three things follow, each with a test:
+
+- a square the generator never had (two squares into the rock) exists only
+  in those records: `B.chunk` builds them after the generator's own;
+- a chunk no town has can be dug into: it has no generator records at all,
+  and `B.chunk` and `B.pending` take a chunk for the players' sake alone;
+- a wall is on the **southern or eastern** square of its edge, so digging
+  north or west changes the digger's own square, and digging south or east
+  changes the next one. `SEW_Mine` works by edge (`edge`, `setEdge`), never
+  by "the wall on this square".
+
+The state grows with the digging and is never transmitted (*State that is
+transmitted whole cannot hold a list that grows*).
+
+### The engine says when a bomb goes off, and does its damage after
+
+**New in this mod (0.7; the bytecode).**
+
+```
+IsoTrap.triggerExplosion()   0-8   triggerEvent("OnThrowableExplode", this, this.square)
+                             17-   the sound, the world noise, drawCircleExplosion (damage), fire, smoke
+                             203-  removed from the map (a server tells its clients)
+IsoTrap.triggerExplosion(z)        true: returns at once -- the client's half of a server's explosion
+ISPlaceTrap:complete               IsoTrap.new(character, weapon, cell, square); trap:place()
+```
+
+So Lua hears of it **first, inside the same call**, before the engine has
+hurt anybody. `SEW_Mine.onExplode` only writes the place down; the rock
+moves `C.Mine.blastDelay` ticks later, on a tick of its own (a mutation
+that blasts inside the event is caught). The event's own Lua has no vanilla
+caller; pz_trekship's PHOTON_TORPEDOS.md had already noted it as *the hook
+if a torpedo ever needs to notify something*. **Unread, and for the game to
+show**: what `drawCircleExplosion` does to an `IsoObject` wall of ours, and
+to what a player built beside it.
+
+### A stash map's building is rewritten when the map is read
+
+**New in this mod (0.6, annotated maps; from the bytecode).** The game's
+annotated maps are stash descriptions, and it would have been one line to
+add ours and let the engine hand them out. What the engine does with one:
+
+```
+StashSystem.checkStashItem   a map item in loot becomes a stash map only if a stash names its item type
+                             AND getRoomAt(buildingX, buildingY, 0) has a building not yet visited
+StashSystem.doStashItem      (stash, item): names the item, puts the stamps and words on it, sets its
+                             stash map; throws for an item that is not a MapItem; no role check
+prepareBuildingStash         on reading: no room at the building's square -> returns
+doBuildingStash              else: setAllExplored, zombies and barricades, and every container in the
+                             building refilled from the stash's spawn table -- or cleared
+```
+
+So a stash needs a real building to be handed out, and reading it rewrites
+that building. The temple is under a field; the nest's nearest building is a
+house a player may live in. **Ours name no building and an item type nothing
+spawns**: the engine never picks them, reading one prepares nothing, and the
+mod calls `doStashItem` itself on a plain map (`SEW_Maps`). The only vanilla
+Lua that calls `doStashItem` is the debug stash window; the method itself
+checks nothing but the item's class. **Unproven in game**: that a map made
+this way on a dedicated server reaches a client with its stamps (vanilla's
+own loot makes them the same way, server side).
+
+What a map shows is `LootMaps.Init[<stash name>]`, a client function, and
+the world map calls it too for the bounds of every map already read.
+
+### The manhole nearest a place is not the manhole that leads to it
+
+**Found drawing the map (0.6).** Asked the way to the nest's false wall, the
+answer given was the cover 43 squares east of it "and walk west" -- nearest
+in a straight line, and with no tunnel between: the walk from that cover is
+118 squares round by the south. The index already had the right one
+(`I.lair.cx, cy`: nearest *by the tunnels*, 56 squares, Grenadiers Row).
+Directions come from walking the data (`test_layout.walk`), never from
+subtracting coordinates; and a place is shown on `tools/worldmap.py`'s map,
+which is the game's own, before anybody is sent to it.
+
+### One chunk has one town: what crosses between towns patches records
+
+**New in this mod (0.6, the temple).** The builder finds a chunk's records
+through `B.townOf(key)`, one town a chunk, and the sewer map lifts its fog by
+chunk. The cult's passages start in one town's chunks and end in the
+temple's. So the temple is a town of its own in chunks no town has, and
+where a passage runs through a town's chunks its squares are written into
+**that town's** records: `gen_temple.dig` copies the record it must change
+(the wall it breaks through, the rock beside it), adds its own, and hands
+each back to whichever town owns the chunk. That is why `gen_sewers.main`
+no longer writes a town as it is laid out: every town is held until the
+temple has patched the two it touches. Three things follow, each checked:
+
+- the patched squares are a layout change to a shipped town, so
+  `layout_diff` must show them and nothing else (3 changed: two walls
+  `c -> O`, `b -> Q`, one rock `r -> p`);
+- a chunk a save has already built gets them on a revision pass: hull and
+  the breach, yes; dressing and anything placed "on first build", no. What
+  must reach an old chunk needs a state of its own (`s.hung`, as `s.gas` and
+  `s.caves` before it);
+- per-town tests cannot see a way that crosses towns. `test_layout` walks
+  the temple over every town's squares at once.
+
+### A generator takes its old output away last
+
+**Found building the temple.** `gen_sewers.main` began by deleting every
+`Data/SEW_Town_*.lua`, and the temple (sited last) could refuse to fit: one
+misplaced sconce left the tree with no sewers at all until the next good
+run, three minutes later. The old layout is removed now only after the last
+thing that can `SystemExit`. Any generator: build everything, then replace.
+
+### The image model's magenta is pink: measure the key, and take it out by hue
+
+**New in this mod (0.6).** Asked for "flat magenta #FF00FF", Gemini paints
+(214, 54, 118) with a vignette, and under a standing thing a darker shadow of
+the same pink. A distance in RGB keeps the shadow and eats dark red paint.
+`gen_sewer_art.keyed` samples the border, refuses a border that is not a
+magenta, and removes whatever points the same way in colour (the unit
+vector), however dark; black has no hue and is kept. Red paint on that pink
+survives it (the sigil, the circle): its blue is a quarter of the key's. Crop
+to the *solid* part before placing: one stray speck stretches the box and
+shrinks the sprite.
+
+### A thing of ours that stands blocks its square
+
+**New in this mod (0.6; the bytecode, not yet the game).** A tile of ours
+has no depth texture. `IsoSprite.setupTileDepth` (bci 327-782) gives one
+that is neither floor, wall overlay nor window `TileDepthTextureManager
+.getDefaultDepthTexture()` -- the depth that drew our first puddles over
+whoever walked across them. The idol and the braziers stand anyway: each
+carries `solidtrans`, as vanilla's own statues do, so no character is ever
+*on* the square, only in front of it or behind it. What is low and walked
+past -- the candles in a one-wide passage -- stays a floor decal
+(`RenderLayer=Floor`), drawn under whoever stands there. `test_assets`
+holds that only the sludge, the idol and the brazier block. **Unproven in
+game**: whether the default depth sorts a character behind the idol
+correctly is on the checklist.
+
+### Below ground is not all ours
+
+**Found by two players the same day (0.6.0 on the Workshop): "at the -2
+level I was teleported to the nearest sewer", and at the military base's
+bunker "when you hit -14 you get immediately teleported back up to the
+surface".** `S.below` was `z < -0.5`, written when the only thing under the
+street was us, and the rescue asked nothing else: below, and no floor under
+you. Build 42's map has basements and bunkers many levels deep, players build
+their own, and a stair is a square with no floor on it. So the client asked,
+and the server -- which then looked for a floor at *our* level, found the
+stairwell's hole, and sent the player to the nearest ladder within 400
+squares, or with none in reach up to the street.
+
+Three rules, each with a test of its own:
+
+- **The sewer is one level.** `S.below` is true at `C.Z` and nowhere else.
+  Everything keyed on it (the map, the dig menu, gas, lamps, ambience, the
+  vault switch, the builder's pass) stops at a bunker's door with it.
+  `SEW_Compat` keeps its own `z < 0`: anything underground is indoors.
+- **A character on stairs is between levels, and its square is the lower
+  one.** Going down from -1 to -2 the z is -1.4 and `getCurrentSquare()` is
+  the stair's, at -2. Ask the square for its level, not the character.
+- **A square holding anything not ours is somebody else's** (`U.foreign`,
+  the builder's own rule). A basement's stairs at -1 are that.
+
+And the server asks them again on its own copy, plus one more: a bare square
+is ours only in or beside a chunk the sewer has squares in (`Server.ours`).
+No square at all, at our level, is still a rescue: nobody's basement has one
+of those. **The two checks cover each other**, so the test asks the client
+(does it send?) and then the server directly (does it move anybody?), for
+each of six places.
+
+What generalises: **a mod that owns one level of the world owns only what it
+put there.** Any rule that starts "below ground" is about other people's
+basements too; say "in the sewer", and decide what that means from records
+and tags, not from z.
+
+### A context menu is not where the click was
+
+**Found by a player, who sent the fix (0.6.0).** `U.clickedSquare` read
+`context.x, context.y`, as vanilla's own foraging menu still does. In 42.20
+that is where the menu is *drawn*:
+
+```
+ISContextMenu.get(player, x, y)   requestX, requestY = x, y   -- the click
+                                  setSlideGoalX(x + 20, x)    -- setX(x); with the single-menu
+                                  setSlideGoalY(y - 10, y)    --   option, starts 20 px across (a
+                                                              --   pad) or 10 px up (a mouse)
+ISUIElement:setX(x)               keepOnScreen: x clamped to screenWidth - self.width
+                                  (setY the same), the width the menu had the last time
+```
+
+So during `OnFillWorldObjectContextMenu` the menu's position is the click
+only in the middle of the screen with the option off. Near the right or
+bottom edge it has been pushed back by up to the last menu's width or height
+-- several squares -- and with *single context menu* on it is 10 px high
+everywhere. The
+click is `context.requestX, requestY`; the mouse (`getMouseX()`, the
+player's fix) is right for a mouse and wrong for a pad, so it is the
+fallback, for a menu some other code made. `tests/sim.lua`'s menu had
+`x, y` equal to the click, which is why no test saw it: it slides now.
+**A field that is right in the simulation because the simulation set it is
+not a fact about the engine**; read where vanilla writes it.
+
+### The street hears the sewer: a level is three squares of distance, not a floor
+
+**Asked by a player (0.6.0): "so that zombies above the Sewars do not react
+to a player underneath". Read in the bytecode, then fixed on the client
+(`SEW_Street.lua`); unproven in game.** It is hearing, not sight, and it is
+the same in single player and on a server:
+
+```
+WorldSoundManager.getSoundAttract 24-84     DistanceToSquared(x, y, z * 3, ...) against (radius x hearing)^2:
+                  getBiggestSoundZomb       a level is 3 squares of distance; no floor, no line of sight
+                  182-225, 290-333          the 1.2 / 1.4 penalty needs two different rooms: below has none
+IsoGameCharacter.DoFootstepSound            addSound(this, x, y, z, r, r): sneaking 0.2, walking 0.3, running
+                                            1.3, sprinting 1.8, times 14 and rounded up; halved only in a room
+IsoGridSquare.CalculateVisionBlocked        a solidfloor between two levels blocks sight: they do not see down
+IsoZombie.RespondToSound 16-36              returns on a server, and on a client for a zombie it does not own:
+NetworkZombieManager.updateAuth             the owner is the nearest player in x, y -- the one in the sewer
+ZombiePopulationManager.addWorldSound       radius 50 and over reaches unloaded zombies by x, y only
+```
+
+So a walk (radius 5) is heard about four squares out on the street above, a
+run (19) about eighteen, a sneak not at all; our own dig (`C.Mine.noise`,
+25) about twenty-four. A zombie that hears paths to the sound's x, y and
+stands over it. A server alone can do nothing: it never runs a zombie's
+hearing. There is no lever on the sound (no multiplier on a footstep, no
+`OnWorldSound` in this build) and none on a zombie's ears short of
+`setUseless`, which takes its eyes too. So the fix is on the zombie, on the
+machine that owns it, after the fact:
+
+```
+IsoZombie.updateInternal 696-700     triggerEvent("OnZombieUpdate", this): every zombie, every update,
+                         1788        before RespondToSound
+IsoZombie.isMovingToPlayerSound      pathing or walking toward, the goal a sound, its source a player
+IsoGameCharacter.getPathTargetZ      the sound's own level (pathToSound(x, y, z))
+RespondToSound 168-188               how the engine stops one itself: setVariable("bPathfind", false),
+                                     setVariable("bMoving", false), setPath2(null)
+             720-848                 a zombie not pathing answers a sound again after 60 (2 s), and
+                                     turns to it (setTurnAlertedValues) before it paths
+             690-718                 where it goes is the sound's x, y scattered by 40% of how far off it is
+IsoZombie.isRemoteZombie             false in single player (no NetworkComponent), true for another
+                                     client's zombie
+```
+
+`SEW_Street` writes down, every ten ticks, who is in the sewer (at its level
+and on a square with something of ours: a basement is not, and the house
+over it must go on hearing). With nobody below a zombie's update costs one
+length check. With somebody: a zombie this machine owns, at street level,
+on its way to a player's sound at the sewer's level within 40 squares of
+one of them, is stopped the engine's way. It runs on every client, not only
+the one in the sewer: the zombies overhead belong to the nearest player in
+x, y, who may be on the street.
+
+Known and left: the zombie still turns to the noise every two seconds
+(`setTurnAlertedValues` runs before the path it makes is dropped); one
+already chasing a player it saw keeps their place for `bonusSpotTime` (720)
+after they climb down, re-set by the engine each tick after the event, so
+Lua cannot clear it; a sound with no player for a source -- a bomb -- is
+heard as before; gunfire below is a player's sound and is not. `setPath2`
+is the only one of these calls vanilla Lua makes (`WalkToTimedAction`), and
+on a player: **the rest is the bytecode's word until the game says so**
+(ROADMAP 0.7.1).
+
+### A set piece's dead are owed, not lost
+
+**Found by a mutation, and again by a test (0.6).** `B.spawn` refuses within
+`C.SpawnClearance` of any player, and a chunk's first build is the only time
+it asks. For the tunnels' own dead that is right: nobody is put down beside a
+player, and nobody is missed. For a set piece it emptied the place: a dev
+trip into the temple's hall built it round the author and left the circle
+bare; the same trip into the warren's first den lost every one of the dens'
+dead. So the temple's and the dens' are **owed** (`B.setPiece`): refused for
+nearness, they are written down by chunk (`s.owed`, saved with the rest) and
+put down by `B.settle` on the server's ordinary pass once nobody is near.
+Only those two: a shelter's dead keep the old rule, because a zombie that
+appears later in a room a player has since made theirs is worse than one
+that never came. The dev trip into the temple still lands in the south
+passage, twenty squares short of the gate: it is the better way to see it.
+
+### `pairs` over string keys is a different order every run
+
+**Found by a full mutation run (0.6): three mutations "caught" by checks that
+had nothing to do with them.** The sludge test took the first chunk with a
+channel in it from `pairs(SEW.Data.muldraugh.chunks)`, built it, and moved
+on. Real Lua seeds its string hashes per process, so "first" was any of 181
+chunks -- and three of those are chunks later checks need untouched (the
+cave's two, and the first shaft's). One run in sixty, a later check failed;
+on the commit before the temple too, where forty runs happened not to show
+it. A flaky test does two kinds of damage: a red run that means nothing, and
+a **mutation counted caught that was not**. The test sorts its keys now;
+forty runs in a row pass. Kahlua's order is its own, but the rule is the
+same in the mod: never let `pairs` order choose anything that is kept.
+
 ### The shell mangles escapes, and it will do it to you
 
 **The trekship's rule, broken three times in one session -- and again in
@@ -809,7 +1128,8 @@ them. Never a heredoc for anything with a backslash in it. (0.5: twice more,
 a `\n` in a patch fed through a heredoc; both caught because the patch
 asserted its match and wrote nothing. And building gas, gates and outfalls,
 a long quoted heredoc stopped the shell dead on its own quotes: the edit
-script went into a file written by the Write tool, and ran from there.)
+script went into a file written by the Write tool, and ran from there. 0.6:
+the same again, first try -- every edit script of the temple's was a file.)
 
 ---
 
@@ -828,6 +1148,13 @@ and a smear -- each in both wall facings, projected onto the game's own wall
 and floor geometry. Walls vary between vanilla's plain, stained and panelled
 pieces by position. `design/art/sewer_art_sheet.png` is every tile on
 vanilla's wall, lit dim.
+
+**The temple's (0.6)**: 24 more, 48 to 71. Painted by the image model and cut
+here (`design/art/cult/*_raw.png`): the idol, the triptych (one painting
+across three north-wall tiles), the ritual circle (one drawing across nine
+floor tiles), a brazier, candles, a sconce, and the sigil that the banner
+and the graffiti reuse as a shape. Drawn: the creed, the banner's cloth,
+the offerings.
 
 **What is next**: the pieces a script paints badly -- arched brick vaults,
 round culvert mouths, a cover seen from below with light through its holes,
@@ -868,10 +1195,10 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | Check | Catches |
 |---|---|
 | `tools/luacheck.py` | Lua syntax, generated data included |
-| `tests/test_assets.py` (142 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call |
-| `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (233 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue, somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 105 guards broken one at a time; every one must be caught |
+| `tests/test_assets.py` (167 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
+| `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
+| `tests/test_flow.py` (367 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer (and no other zombie, sound or place), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled, no WARN, no unknown sprite or text key |
+| `tests/mutate.py` (`dev.py mutate`) | 203 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so) |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -939,10 +1266,16 @@ gets verified.
 
 ## Current state
 
-Version **0.5.0**, build revision **5**, layout from `tools/gen_sewers.py`.
+Version **0.7.1**, build revision **6**, layout from `tools/gen_sewers.py`.
 **Workshop:** item **3810188405**, public since 0.3.1 (2026-09-29);
-`WORKSHOP_ID` is set in `tools/package_workshop.py`. 0.5.0 is staged
-(`package --install`, 2026-09-30); 0.3.2 never went up on its own.
+`WORKSHOP_ID` is set in `tools/package_workshop.py`. **0.7.1 is staged**
+(`package --install`, 2026-10-02) for the in-game uploader: 0.7's digging,
+blasting and annotated maps, and 0.7.1's fixes from the Workshop's comments
+(bunkers and basements left alone, the click read where it was made, the
+street deaf to the sewer). **None of 0.7.1 and little of 0.7 has been played**:
+the ROADMAP's **(game)** lines under both are the play-test before the
+upload. Before it, 0.6.0 was staged (`package --install`, 2026-10-01) and
+0.5.0 (2026-09-30); 0.3.2 never went up on its own.
 
 **Built, passing every static test, and play-tested by the author**
 (2026-09-30): the whole loop (covers, the climb down, tunnels under 31 towns
@@ -963,15 +1296,101 @@ layout grew by 867 squares of outfall culvert and moved nothing a save holds
 by Muldraugh's outfall, with a gas mask and a spare filter in the kit. A
 0.5.0 save loads it: gas and placards reach its built chunks the next time
 a player is near; its county rooms keep their steel doors (new rooms only).
-The version is still 0.5.0: bump it (mod.info and `C.Version`) when this goes
-up.
+(That went up as part of 0.6.0, or goes up with it.)
 
-**The new checklist, in order** (`python tools/dev.py run --debug` for the
-console; a **new world** with Sewars [DEV]):
+**Built, passing every static test, tried in game by the author
+("cool, I like it", 2026-10-01; the checklist's finer points still open in
+ROADMAP), and staged as 0.6.0**: the
+temple of the rat cult (DESIGN.md 7d) -- a town of its own, `temple`, under
+the fields between `west_point_2` and `muldraugh_2`; 1,914 squares of floor
+in 13 rooms, 596 of passage in two runs of 258 and 222 squares; 28 dead, 57
+lights, 76 pictures, 24 new tiles (72). And the warren: four dens off the
+rats' nest under Louisville (423 new squares, 11 caches, 5 dead), and seven
+writings by which the temple and the nest each lead to the other.
+`layout_diff` against 0.5.0: 3,737 squares added, 5 changed (two sewer walls
+broken through, the rock beside one, the nest's earth where the first run
+leaves it), nothing a save holds moved. The dev build now starts a new
+character in the field by the temple's trapdoor.
 
-1. **The outfall.** You start on a Muldraugh bank (`[SEW] dev build: started
-   on the bank by the outfall ...`). Within a few seconds an iron grate is in
-   the ground at your feet. Right-click it: *Climb into the storm drain* --
+**The temple's checklist** (every step a click: the dev build's right-click
+menu, *Sewars (dev)*; a **new world** with Sewars [DEV] is cleanest, an old
+save works):
+
+1. **The trapdoor.** A new character starts in a field (`[SEW] dev build:
+   started in the field over the temple ...`). Within a few seconds a wooden
+   trapdoor is in the ground one square north. Right-click it: *Climb down
+   through the hatch* (the tooltip says a trapdoor under the weeds). You
+   arrive at the foot of a ladder in a small concrete room, the postern.
+2. **The hall.** Out of the postern's door and into the hall: *Firelight.
+   Rows of pews ...* on the first step. Look for: the stone floor and the red
+   runner; brick columns; hooded angels on the side walls; at the north end
+   the idol on its plinth, the painted triptych on the wall behind it, a
+   brazier either side, the altar, and the slab in the chalked circle with
+   robed dead standing round it. They should be standing still until they
+   notice you.
+3. **Drawing order** (the one thing only the game can say). Walk round the
+   idol and a brazier: in front of it you are drawn over it; behind it, it
+   hides you. Walk past wall sconces and banners: the walls cut away near
+   you and their pictures go with them. Walk over candles and the circle:
+   you are drawn over them.
+4. **The light.** Sconces, braziers and candles each throw warm light. Is
+   the hall readable without a torch? Does the frame rate hold? (Tune:
+   `C.TempleLight`, `C.TempleLightRange`.)
+5. **The rooms.** `K`: the map is *The sewers under the Knox fields*, and
+   each room is named as you enter it. Crates and shelves hold robes, bone,
+   books, food. In the sanctum (behind the idol, a door either side) a shelf
+   holds *The Book of the Burrow*: read it, and the nest's false wall is
+   marked on Louisville's map.
+6. **The passages.** Right-click, *Sewars (dev)*, *Go to a cult breach*: you
+   are in a sewer by a wall broken through from the far side, the sigil and
+   *THE BURROW PROVIDES* on the walls by it. Through the hole: an earth
+   passage, candles along it, 258 squares (or 222, the other breach) to a
+   steel door into the temple. *Go into the temple* drops you twenty squares
+   short of the south gate instead.
+7. **Up again.** At the postern's ladder: *Climb up through the hatch*, and
+   you are back in the field.
+8. **The warren.** *Sewars (dev)*, *Go to the nest's false wall*: pull the
+   loose bricks, the run, the nest and its four. Past them, a run leads off
+   the nest's south side to four more dens: crates in each (the larder; the
+   cult's, with their sigil on the earth, candles and two robed dead; a
+   county crew's, with tools; the deepest, with what glitters). In the
+   cult's den a crate holds *Brother Amos, last pages*: read it, and the
+   temple's trapdoor is marked on the Knox fields' map. *Go into the
+   warren* drops you in the first den without the walk (the four will come).
+   In an **old save** that has opened the nest: the dens are there the next
+   time you are near, with their crates.
+9. **Digging.** *Sewars (dev)*, *Give me a pickaxe and pipe bombs*. Below
+   ground, right-click: *Dig*, and under it an entry for each way there is
+   rock beside you. Pick one: the swing, a few seconds, and there is one more
+   square of floor with earth walls round it. Walk onto it; dig on. Stand in
+   a dug square beside another: *Knock through the wall*. Try a ladder's
+   wall and a shelter's door: neither is offered. Without the pickaxe: *Dig*
+   is greyed and says why. **Build** on what you dug: a floor, a wall, a
+   crate.
+9. **Blasting.** The dev menu's pipe bombs are the plain kind, which vanilla
+   only throws (no `CanBePlaced` in its script; a thrown one reaches the same
+   `IsoTrap.triggerExplosion` through `IsoMolotovCocktail`). In a long
+   straight tunnel: right-click one in the inventory, *Equip Primary*; hold
+   the right mouse button to aim down the tunnel, left-click to throw, from
+   as far back as it will go (it carries ten squares, the blast hurts for
+   seven). After vanilla's bang: the rock is open for two squares round
+   where it landed, stones on the floor. Watch what the explosion itself did
+   to the tunnel's own walls.
+9. **The maps.** *Sewars (dev)*, *Give me the annotated maps*: two
+   *Annotated Map*s in your inventory. Read each: a sheet of the game's map,
+   an X on the trapdoor (or the manhole), handwriting beside it. Afterwards
+   the world map (M) shows a map icon over each place. In ordinary play they
+   turn up in loot: one plain map in ten.
+9. **Arriving on top of them.** Any of the dead you land beside is not there
+   at first; walk a dozen squares away and back, and they are.
+10. **A dedicated server**: the dead, the pictures on the walls and the
+   trapdoor reach a joining player; the lights are each client's own.
+
+**The gas, gates and outfalls checklist, in order** (play-tested 2026-09-30;
+kept for the next change to any of them; a **new world** with Sewars [DEV]):
+
+1. **The outfall.** *Sewars (dev)*, *Go to the outfall*: a Muldraugh bank.
+   Within a few seconds an iron grate is in the ground at your feet. Right-click it: *Climb into the storm drain* --
    no lid scrape, the note *Down into the storm drain*. The culvert runs back
    to town. The ladder under the grate: *Climb out onto the bank*, and up
    onto the bank. `K`: the outfall is on the map in blue, the water faint

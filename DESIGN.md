@@ -159,6 +159,16 @@ server builds from the Lua. Nothing in the game reads a map file.
     names its squares, where its rodents sleep, and the hatch and cover
     nearest it by walking the tunnels.
 
+    **The warren** (0.6, `dig_warren`), last of all in its town: four dens
+    dug off the nest and off one another, each a rough round of earth
+    (radius 4-5) at the end of a run of 4-7 squares that bends once, two
+    squares of rock from every other space and from each other, and never
+    off the run in from the false wall. A chain with a branch, not a star.
+    They are nest to the code (floor `n`, no wall between a run and what it
+    joins), so nothing about the nest's two walls changes. New squares only;
+    the nest's index line is unchanged, and the dens have one of their own
+    (`SEW.Index.warren`).
+
 15. **Storm-drain outfalls** (0.5), after the nest, from their own
     generator (`dig_outfalls`): culverts from plain walkway out to the bank
     of a creek, the river or a lake -- dry natural ground beside a body of
@@ -185,6 +195,13 @@ server builds from the Lua. Nothing in the game reads a map file.
     lists gas squares (`g`) and a placard at each way in (`p`, on a wall of
     ours by the way in) in the town's data, and each stretch in the index.
     97 stretches in 17 towns.
+
+18. **The temple** (0.6, `tools/gen_temple.py`), after every town is laid out
+    and before any is written: section 7d. A town of its own, `temple`, in
+    chunks no town has; and two passages, each ending in a town's chunks,
+    where it adds squares to that town's records and changes the one wall it
+    breaks through. Floors `p` (a passage the cult dug) and `h`, `a`, `q`
+    (the temple's stone, carpet and boards); breaches `O`, `Q`.
 
 `design/art/plans/<town>.png` is each town's plan over its streets (caves in
 ochre, breaches pink, hatches cyan, gas yellow-green, water blue, outfalls
@@ -226,7 +243,14 @@ where no player is standing*, *Tag every object you place*):
   down here: workers' overalls, waders, filthy clothes. A later pass may add
   our own (section 8).
 - **Sound.** In build A, noise travels between the street and the tunnel the
-  way the engine lets it; in build B it cannot.
+  way the engine lets it; in build B it cannot. What it lets (0.7.1, read in
+  the bytecode): a level is three squares of distance and no floor stops a
+  sound, so the street would hear a walk below about four squares out, a
+  run about eighteen; nobody sees down. Decided (0.7.1, after a player
+  asked): **the street does not hear the sewer.** A zombie on the road on
+  its way to a player's noise below is stopped (`SEW_Street.lua`; DEV_GUIDE,
+  *The street hears the sewer*); the dead in the tunnels hear everything, as
+  before. A sandbox option gives the engine's rule back.
 
 ### Rats, and the rodents of unusual size (0.5)
 
@@ -242,6 +266,20 @@ where no player is standing*, *Tag every object you place*):
   squares of the nest -- it looks, rather than counting kills, so it cannot
   be fooled by a death it never heard of, and one lured away and left alive
   keeps it shut. (**Open**: whether they should ever come back.)
+- **The warren** (0.6): the nest is the first of five rooms. In the dens
+  beyond it, in the order they are dug: a larder (what was dragged down);
+  the den the cult's pilgrims reached -- relics, robes, offerings, their
+  sigil and creed on the earth, candles, and two of them; the den a county
+  flood crew died in, with their tools; and the deepest, with valuables and
+  medicine. Each has its own caches, stocked once, the hoard's way where the
+  generator says so. No more of the ROUS: the four are still the fight, and
+  the hoard still waits for the last of them.
+- **What each place says of the other** (0.6): seven writings, each a
+  journal that marks a place on the reader's map. In the temple, four point
+  here -- three at the false wall, one at the house whose hatch is nearest
+  it. In the warren, three point back: at the temple's trapdoor, and at each
+  breach where the cult broke into a sewer. Found either way round, one
+  place leads to the other.
 
 ## 7. Shelters
 
@@ -311,6 +349,123 @@ Random, found, and the reason to explore.
   scrape. A rescue may send a player to an outfall's ladder: it is a real
   way out.
 
+## 7d. The temple of the rat cult (0.6)
+
+Asked for by the author (2026-10-01): *a giant indoor sprawling underground
+area where a secret cult has been living and worshipping their ROUS gods ...
+not under Louisville, so the players who discover it have to go find the real
+ROUS spot with the cache ... somewhere in between the cities, where some sewer
+lines on town edges connect to the temple and are made of broken paths, so it
+is clear the cult cut their way to it. The temple itself is concrete and brick
+and built.*
+
+- **Where**: one in the world, under the fields west of the road from
+  Muldraugh to West Point (`TEMPLE_NEAR`, 11530,8570), between the small
+  network at the crossroads to the north (`west_point_2`) and the one at the
+  bend to the south (`muldraugh_2`). The nearest site to that point clear by
+  six squares of every building, basement, pond and tunnel, in chunks no town
+  has, with open ground over its trapdoor.
+- **Built**: a rectangle of rooms, each with a square of rock round it, brick
+  in the hall, sanctum, reliquary and narthex and concrete in the rest. The
+  hall (19 by 33) runs north: a red runner up the nave, six rows of pews
+  either side, a row of brick columns down each aisle, hooded angels on the
+  side walls, and at its head a dais with the idol against the north wall
+  -- the only walls that face the camera are north and west -- before its
+  triptych, an altar, and a slab in a chalked circle. Two doors either side
+  of the idol lead to the sanctum (whoever led them; their book) and through
+  it the reliquary. West: the pilgrims' hall (the north gate), dormitory,
+  vestry, the pens and their three cells. East: refectory, scriptorium,
+  stores, the offering pit, and the postern.
+- **Dug**: from each gate, three squares straight out and then a winding
+  earth passage (a cave's floor and walls) to the nearest plain wall of a
+  sewer -- a different town for each gate -- broken through from the cult's
+  side. A square wider here and there; their sigil or their creed on the
+  earth every fourteen squares, a candle at every other; and in the sewer,
+  on the walls by the hole, the sigil and *THE BURROW PROVIDES*.
+- **Never shut in** (section 2): the postern's ladder goes up to a trapdoor
+  in the field -- a cover of ours to the code (`made`, `trapdoor`), a house's
+  hatch to look at. It is a way in too, for whoever walks that field. A
+  rescue may send a player to it.
+- **Who is there**: the cult's dead, in vanilla's `Cultist` outfit, put down
+  once where the generator stood them -- eight round the slab, turned to it,
+  so they are found standing as they stood; the rest in the rooms. Five in
+  ordinary clothes in the pens' cells. No tunnel dead: the sandbox's density
+  does not reach it. Vanilla's rats are let loose in the hall and the
+  passages by the sandbox's rat setting. (Build 42 has no living people: the
+  cult is found dead, and on its feet.)
+- **What is there**: robes, bone masks and bone weapons, occult books,
+  candles, a larder, offerings of small skulls, a few goblets and coins. Not
+  the hoard: that is the rats', under Louisville, and the cult's three
+  writings each mark the nest's false wall on the reader's map and say what
+  is behind it.
+- **Light**: sconces on the walls, braziers by the idol and in the narthex,
+  candles. Each is a lamp the client hangs (`SEW.Index.temple.lights`), as
+  for the shafts.
+- **The map**: a town of its own on the sewer map (*the Knox fields*); its
+  rooms are named as they are found, like shelters, and the first step into
+  the hall is given a line.
+- **Saves**: new chunks only, but for the two walls it breaks through. A
+  save that has already built those stretches has the hole knocked through
+  and the cult's marks hung the next time a player is near.
+- **Its dead are owed** (section 6 too): one refused because a player was
+  standing too near when the chunk was built is put down once nobody is.
+  Only the temple's and the warren's; a shelter's are simply not put down.
+- (**Open**: a key for the reliquary on whoever led them; whether any of the
+  ROUS should be here; whether the cult's dead should be a sandbox option; a
+  bigger temple.)
+
+## 7e. Annotated maps (0.6)
+
+- **What**: two annotated maps of the game's own kind, one to each place.
+  The temple's shows the fields either side of Dixie Highway north of Frank
+  Road, with an X on the trapdoor, a circle on the junction and an arrow
+  north. The nest's shows the blocks round Grenadiers Row in Louisville,
+  with an X on the manhole and a skull where the false wall is below.
+- **How they are found**: wherever the game's own loot holds a map, one in
+  ten is one of ours (houses, cars, pockets: anywhere in the world); one
+  shelter crate in twenty; one in fifty of the dead below ground; and one
+  of each is placed in the other place. So the temple can be learned of
+  from a glovebox in Rosewood, and the nest from the temple.
+- **Not the engine's stash system for handing out**: a vanilla annotated
+  map belongs to a building, and reading the map refills that building. The
+  temple has no building over it, and the nest's nearest is somebody's
+  house. Ours name none.
+- **Sandbox**: vanilla's *Annotated map chance*. None turns ours off too,
+  but for the two that are placed.
+- (**Open**: the chances -- `C.Maps.loot`, `crate`, `dead`.)
+
+## 7f. Digging and blasting (0.7)
+
+The tunnels are narrow on purpose; a base wants room. So the rock gives.
+
+- **Digging**: from the square you stand on, into the one beside it. Rock
+  becomes a square of dug earth, with earth walls wherever more rock is
+  behind it, and the wall you dug through is gone. A wall of ours with a
+  space already behind it comes down (so two dug rooms, or a dug room and a
+  tunnel, can be joined). A pickaxe is the tool; a sledgehammer does it
+  slowly. Vanilla's heavy work, loud, Masonry XP, a few stones.
+- **Blasting**: vanilla's bombs, used as vanilla has them. One that goes off
+  below ground opens the rock for two squares round it and takes down our
+  walls inside the round. The mod adds no explosive, no fuse, no damage:
+  only what the blast does to rock.
+- **Where**: anywhere at the sewers' level -- out of a tunnel, a shelter, a
+  cave, a den, the temple; into ground no town's sewers reach. Never up:
+  the sewers are one level.
+- **What never gives**: a square that holds something not ours (the game's
+  basements); doors and locked grilles (they open); the wall a ladder hangs
+  on (the way out); the nest's false wall and gnawed wall (they have their
+  own way of opening); the hoard from any side while its rodents live.
+  And nothing a player built is ever touched: only records and objects of
+  ours.
+- **How it lasts**: what is dug is a record, like everything else below --
+  the players' own, kept by chunk in the server's state, read in place of
+  the generator's by every pass (section 5: *once built, it is the
+  player's*).
+- **Sandbox**: Off / Picks and hammers / Picks, hammers and explosives.
+- (**Open**: tool wear; whether a dug room should need propping; digging up
+  to the surface, a way out of one's own making; how far a blast should
+  reach -- `C.Mine.blast`.)
+
 ## 8. Art
 
 Vanilla's `location_sewer_01` is the base, because it matches the game and
@@ -342,7 +497,8 @@ pipeline.
 | 6 | The map, plans and journals | **done** (0.3) |
 | 7 | Caves, hatches, Louisville's covers, rats, the nest | **done** (0.4, 0.5) |
 | 8 | Art | procedural pass **done** (48 tiles); image-model pass next |
-| 9 | Danger and reward: gas, gates, outfalls | **built** and tested offline; waiting on the author's play-test |
+| 9 | Danger and reward: gas, gates, outfalls | **done** (0.5), play-tested |
+| 10 | The temple of the rat cult | **built** and tested offline; waiting on the author's play-test |
 
 ## 10. Open decisions for the author
 
@@ -353,5 +509,8 @@ pipeline.
 - **Depth**: one level of tunnels, or a deeper storm-relief level under the
   trunks?
 - **The ROUS**: should they ever come back?
+- **Digging**: wear, propping, a way up, the size of a blast (section 7f).
+- **The temple**: how big, how many of the cult's dead, a locked reliquary,
+  a second temple (section 7d).
 - **Sandbox**: zombie density, their outfits, shelter supplies and rats are
   options; shelter frequency and whether covers need a tool are not.

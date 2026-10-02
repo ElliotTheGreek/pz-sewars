@@ -92,7 +92,11 @@ function St.stockExtras(container, extra)
         local kind, idx = code:sub(1, 1), tonumber(code:sub(2))
         local full = kind == "j" and C.JournalItem or kind == "p" and C.PlanItem or nil
         local item = full and idx and U.try("extra.make", function() return instanceItem(full) end)
-        if item then
+        if kind == "m" and SEW.Maps then
+            -- An annotated map (SEW_Maps): m1 to the temple, m2 to the nest.
+            local map = SEW.Maps.make(SEW.Maps.WHICH[idx or 0])
+            if map and U.try("extra.map", function() container:AddItem(map); return true end) then n = n + 1 end
+        elseif item then
             U.try("extra.md", function()
                 item:getModData()[kind == "j" and "SewarsJournal" or "SewarsPlan"] = idx
             end)

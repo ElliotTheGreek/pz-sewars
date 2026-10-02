@@ -26,3 +26,13 @@ option Sewars.Gas = {
     type = enum, numValues = 4, default = 3,
     page = Sewars, translation = Sewars.Gas, valueTranslation = Sewars.Gas,
 }
+
+option Sewars.Digging = {
+    type = enum, numValues = 3, default = 3,
+    page = Sewars, translation = Sewars.Digging, valueTranslation = Sewars.Digging,
+}
+
+option Sewars.StreetHears = {
+    type = enum, numValues = 2, default = 1,
+    page = Sewars, translation = Sewars.StreetHears, valueTranslation = Sewars.StreetHears,
+}

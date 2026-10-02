@@ -2,14 +2,14 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "west_point_2", name = "West Point", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
+local T = { id = "west_point_2", name = "West Point", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {}, pictures = {}, warren = {}, warrenDead = {} }
 SEW.Data["west_point_2"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
-local g, p, k = T.gas, T.gasSigns, T.keys
+local g, p, k, h, w, d = T.gas, T.gasSigns, T.keys, T.pictures, T.warren, T.warrenDead
 c["1444,1040"]="57tcc..67tc..b77tc..p"
-c["1444,1041"]="50t.c..51t.c.b52rc...60t....61t....62rc...70t....71t....72rc..."
+c["1444,1041"]="50t.c..51t.c.b52rc...57pee..60t....61t....62pOe.z63p.e.z64p.e..65p.e..66p.e..67p....70t....71t....72rce..73r.e..74r.e..75r.e..76r.e..77pe..."
 c["1445,1040"]="07tc...17tc...27tc...37tc...47tc...57tc..i67tc...77tc..i"
-c["1445,1041"]="00t....01t....02rc...10t....11t....12rc...20t....21t....22rc...30t....31t....32rc...40t....41t....42rc...50t....51t...v52rc...60t....61t....62rc...70t....71t....72rc..."
+c["1445,1041"]="00t....01t....02rc...07r.e..10t....11t....12rc...20t....21t....22rc...30t....31t....32rc...40t....41t....42rc...50t....51t...v52rc...60t....61t....62rc...70t....71t....72rc..."
 c["1446,1040"]="07tc...17tc...27tc..p37tc..i47tc...57tc...67tc..p77tc..."
 c["1446,1041"]="00t....01t....02rc...10t...u11t....12rc...20t....21t....22rc...30t....31t....32rc...40t....41t....42rc...50t....51t....52rc...60t....61t...u62rc...70t...y71t....72rc..."
 c["1447,1040"]="07tc..i17tc...27tc..i37tc...47tc...57tc...67tc...77tc..i"
@@ -100,7 +100,10 @@ c["1466,1041"]="00t....01t....02rc...10t....11t....12rc...20t....21t....22rc.P.3
 f["1457,1040"]={{11662,8321,"carpentry_02_64","hardware",nil}}
 f["1458,1040"]={{11664,8321,"constructedobjects_01_46","tools","j87;p43"},{11666,8321,"constructedobjects_01_46","tools",nil}}
 z["1457,1040"]={{11661,8325,"Survivalist"}}
+v["1444,1041"]={{11557,8335,"sewars_01_61",nil,nil}}
 v["1452,1042"]={{11622,8341,"camping_02_4",nil,nil},{11623,8341,"camping_02_5",nil,nil},{11621,8340,"carpentry_01_16","food",nil}}
 v["1453,1042"]={{11625,8340,"carpentry_01_16","survival",nil}}
 u["1452,1042"]={{11622,8340,"Survivalist"}}
+h["1444,1040"]={{11557,8327,"sewars_01_51"}}
+h["1444,1041"]={{11557,8335,"sewars_01_51"},{11557,8328,"sewars_01_48"}}
 return T

@@ -17,6 +17,10 @@ generator) and asserts, per town:
     map's own underground (tools/gen_sewers.py cell cache);
   * every shelter has exactly one door, and every piece of its furniture
     stands on its floor;
+  * the temple (tools/gen_temple.py): one in the world, in chunks of its own,
+    walked to from the street covers of two different towns by the passages
+    the cult dug and from the trapdoor in the field over it, and by no other
+    way; its pictures on walls, its lights and its dead on its floors;
   * the records are well formed.
 """
 import glob
@@ -34,10 +38,12 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import gen_sewers  # noqa: E402
 
 FAILS = []
-REC = re.compile(r'^[0-7][0-7][.tksgwrmnv][.cbdejoqxyz][.cbdejoqxyz][.LlPQ][.peabcdefghijklnouvxyz]$')
-FLOORS = "tksgmnv"    # stood on (m: a cave's earth; n: the rats' nest and its run; v: their hoard)
-OPEN = ".djoqxyz"     # edges walked through: none, a door frame (a locked grille: with its key), a breach,
-                      # the nest's walls once opened
+REC = re.compile(r'^[0-7][0-7][.tksgwrmnvphaq][.cbdejoqxyzOQ][.cbdejoqxyzOQ][.LlPQ][.peabcdefghijklnouvxyz]$')
+FLOORS = "tksgmnvphaq"  # stood on (m: a cave's earth; n: the rats' nest and its run; v: their hoard;
+                        # p: a passage the cult dug; h a q: the temple's stone, carpet and boards)
+OPEN = ".djoqxyzOQ"   # edges walked through: none, a door frame (a locked grille: with its key), a breach,
+                      # the nest's walls once opened, the cult's breaches
+TEMPLE = "phaq"
 
 
 def check(cond, what):
@@ -79,10 +85,71 @@ def read_index():
             sh["hatch"], sh["under"] = h[1], list(zip(v[0::2], v[1::2]))
         sh["made"] = ",made=true" in line
         sh["outfall"] = ",outfall=true" in line
+        sh["trapdoor"] = ",trapdoor=true" in line
         shafts.append(sh)
     shelters = [dict(zip(("town", "kind", "x", "y", "w", "h"), (m[0], m[1]) + tuple(int(v) for v in m[2:])))
                 for m in re.findall(r'H\[#H\+1\]=\{town="(\w+)",kind="(\w+)",x=(\d+),y=(\d+),w=(\d+),h=(\d+)\}', s)]
     return shafts, shelters
+
+
+def read_temple():
+    """The temple's entry in the index, or None."""
+    s = open(os.path.join(LUA, "shared", "SEW", "SEW_Index.lua"), encoding="utf-8").read()
+    m = re.search(r'I\.temple=\{town="(\w+)",([^{]*)lights=\{([\d,]*)\},breaches=\{(.*)\}\}', s)
+    if not m:
+        return None
+    T = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', m[2])}
+    T["town"] = m[1]
+    v = [int(n) for n in m[3].split(",") if n]
+    T["lights"] = list(zip(v[0::2], v[1::2]))
+    T["breaches"] = [dict(town=b[0], **{k: int(n) for k, n in re.findall(r'(\w+)=(\d+)', b[1])})
+                     for b in re.findall(r'\{town="(\w+)",([^}]*)\}', m[4])]
+    return T
+
+
+def read_pictures(path):
+    """[(x, y, sprite)] from a town's pictures table."""
+    s = open(path, encoding="utf-8").read()
+    out = []
+    for body in re.findall(r'^h\["-?\d+,-?\d+"\]=\{(.*)\}$', s, re.M):
+        out += [(int(x), int(y), spr) for x, y, spr in re.findall(r'\{(\d+),(\d+),"([^"]+)"\}', body)]
+    return out
+
+
+def read_dead(path):
+    """[(x, y, outfit)] from a town's claimed tables."""
+    s = open(path, encoding="utf-8").read()
+    out = []
+    for body in re.findall(r'^[zu]\["-?\d+,-?\d+"\]=\{(.*)\}$', s, re.M):
+        out += [(int(x), int(y), o) for x, y, o in re.findall(r'\{(\d+),(\d+),"(\w+)"', body)]
+    return out
+
+
+def read_warren():
+    """The warren's entry in the index, or None: dens [(x, y, r)], lights [(x, y)]."""
+    s = open(os.path.join(LUA, "shared", "SEW", "SEW_Index.lua"), encoding="utf-8").read()
+    m = re.search(r'I\.warren=\{town="(\w+)",dens=\{([\d,]*)\},lights=\{([\d,]*)\}\}', s)
+    if not m:
+        return None
+    d = [int(n) for n in m[2].split(",") if n]
+    v = [int(n) for n in m[3].split(",") if n]
+    return dict(town=m[1], dens=list(zip(d[0::3], d[1::3], d[2::3])), lights=list(zip(v[0::2], v[1::2])))
+
+
+def read_journals():
+    """Every journal in the index, in order: [{town, x, y, kind, text}]."""
+    s = open(os.path.join(LUA, "shared", "SEW", "SEW_Index.lua"), encoding="utf-8").read()
+    return [dict(town=m[0], x=int(m[1]), y=int(m[2]), kind=m[3], text=m[4]) for m in
+            re.findall(r'J\[#J\+1\]=\{town="(\w+)",x=(\d+),y=(\d+),kind="(\w+)",text="(\w+)"', s)]
+
+
+def read_table(path, letter):
+    """[(x, y, name, rest)] from one of a town's tables of {x, y, "name", ...}."""
+    s = open(path, encoding="utf-8").read()
+    out = []
+    for body in re.findall(r'^%s\["-?\d+,-?\d+"\]=\{(.*)\}$' % letter, s, re.M):
+        out += [(int(x), int(y), n, rest) for x, y, n, rest in re.findall(r'\{(\d+),(\d+),"([^"]+)"([^}]*)\}', body)]
+    return out
 
 
 def read_gas():
@@ -130,7 +197,8 @@ def read_town(path):
                 bad.append(r)
                 continue
             sq[(cx * 8 + int(r[0]), cy * 8 + int(r[1]))] = r
-    furniture = [(int(x), int(y), spr) for x, y, spr in re.findall(r'\{(\d+),(\d+),"([^"]+)",', s)]
+    # A sprite, by its name: one of the temple's dead is written {x, y, "Cultist", fx, fy}.
+    furniture = [(int(x), int(y), spr) for x, y, spr in re.findall(r'\{(\d+),(\d+),"([^"]+_\d+)",', s)]
     return sq, furniture, bad
 
 
@@ -188,6 +256,96 @@ def walk(sq, starts):
     return seen
 
 
+def temple_checks(T, world, shafts, shelters, pictures, dead):
+    """The temple (tools/gen_temple.py), over every town's squares at once:
+    its passages cross from one town's chunks into its own."""
+    check(T is not None and len(T["breaches"]) >= 2, "the index has the temple, and its passages (%s)"
+          % (T and len(T["breaches"])))
+    if not T:
+        return
+    own = [p for p, r in world.items() if r[2] in "haq"]
+    dug = [p for p, r in world.items() if r[2] == "p"]
+    check(len(own) >= 1500 and len(dug) >= 100, "the temple: %d squares of floor, %d squares of passage"
+          % (len(own), len(dug)))
+    idol = (T["x"], T["y"])
+    trap = [s for s in shafts if s.get("trapdoor")]
+    check(len(trap) == 1 and (trap[0]["x"], trap[0]["y"]) == (T["tx"], T["ty"]) and trap[0]["town"] == T["town"]
+          and world.get((T["tx"], T["ty"]), "  .")[2] == "g",
+          "one trapdoor, the temple's, over a ladder at %d,%d" % (T["tx"], T["ty"]))
+    # Under open ground: nothing built, no road, no water over the trapdoor.
+    R = 4
+    water, ground = gen_sewers.water_region(T["tx"] - R, T["ty"] - R, T["tx"] + R, T["ty"] + R)
+    road, keep = gen_sewers.region(T["tx"] - R, T["ty"] - R, T["tx"] + R, T["ty"] + R)
+    check(bool(ground[R, R]) and not road[R, R] and not keep[R, R], "the trapdoor opens in a field: natural ground, "
+          "no road, nothing built")
+    towns = sorted({b["town"] for b in T["breaches"]})
+    check(len(towns) == len(T["breaches"]) and T["town"] not in towns,
+          "each passage breaks into a different town's sewer (%s)" % ", ".join(towns))
+    edges = [(p, col) for p, r in world.items() for col in (3, 4) if r[col] in "OQ"]
+    ok_edges = True
+    for b in T["breaches"]:
+        a, e = (b["tx"], b["ty"]), (b["ex"], b["ey"])
+        holder = (max(a[0], e[0]), max(a[1], e[1]))
+        col = 3 if a[0] == e[0] else 4
+        ok_edges &= (world.get(a, "  .")[2] == "t" and world.get(e, "  .")[2] == "p"
+                     and world.get(holder, "       ")[col] in "OQ" and abs(a[0] - e[0]) + abs(a[1] - e[1]) == 1)
+    check(len(edges) == len(T["breaches"]) and ok_edges,
+          "%d breaches, each between a plain square of sewer and the first square of a passage" % len(edges))
+    # From the street covers of each town alone, and from the trapdoor alone:
+    # the idol. With the breaches and the trapdoor shut: nothing of the cult's.
+    street = {t: [(s["x"], s["y"]) for s in shafts if s["town"] == t and "hatch" not in s and not s.get("trapdoor")]
+              for t in towns}
+    for t in towns:
+        reach = walk(world, street[t])
+        check(idol in reach, "from %s's street covers, down its sewer and the cult's passage: the idol" % t)
+    reach = walk(world, [(T["tx"], T["ty"])])
+    lost = [p for p in own + dug if p not in reach]
+    check(idol in reach and not lost, "from the trapdoor: the idol, and every square of the temple and its passages "
+          "(%d not)" % len(lost))
+    sealed = {p: r[:3] + ("c" if r[3] in "OQ" else r[3]) + ("c" if r[4] in "OQ" else r[4]) + r[5:]
+              for p, r in world.items()}
+    leak = [p for p in walk(sealed, [q for t in towns for q in street[t]]) if world[p][2] in TEMPLE]
+    check(not leak, "with the breaches walled up again, nothing of the cult's is walked to from a sewer (%d)" % len(leak))
+    # Its rooms, on its own floors; the hall the biggest.
+    rooms = [h for h in shelters if h["kind"].startswith("temple_")]
+    off = [h["kind"] for h in rooms if any(world.get((x, y), "  .")[2] not in "haqg"
+                                           for x in (h["x"], h["x"] + h["w"] - 1) for y in (h["y"], h["y"] + h["h"] - 1))]
+    hall = next((h for h in rooms if h["kind"] == "temple_hall"), None)
+    check(len(rooms) >= 10 and not off and hall is not None and hall["x"] <= idol[0] < hall["x"] + hall["w"]
+          and hall["y"] <= idol[1] < hall["y"] + hall["h"],
+          "the temple's %d rooms are on its floors, and the idol stands in its hall (%s off)" % (len(rooms), off))
+    # Pictures on a wall of ours, on the edge they are painted for; lights and the dead on floor.
+    bad = []
+    for tid, x, y, spr in pictures:
+        i = int(spr.rsplit("_", 1)[1])
+        north = (i % 2 == 1) if i <= 55 else True          # W, N pairs; the triptych is north only
+        r = world.get((x, y))
+        if not r or r[2] not in FLOORS or r[3 if north else 4] not in "cbe":
+            bad.append((x, y, spr))
+    check(len(pictures) >= 40 and not bad, "%d pictures of the cult's, each on a wall on its own edge (%s)"
+          % (len(pictures), bad[:3]))
+    dark = [p for p in T["lights"] if world.get(p, "  .")[2] not in TEMPLE]
+    # What each place says of the other: the temple's writings mark the nest's
+    # false wall and the house with the way down to it; the warren's mark the
+    # temple's trapdoor and where each passage breaks into a sewer.
+    J = {j["text"]: j for j in read_journals()}
+    L = read_lair()
+    to_nest = all(J.get(k) and (J[k]["x"], J[k]["y"], J[k]["town"]) == (L["tx"], L["ty"], L["town"])
+                  for k in ("cult_1", "cult_2", "cult_3"))
+    way = J.get("cult_4") and (J["cult_4"]["x"], J["cult_4"]["y"]) == (L["hx"], L["hy"])
+    back = J.get("warren_1") and (J["warren_1"]["x"], J["warren_1"]["y"], J["warren_1"]["town"]) == (T["tx"], T["ty"], T["town"])
+    holes = {(b["tx"], b["ty"], b["town"]) for b in T["breaches"]}
+    found = {(J[k]["x"], J[k]["y"], J[k]["town"]) for k in ("warren_2", "warren_3") if J.get(k)}
+    check(bool(to_nest and way and back) and found == holes,
+          "the two places tell of each other: the temple's writings mark the nest and the house by it, the warren's "
+          "the temple's trapdoor and both breaches")
+    check(len(T["lights"]) >= 30 and not dark, "%d lights, each on the cult's floor (%s)" % (len(T["lights"]), dark[:3]))
+    cult = [(x, y) for tid, x, y, o in dead if o == "Cultist"]
+    astray = [p for p in cult if world.get(p, "  .")[2] not in "haq"]
+    check(len(cult) >= 15 and not astray, "%d of the cult's dead, each on the temple's floor (%s)"
+          % (len(cult), astray[:3]))
+
+
 def main():
     shafts, shelters = read_index()
     check(len(shafts) > 400, "the index lists the shafts (%d)" % len(shafts))
@@ -197,12 +355,19 @@ def main():
     caves = read_caves()
     n_caves, n_hatches, n_made, n_lairs, n_gas, n_gates, n_outfalls = 0, 0, 0, 0, 0, 0, 0
     lair = read_lair()
+    temple = read_temple()
+    world, pictures_all, dead_all = {}, [], []
     gas_index = read_gas()
     town_keys, gates_index = read_gates()
     for path in towns:
         tid = os.path.basename(path)[9:-4]
         sq, furniture, bad = read_town(path)
         check(not bad, "%s: every record is well formed (%s)" % (tid, bad[:3]))
+        clash = [p for p in sq if p in world]
+        check(not clash, "%s: no square of it is another town's too (%d)" % (tid, len(clash)))
+        world.update(sq)
+        pictures_all += [(tid,) + q for q in read_pictures(path)]
+        dead_all += [(tid,) + q for q in read_dead(path)]
         mine = [s for s in shafts if s["town"] == tid]
         ok_shaft = all(sq.get((s["x"], s["y"]), "  .")[2] == "g" for s in mine)
         ok_ladder = all(sq.get((s["lx"], s["ly"]), "      ")[5] == ("L" if s["edge"] == "N" else "l") for s in mine)
@@ -213,7 +378,9 @@ def main():
         stranded = [p for p in walkable if p not in reach]
         total_walk += len(walkable)
         total_stranded += len(stranded)
-        rooms = [h for h in shelters if h["town"] == tid]
+        # The temple's rooms are named on the map like shelters, and are not: a
+        # hall has as many doors as it needs. They are checked with the temple.
+        rooms = [h for h in shelters if h["town"] == tid and not h["kind"].startswith("temple_")]
         one_door = True
         for h in rooms:
             doors = 0
@@ -223,7 +390,7 @@ def main():
                     if r and ("d" in (r[3], r[4]) or "j" in (r[3], r[4])):
                         doors += (r[3] in "dj") + (r[4] in "dj")
             one_door &= doors == 1
-        on_floor = all(sq.get((x, y), "  .")[2] in "smv" for x, y, _ in furniture)
+        on_floor = all(sq.get((x, y), "  .")[2] in "smvn" + TEMPLE for x, y, _ in furniture)
 
         # Near misses: a 1-wide tunnel that ends, walled, within a few squares of
         # other tunnel straight ahead -- a street that stopped at the edge of the
@@ -266,7 +433,7 @@ def main():
         # game, and opens the hatch only if no random basement is there).
         hatches = [s for s in mine if "hatch" in s]
         declared = {p for s in hatches for p in s["under"]}
-        under = [p for p, r in sq.items() if r[2] in "tksgwmnv" and keep[p[1] - mny, p[0] - mnx]
+        under = [p for p, r in sq.items() if r[2] in "tksgwmnv" + TEMPLE and keep[p[1] - mny, p[0] - mnx]
                  and p not in declared]
         check(not under, "%s: no tunnel square under a building or a basement but a hatch's own (%d, e.g. %s)"
               % (tid, len(under), under[:3]))
@@ -282,7 +449,7 @@ def main():
 
         # Covers of ours (the towns the map gives few): each on painted road
         # with nothing else on it, a cover's shaft like any other.
-        made = [s for s in mine if s.get("made") and not s.get("outfall")]
+        made = [s for s in mine if s.get("made") and not s.get("outfall") and not s.get("trapdoor")]
         if made:
             bad = []
             for s in made:
@@ -400,6 +567,47 @@ def main():
                   % (tid, len(nest_sq), len(wall), len(gate), len(behind_wall), len(behind_gate),
                      "ok" if ok_sides else "BAD", len(L["rous"]) // 1, L["hx"], L["hy"],
                      "ok" if ok_access else "BAD", len(hoard)))
+            # The warren (0.6): dens dug off the nest, nest to the walker -- so
+            # the false wall is still the only way to any of them (above) -- each
+            # with a cache of its own, the dead and the relics on its earth, and
+            # the three writings that point at the temple.
+            Wn = read_warren()
+            check(Wn is not None and Wn["town"] == tid and len(Wn["dens"]) >= gen_sewers.WARREN_MIN,
+                  "%s: the warren, %s dens off the nest" % (tid, Wn and len(Wn["dens"])))
+            if Wn:
+                caches = read_table(path, "w")
+                wdead = read_table(path, "d")
+
+                def den_of(x, y):
+                    return next((i for i, (dx, dy, r) in enumerate(Wn["dens"])
+                                 if abs(x - dx) <= r + 1 and abs(y - dy) <= r + 1), None)
+                crates = [c for c in caches if c[2].startswith(("carpentry", "constructedobjects"))]
+                stocked = {den_of(x, y) for x, y, _n, rest in crates if rest.split(",")[1] != "nil"}
+                def gap(a, b):
+                    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+                apart = all(gap(a, b) >= a[2] + b[2] + 3 for i, a in enumerate(Wn["dens"]) for b in Wn["dens"][i + 1:])
+                far = all(gap(d, (L["x"], L["y"])) >= gen_sewers.LAIR_NEST_R + d[2] + 3 for d in Wn["dens"])
+                check(apart and far and all(sq.get((dx, dy), "  .")[2] == "n" and (dx, dy) in reach for dx, dy, _r in Wn["dens"]),
+                      "%s: each den is its own round of earth, apart from the nest and from the others, and walked to" % tid)
+                check(None not in stocked and len(stocked) == len(Wn["dens"]) and len(crates) >= 8
+                      and all(sq.get((x, y), "  .")[2] == "n" for x, y, _n, _r in caches),
+                      "%s: a cache in every den (%d crates in %d dens), every piece on its earth"
+                      % (tid, len(crates), len(stocked)))
+                where = {(x, y) for x, y, _n, _r in caches}
+                check(len(wdead) >= 4 and all(sq.get((x, y), "  .")[2] == "n" and den_of(x, y) is not None
+                                              and (x, y) not in where for x, y, _n, _r in wdead)
+                      and {"Cultist", "Sanitation"} <= {n for _x, _y, n, _r in wdead},
+                      "%s: %d dead in the dens -- the cult's pilgrims and a county crew -- none on a crate" % (tid, len(wdead)))
+                relics = [c for c in caches if c[2].startswith("sewars_01_")]
+                check(len(relics) >= 6 and len(Wn["lights"]) >= 2 and all(p in where for p in Wn["lights"]),
+                      "%s: %d relics on the dens' floors, %d candles lit" % (tid, len(relics), len(Wn["lights"])))
+                J = read_journals()
+                extras = [rest.split(",")[2].strip('"') for _x, _y, _n, rest in crates]
+                slots = [int(e[1:]) for e in extras if e.startswith("j")]
+                check("m1" in extras, "%s: and a map of the way to the temple, in the pilgrims' den" % tid)
+                texts = sorted(J[i - 1]["text"] for i in slots)
+                check(texts == ["warren_1", "warren_2", "warren_3"],
+                      "%s: three writings left in the dens' caches (%s)" % (tid, texts))
         else:
             check(not nest_sq, "%s: no rats' nest here (%d squares)" % (tid, len(nest_sq)))
 
@@ -453,6 +661,7 @@ def main():
         check(ok, "%s: %d locked gates, all on county rooms %s, key %s, the key in %d crates of unlocked county rooms"
               % (tid, len(gate_edges), county_doors, town_keys.get(tid, "none"), len(key_spots)))
         n_gates += len(gate_edges)
+    temple_checks(temple, world, shafts, shelters, pictures_all, dead_all)
     check(n_gas == len(gas_index) and n_gas >= 50,
           "every stretch of gas in the index is in its town's data (%d of %d)" % (n_gas, len(gas_index)))
     check(n_gates == len(gates_index) and n_gates >= 30 and len(town_keys) >= 10

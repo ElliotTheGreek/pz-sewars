@@ -2,10 +2,10 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "louisville_4", name = "Louisville", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
+local T = { id = "louisville_4", name = "Louisville", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {}, pictures = {}, warren = {}, warrenDead = {} }
 SEW.Data["louisville_4"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
-local g, p, k = T.gas, T.gasSigns, T.keys
+local g, p, k, h, w, d = T.gas, T.gasSigns, T.keys, T.pictures, T.warren, T.warrenDead
 c["1908,415"]="03gccLx04rc...13tc...14rc...23tc...24rc...33tc..i34rc...43tc..p44rc...53tc..i54rc...63tc...64rc...73tc...74rc..."
 c["1909,415"]="03tc...04rc...13tc..p14rc...23tc..i24rc...33tc..a34rc...43tc..i44rc...53tc...54rc...63tc...64rc...73tc..i74rc..."
 c["1910,415"]="03tc..i04rc...13tc...14rc...23tc...24rc...33tc...34rc...43tc...44rc...53tc..i54rc...63tc..i64rc...73tc...74rc..."

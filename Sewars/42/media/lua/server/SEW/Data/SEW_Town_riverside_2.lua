@@ -2,10 +2,10 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "riverside_2", name = "Riverside", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
+local T = { id = "riverside_2", name = "Riverside", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {}, pictures = {}, warren = {}, warrenDead = {} }
 SEW.Data["riverside_2"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
-local g, p, k = T.gas, T.gasSigns, T.keys
+local g, p, k, h, w, d = T.gas, T.gasSigns, T.keys, T.pictures, T.warren, T.warrenDead
 c["663,739"]="61tcc..62t.c.i63t.c..64t.c..65t.c.i66t.c..67t.c.i71tc...72rcc..73r.c..74r.c..75r.c..76r.c..77r.c.."
 c["663,740"]="60t.c..61t.c..62t.c.i63t.c.i64t.c..65t.c.i66t.c.i67t.c..70r.c..71r.c..72r.c..73r.c..74r.c..75r.c..76r.c..77r.c.."
 c["663,741"]="60t.c.i61t.c.g62t.c..63t.c..64t.c.g65t.c..66t.c.i67t.c..70r.c..71r.c..72r.c..73r.c..74r.c..75r.c..76r.c..77r.c.."

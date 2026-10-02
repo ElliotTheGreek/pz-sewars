@@ -82,6 +82,11 @@ Net.onClient("found", function(args)
         U.note(U.try("player", getPlayer), getText("IGUI_SEW_JournalMarked"), 200, 210, 170)
     elseif M.state[args.what] then
         M.state[args.what][args.value] = 1
+        -- The first sight of the temple's hall is worth a word.
+        local h = args.what == "s" and SEW.Index.shelters[tonumber(args.value) or args.value]
+        if h and h.kind == "temple_hall" then
+            U.note(U.try("player", getPlayer), getText("IGUI_SEW_TempleHall"), 230, 150, 90)
+        end
     end
     M.version = M.version + 1
 end)
@@ -97,15 +102,21 @@ function M.ask(player)
 end
 
 --- Which town to show: the one the player is in or under, else the nearest.
+--- The temple's sheet reaches over the ends of two towns' (its passages run
+--- under them): there, the town's own map is the one -- the passage is drawn
+--- on it too -- and the temple's only where no town's is.
 function M.townAt(x, y)
     local best, bestD = nil, 1e12
+    local temple, under = SEW.Index.temple, nil
     for tid, t in pairs(SEW.Index.towns) do
-        if x >= t.x0 and x <= t.x1 and y >= t.y0 and y <= t.y1 then return tid end
+        if x >= t.x0 and x <= t.x1 and y >= t.y0 and y <= t.y1 then
+            if temple and tid == temple.town then under = tid else return tid end
+        end
         local cx, cy = (t.x0 + t.x1) / 2, (t.y0 + t.y1) / 2
         local d = (cx - x) * (cx - x) + (cy - y) * (cy - y)
         if d < bestD then best, bestD = tid, d end
     end
-    return best
+    return under or best
 end
 
 --- Towns this player has walked any of, in a stable order, for switching.

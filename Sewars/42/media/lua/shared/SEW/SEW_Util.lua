@@ -141,6 +141,19 @@ function U.floorOf(sq)
     return sq and U.try("getFloor", function() return sq:getFloor() end)
 end
 
+--- True when the square holds something that is not ours and not a dropped
+--- item: somebody else's underground. Left alone.
+function U.foreign(sq)
+    local other = false
+    U.eachObject(sq, function(o)
+        if not U.isOurs(o) and not instanceof(o, "IsoWorldInventoryObject") then
+            other = true
+            return false
+        end
+    end)
+    return other
+end
+
 ---------------------------------------------------------------------------
 -- Stocking (pz_trekship TREK_Util, cut down to what shelters need)
 ---------------------------------------------------------------------------
@@ -236,10 +249,24 @@ end
 --- The square a right-click landed on, at the player's own level. **Not the
 --- objects the menu was handed**: a click resolves to the floor square under
 --- the cursor (pz_trekship DEV_GUIDE, "A right-click lands on the floor").
+---
+--- Where the click was is `context.requestX, requestY`, which ISContextMenu.get
+--- keeps for itself. **Not `context.x, y`**: that is where the menu is drawn,
+--- pushed back on screen near the right and bottom edges and slid in from
+--- 10 px up, so a click there resolved to another square (DEV_GUIDE, "A
+--- context menu is not where the click was"). The mouse is the fallback for a
+--- menu somebody else made.
 function U.clickedSquare(playerIndex, context, player)
     local z = math.floor(player:getZ())
-    local x = U.try("screenToIsoX", function() return screenToIsoX(playerIndex, context.x, context.y, z) end)
-    local y = U.try("screenToIsoY", function() return screenToIsoY(playerIndex, context.x, context.y, z) end)
+    local sx, sy = context.requestX, context.requestY
+    if not sx or not sy then
+        sx = U.try("getMouseX", function() return getMouseX() end)
+        sy = U.try("getMouseY", function() return getMouseY() end)
+    end
+    if not sx or not sy then sx, sy = context.x, context.y end
+    if not sx or not sy then return nil end
+    local x = U.try("screenToIsoX", function() return screenToIsoX(playerIndex, sx, sy, z) end)
+    local y = U.try("screenToIsoY", function() return screenToIsoY(playerIndex, sx, sy, z) end)
     if not x or not y then return nil end
     return math.floor(x), math.floor(y), z
 end

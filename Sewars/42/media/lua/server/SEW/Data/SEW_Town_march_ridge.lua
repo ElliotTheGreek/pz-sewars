@@ -2,10 +2,10 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "march_ridge", name = "March Ridge", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
+local T = { id = "march_ridge", name = "March Ridge", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {}, pictures = {}, warren = {}, warrenDead = {} }
 SEW.Data["march_ridge"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
-local g, p, k = T.gas, T.gasSigns, T.keys
+local g, p, k, h, w, d = T.gas, T.gasSigns, T.keys, T.pictures, T.warren, T.warrenDead
 c["1225,1576"]="35tcc..36t.c..37t.c..45tc..p46t....47t....55tc...56t....57t...u65r.c..66r.c..67r.c.."
 c["1225,1577"]="30t.c..31t.c..32t.c..33t.c..34t.c..35t.c..36t.c..37t.c..40t....41t....42t....43t....44t....45t....46t....47t....50t....51t...u52t...u53t....54t....55t....56t....57t....60r.c..61r.c..62r.c..63r.c..64r.c..65r.c..66r.c..67r.c.."
 c["1225,1578"]="30t.c.i31t.c.i32t.c..33t.c.i34t.c..35t.c..36t.c..37t.c.i40t....41t....42t....43t....44t....45t....46t....47t....50t....51t....52t...u53t....54t....55t...y56t....57t....60r.c..61r.c..62r.c..63r.c..64r.c..65r.c..66r.c..67r.c.."

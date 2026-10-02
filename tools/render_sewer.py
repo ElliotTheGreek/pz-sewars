@@ -39,7 +39,8 @@ def config_sprites():
         return {"N": m.group(1), "W": m.group(2)}
 
     sp = {k: one(k) for k in ("floorTunnel", "floorVault", "floorShelter", "floorRock", "sludge",
-                              "puddle", "debris", "lightpool", "smear", "bones", "litter", "haze")}
+                              "puddle", "debris", "lightpool", "smear", "bones", "litter", "haze",
+                              "floorTemple", "floorCarpet", "floorBoards")}
     for k in ("doorFrame", "door", "gate", "ladder", "exit", "safe", "grime", "cracks", "claws", "rousWarning", "gasSign"):
         sp[k] = pair(k)
     sp["graffiti"] = {c: {"N": n, "W": w} for c, n, w in
@@ -74,6 +75,8 @@ def lua_hash(a, b, c=0):
 
 # The nest's walls that open, as a new world has them: shut (SEW_Build GATE).
 GATE_SHUT = {"x": "c", "y": "b", "z": "b"}
+# Where the cult broke into a sewer: the breach of the wall it went through (SEW_Build BREACH).
+CULT_BREACH = {"O": "o", "Q": "q"}
 
 
 def lua_rng1(seed, n):
@@ -88,11 +91,14 @@ def decode(x, y, rec, sp):
     f, n, w, fix, dress = rec[2], rec[3], rec[4], rec[5], rec[6]
     gate_edge = "N" if n in GATE_SHUT else "W" if w in GATE_SHUT else None
     n, w = GATE_SHUT.get(n, n), GATE_SHUT.get(w, w)
+    n, w = CULT_BREACH.get(n, n), CULT_BREACH.get(w, w)
     out = []
     floor = {"t": sp["floorTunnel"], "k": sp["floorVault"], "s": sp["floorShelter"], "r": sp["floorRock"],
              "w": sp["floorVault"], "g": sp["grating"][lua_hash(x, y) % len(sp["grating"])],
              "m": sp["floorCave"][1 if lua_hash(x, y, 5) % 5 == 0 else 0] if f == "m" else None,
              "n": sp["floorCave"][1 if lua_rng1(lua_hash(x, y, 5), 4) == 1 else 0] if f == "n" else None,
+             "p": sp["floorCave"][1 if lua_rng1(lua_hash(x, y, 5), 4) == 1 else 0] if f == "p" else None,
+             "h": sp["floorTemple"], "a": sp["floorCarpet"], "q": sp["floorBoards"],
              "v": sp["floorVault"]}.get(f)
     if floor:
         out.append(floor)
@@ -159,7 +165,10 @@ def read_town(tid):
         for i in range(0, len(body), 7):
             r = body[i:i + 7]
             sq[(int(cx) * 8 + int(r[0]), int(cy) * 8 + int(r[1]))] = r
-    furn = [(int(x), int(y), spr) for x, y, spr in re.findall(r'\{(\d+),(\d+),"([^"]+)",', s)]
+    furn = [(int(x), int(y), spr) for x, y, spr in re.findall(r'\{(\d+),(\d+),"([^"]+_\d+)",', s)]
+    # The cult's pictures (T.pictures): hung on the wall of their square, after everything else.
+    for body in re.findall(r'^h\["-?\d+,-?\d+"\]=\{(.*)\}$', s, re.M):
+        furn += [(int(x), int(y), spr) for x, y, spr in re.findall(r'\{(\d+),(\d+),"([^"]+)"\}', body)]
     # Sewer gas (SEW_Gas.dress): the haze on its squares, the placards at its ways in.
     gas = set()
     for cx, cy, body in re.findall(r'g\["(-?\d+),(-?\d+)"\]="([^"]*)"', s):
@@ -167,6 +176,14 @@ def read_town(tid):
             gas.add((int(cx) * 8 + int(body[i]), int(cy) * 8 + int(body[i + 1])))
     signs = [(int(x), int(y), e) for x, y, e in re.findall(r'\{(\d+),(\d+),"([NW])"\}', s)]
     return sq, furn, gas, signs
+
+
+def temple_lights():
+    """The temple's sconces, braziers and candles, from the index."""
+    s = open(os.path.join(LUA, "shared", "SEW", "SEW_Index.lua"), encoding="utf-8").read()
+    m = re.search(r"I\.temple=\{.*?lights=\{([\d,]*)\}", s)
+    v = [int(n) for n in m.group(1).split(",")] if m else []
+    return set(zip(v[0::2], v[1::2]))
 
 
 def images(names):
@@ -243,10 +260,11 @@ def render(tid, cx=None, cy=None, r=22, dark=0.42, shafts=None):
     # Torchlight: dark everywhere, a pool of light round each shaft and each light pool.
     light = Image.new("L", (W, H), int(255 * dark))
     d = ImageDraw.Draw(light)
+    fires = temple_lights()
     for (x, y), rec in area.items():
-        if rec[6] == "x" or rec[2] == "s":
+        if rec[6] == "x" or rec[2] == "s" or (x, y) in fires:
             px, py = ox + 64 * (x - y), oy + 32 * (x + y) + 16
-            rad = 260 if rec[6] == "x" else 90
+            rad = 260 if rec[6] == "x" else 300 if (x, y) in fires else 90
             for k in range(12, 0, -1):
                 v = int(255 * (dark + (1 - dark) * (1 - k / 12)))
                 d.ellipse([px - rad * k / 12, py - rad * k / 24 - 40, px + rad * k / 12, py + rad * k / 24 - 40], fill=v)

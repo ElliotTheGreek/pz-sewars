@@ -15,5 +15,21 @@
     "ContextMenu_SEW_Dev_gas": "Go into sewer gas (next)",
     "ContextMenu_SEW_Dev_poison": "How poisoned am I?",
     "ContextMenu_SEW_Dev_gate": "Go to a locked gate (next)",
-    "ContextMenu_SEW_Dev_key": "Give me this town's key"
+    "ContextMenu_SEW_Dev_key": "Give me this town's key",
+    "ContextMenu_SEW_Dev_temple": "Go into the temple",
+    "ContextMenu_SEW_Dev_breach": "Go to a cult breach (next)",
+    "ContextMenu_SEW_Dev_trapdoor": "Go to the temple's trapdoor",
+    "ContextMenu_SEW_Dev_nest": "Go to the nest's false wall",
+    "ContextMenu_SEW_Dev_warren": "Go into the warren",
+    "ContextMenu_SEW_Dev_maps": "Give me the annotated maps",
+    "ContextMenu_SEW_Mine": "Dig",
+    "ContextMenu_SEW_Dig_N": "Dig into the rock to the north",
+    "ContextMenu_SEW_Dig_E": "Dig into the rock to the east",
+    "ContextMenu_SEW_Dig_S": "Dig into the rock to the south",
+    "ContextMenu_SEW_Dig_W": "Dig into the rock to the west",
+    "ContextMenu_SEW_Break_N": "Knock through the wall to the north",
+    "ContextMenu_SEW_Break_E": "Knock through the wall to the east",
+    "ContextMenu_SEW_Break_S": "Knock through the wall to the south",
+    "ContextMenu_SEW_Break_W": "Knock through the wall to the west",
+    "ContextMenu_SEW_Dev_dig": "Give me a pickaxe and pipe bombs"
 }

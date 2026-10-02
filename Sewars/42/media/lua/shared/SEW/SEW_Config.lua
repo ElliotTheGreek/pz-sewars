@@ -9,7 +9,7 @@ SEW = SEW or {}
 SEW.Config = SEW.Config or {}
 local C = SEW.Config
 
-C.Version = "0.5.0"
+C.Version = "0.7.1"
 C.ModPrefix = "[SEW]"
 C.Debug = false
 
@@ -17,9 +17,10 @@ C.Debug = false
 -- already built is revisited once and has its missing hull put back. The
 -- layout's own revision (SEW.Index.rev, from tools/gen_sewers.py) is folded
 -- in, so regenerating the tunnels does the same by itself.
-C.BuildRev = 5   -- 2: the sludge swapped for our floor-level tile; 3: caves;
+C.BuildRev = 6   -- 2: the sludge swapped for our floor-level tile; 3: caves;
                  -- 4: earth and breaches laid over vanilla walls (their depth);
-                 -- 5: pictures on walls attached to them, cut away with them
+                 -- 5: pictures on walls attached to them, cut away with them;
+                 -- 6: the temple, and its passages broken into two towns' walls
 
 -- The tunnels' level: one storey under the street. FBORenderCell.renderInternal
 -- (bci 400-428) draws nothing above ceil(z) + 1 for a camera player below zero,
@@ -113,8 +114,14 @@ C.Sprites = {
     },
     -- A cave's floor: vanilla's dark dirt, two shades by position.
     floorCave = { "floors_exterior_natural_01_20", "floors_exterior_natural_01_21" },
-    -- A trapdoor in a house's floor, over a ladder down (ours).
+    -- A trapdoor in a house's floor, over a ladder down (ours). And the one in
+    -- the field over the temple's postern (DESIGN.md 7d).
     hatch = "sewars_01_34",
+    -- The temple (0.6; DESIGN.md 7d): stone under the hall, the red runner down
+    -- its nave, boards in its quarters. Vanilla's, each a solid floor.
+    floorTemple  = "floors_interior_tilesandwood_01_4",
+    floorCarpet  = "floors_interior_carpet_01_9",
+    floorBoards  = "floors_interior_tilesandwood_01_46",
     -- A manhole cover of ours, in the towns the map gives few (vanilla's
     -- picture as a floor tile: SEW_Build.cover).
     cover = "sewars_01_35",
@@ -171,6 +178,24 @@ C.Sprites = {
     -- the floor of the stretch.
     gasSign      = { N = "sewars_01_45", W = "sewars_01_44" },
     haze         = "sewars_01_46",
+    -- The cult's (0.6; DESIGN.md 7d). On a wall, hung like every picture of ours:
+    -- their sigil, THE BURROW PROVIDES, a lit sconce, a banner, and the
+    -- triptych behind the idol (north walls only). Standing: the idol and a
+    -- brazier. On the floor: candles, the circle (3x3, row by row), offerings.
+    -- tools/gen_temple.py names them by the same indices.
+    cult = {
+        sigil   = { N = "sewars_01_49", W = "sewars_01_48" },
+        burrow  = { N = "sewars_01_51", W = "sewars_01_50" },
+        torch   = { N = "sewars_01_53", W = "sewars_01_52" },
+        banner  = { N = "sewars_01_55", W = "sewars_01_54" },
+        mural   = { "sewars_01_56", "sewars_01_57", "sewars_01_58" },
+        idol    = "sewars_01_59",
+        brazier = "sewars_01_60",
+        candles = "sewars_01_61",
+        circle  = { "sewars_01_62", "sewars_01_63", "sewars_01_64", "sewars_01_65", "sewars_01_66",
+                    "sewars_01_67", "sewars_01_68", "sewars_01_69", "sewars_01_70" },
+        offering = "sewars_01_71",
+    },
 }
 
 -- Sewer gas (0.5; DESIGN.md 7b). Every `lookEvery` ticks the server sees who has
@@ -234,6 +259,25 @@ C.Loot = {
     medical  = { "Base.Bandage", "Base.Disinfectant", "Base.Pills", "Base.AlcoholWipes",
                  "Base.Splint", "Base.SutureNeedle", "Base.Antibiotics" },
 }
+-- The temple (0.6): what the cult kept. Robes and bone, their books, a larder,
+-- what they offered, what they fought with, and the little that glitters --
+-- the hoard itself is the rats', under Louisville.
+C.Loot.cultRobes = { "Base.BlackRobe", "Base.BlackRobe", "Base.BlackRobe", "Base.Hat_BoneMask",
+                     "Base.Necklace_SkullSmall", "Base.Necklace_SkullMammal", "Base.Necklace_Choker_Bone",
+                     "Base.Shirt_Priest", "Base.Sheet", "Base.Rope" }
+C.Loot.cultScripture = { "Base.Book_Occult", "Base.BookFancy_Occult", "Base.Paperback_Occult", "Base.Paperback_Occult",
+                         "Base.Notebook", "Base.Pencil", "Base.Candle", "Base.CandleBox", "Base.Matches" }
+C.Loot.cultLarder = { "Base.TinnedBeans", "Base.CannedChili", "Base.Rice", "Base.Flour2", "Base.Salt",
+                      "Base.Cheese", "Base.Peanuts", "Base.Wine2", "Base.WaterBottle", "Base.TinOpener" }
+C.Loot.cultOfferings = { "Base.Rabbit_Skull", "Base.Raccoon_Skull", "Base.Pig_Skull", "Base.AnimalBone",
+                         "Base.SmallAnimalBone", "Base.SmallAnimalBone", "Base.DeadRat", "Base.Cheese",
+                         "Base.Candle", "Base.Dice_Bone", "Base.Whistle_Bone" }
+C.Loot.cultArms = { "Base.BoneClub", "Base.LargeBoneClub", "Base.Spear_Bone", "Base.Hatchet_Bone",
+                    "Base.DullBoneKnife", "Base.HuntingKnife", "Base.MeatCleaver", "Base.Machete", "Base.Cuirass_Bone" }
+C.Loot.cultRelics = { "Base.Goblet_Silver", "Base.Goblet_Gold", "Base.Goblet", "Base.Hominid_Skull",
+                      "Base.Necklace_SkullMammal", "Base.GoldCoin", "Base.Candle", "Base.BookFancy_Occult",
+                      "Base.Lantern_Hurricane" }
+
 -- The rats' hoard under Louisville (0.5): what they sat on, and what whoever
 -- walled the room up long before them left there. Stocked with C.HoardCount
 -- picks, whatever the sandbox's supplies -- it is the one place worth the fight.
@@ -268,6 +312,9 @@ C.ShaftLightNight = { 0.16, 0.18, 0.26, 3 }
 C.ShelterLight    = { 0.85, 0.55, 0.28, 5 }
 -- A cave's hideout: somebody's last candle.
 C.CaveLight       = { 0.70, 0.42, 0.18, 4 }
+-- The temple's sconces, braziers and candles (SEW.Index.temple.lights): firelight.
+C.TempleLight     = { 0.95, 0.52, 0.20, 4 }
+C.TempleLightRange = 22
 C.LightRange = 34
 
 -- The story's items (SEW_Story.lua, media/scripts/sewars_items.txt), and the
@@ -286,6 +333,51 @@ C.Gates = { outfit = "Sanitation", keyChance = 0.35, planChance = 0.2,
             latchEvery = 60, latchRange = 30 }
 C.MapTile = 256
 
+-- Digging (0.7; SEW_Mine.lua, DESIGN.md 7f). With a pick or a sledgehammer
+-- in the inventory: the ticks to dig out one square of rock or take down one
+-- wall (a pick is the tool for it); how far the noise carries, and how loud;
+-- the stones a square of rock leaves (one to this many, less one) and what
+-- they are; Masonry XP a square. A bomb that goes off below ground opens
+-- every square of rock within `blast` of it, `blastDelay` ticks after.
+C.Mine = {
+    pick = { "Base.PickAxe", "Base.PickAxeForged" },
+    hammer = { "Base.Sledgehammer", "Base.Sledgehammer2", "Base.SledgehammerForged" },
+    ticks = { pick = 320, hammer = 560 },
+    noise = { 25, 12 },
+    stone = "Base.Stone2", stones = 3,
+    xp = 3,
+    blast = 2, blastDelay = 10,
+}
+
+-- The street does not hear the sewer (0.7.1; SEW_Street.lua): how often a
+-- client writes down who is in the sewer (ticks), and how far from one of
+-- them a street zombie's sound may be and still be taken for theirs (the
+-- engine scatters where a zombie goes to look by 40% of how far off it is).
+C.Street = { every = 10, reach = 40 }
+
+-- Annotated maps to the temple and to the nest (0.6; SEW_Maps.lua, and
+-- shared/StashDescriptions/SewarsStashDesc.lua for what is drawn on them).
+-- `stash` names the stash description; `item` is the plain map one is made
+-- from; `bounds` is the sheet of the game's map it shows (x1, y1, x2, y2);
+-- `from` is the junction the temple's map starts you at: where Frank Road's
+-- line meets Dixie Highway's (streets.xml). `never` is the item type the
+-- descriptions name, which nothing spawns: the engine's own roll must not
+-- hand ours out. And how often the mod does -- a plain map in the game's own
+-- loot, a shelter's crate as it is stocked, one of the dead below ground.
+C.Maps = {
+    temple = { stash = "SewarsTempleMap", item = "Base.MuldraughMap",
+               bounds = { 11380, 8480, 11800, 8980 }, from = { 11531, 8764 } },
+    nest   = { stash = "SewarsNestMap", item = "Base.LouisvilleMap1",
+               bounds = { 13230, 2170, 13450, 2330 } },
+    never = "sewars:no-such-map",
+    loot = 0.10, crate = 0.05, dead = 0.02,
+    -- Every plain map the game's loot may hold.
+    items = { "Base.MuldraughMap", "Base.WestpointMap", "Base.RosewoodMap", "Base.RiversideMap",
+              "Base.MarchRidgeMap", "Base.LouisvilleMap1", "Base.LouisvilleMap2", "Base.LouisvilleMap3",
+              "Base.LouisvilleMap4", "Base.LouisvilleMap5", "Base.LouisvilleMap6", "Base.LouisvilleMap7",
+              "Base.LouisvilleMap8", "Base.LouisvilleMap9" },
+}
+
 -- The dev build's kit: given once per character, in single player, only when
 -- SEW.Dev is set -- which only tools/deploy_windows.py does, by writing
 -- shared/SEW/SEW_Dev.lua into the installed SewarsDev copy. The source tree and
@@ -299,8 +391,13 @@ C.DevKitGas = { "Base.Hat_GasMask", "Base.GasmaskFilter" }
 -- house whose hatch is nearest the rats' nest under Louisville; "cave", on
 -- the cover nearest a cave in C.DevStartTown. SEW_GoCave(n), SEW_GoHatch(n),
 -- SEW_GoLair(), SEW_GoGas(n) and SEW_GoGate(n) in the console hop to any.
-C.DevStart = "outfall"
+-- "temple": in the field over the temple, by the trapdoor to its postern.
+C.DevStart = "temple"
 C.DevStartTown = "muldraugh"
+
+-- The temple (0.6; DESIGN.md 7d): what its dead wear -- vanilla's own outfit,
+-- in both of its lists (tests/test_assets.py).
+C.Temple = { outfit = "Cultist" }
 
 -- Rats (0.5): vanilla's own B42 rats, put down with a stretch of tunnel on
 -- its first build, per hundred squares of walkway, by the sandbox's
