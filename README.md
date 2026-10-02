@@ -2,9 +2,9 @@
 
 A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
-> Status: **0.7.1**: digging and blasting, annotated maps, a street that no
-> longer hears the sewer, and three fixes from the Workshop's comments
-> (bunkers and basements left alone, the right-click read where it was made),
+> Status: **0.7.2**: digging and blasting, annotated maps, a street that no
+> longer hears the sewer, and fixes from the Workshop's comments (bunkers and
+> basements left alone and left quiet, the right-click read where it was made),
 > on top of 0.6's temple and warren and 0.5's caves, hatches, Louisville,
 > rats, gas, gates and outfalls.
 

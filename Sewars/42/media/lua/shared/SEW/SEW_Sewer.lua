@@ -131,6 +131,29 @@ function S.below(player)
     return z < C.Z + 0.5 and z >= C.Z - 0.5
 end
 
+--- True when the square is the sewer's: something of ours is on it. A
+--- basement at the same level is not (DEV_GUIDE, "Below ground is not all
+--- ours").
+function S.ours(sq)
+    local found = false
+    U.eachObject(sq, function(o)
+        if U.isOurs(o) then
+            found = true
+            return false
+        end
+    end)
+    return found
+end
+
+--- True when the player is in the sewer itself: at its level and standing
+--- on a square of ours. For what belongs to the place and to nowhere else
+--- at that level -- its sounds, and whether the street hears.
+function S.inSewer(player)
+    if not S.below(player) then return false end
+    local sq = U.try("inSewer.sq", function() return player:getCurrentSquare() end)
+    return sq ~= nil and S.ours(sq)
+end
+
 --- True when a character is close enough to a point to work there.
 function S.within(player, x, y, reach)
     local px = U.try("px", function() return player:getX() end)

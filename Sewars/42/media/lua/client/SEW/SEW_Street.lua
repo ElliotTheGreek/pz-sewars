@@ -59,19 +59,9 @@ function Street.players()
     return out
 end
 
---- True when the square is the sewer's: something of ours is on it. A
---- basement at the same level is not (DEV_GUIDE, "Below ground is not all
---- ours"), and the house over it must go on hearing what is done there.
-local function ours(sq)
-    local found = false
-    U.eachObject(sq, function(o)
-        if U.isOurs(o) then
-            found = true
-            return false
-        end
-    end)
-    return found
-end
+-- A square of ours (SEW_Sewer): a basement at the same level is not, and
+-- the house over it must go on hearing what is done there.
+local ours = S.ours
 
 --- Who is in the sewer, written down every C.Street.every ticks.
 function Street.look()

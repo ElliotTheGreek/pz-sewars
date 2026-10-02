@@ -2044,7 +2044,22 @@ def street_test(L, p):
     p.x, p.y, p.z = bx + 0.5, by + 0.5, 0
     sim.tickN(C.Street.every)
     check(not case(bx + 6.5, by + 0.5, 0, bx + 1, by + 1, -1)[0], "nor is a player up on the street in the sewer")
+    # The sewer's sounds belong to the sewer (found by a player: drips, rats
+    # and a groan in every basement). Still in that basement, with a sound
+    # long overdue each time it is asked (the client asks every 30 ticks):
+    p.x, p.y, p.z = bx + 0.5, by + 0.5, -1
+    ours = set(lua_list(C.Ambience))
+    n0 = len(lua_list(sim.sounds))
+    for i in range(1, 6):
+        SEW.Client.ambience(p, 10000000 * i)
+    heard = [s for s in lua_list(sim.sounds)[n0:] if s in ours]
+    check(not heard, "in a basement that is not ours the sewer's sounds are not played (%s)" % heard[:2])
     p.x, p.y, p.z = x + 0.5, y + 0.5, -1
+    n0 = len(lua_list(sim.sounds))
+    for i in range(6, 11):
+        SEW.Client.ambience(p, 10000000 * i)
+    heard = [s for s in lua_list(sim.sounds)[n0:] if s in ours]
+    check(len(heard) == 5, "and in the sewer they are (%d of 5)" % len(heard))
     sim.tickN(C.Street.every)
 
 
