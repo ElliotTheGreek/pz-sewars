@@ -5,6 +5,6 @@ description=Every manhole in Kentucky goes somewhere. Right-click a manhole cove
 author=Ensign Elliot Mousseau
 category=build
 versionMin=42.0
-modversion=0.7.1
+modversion=0.7.2
 pack=sewars
 tiledef=sewars 7462

@@ -991,6 +991,16 @@ of those. **The two checks cover each other**, so the test asks the client
 (does it send?) and then the server directly (does it move anybody?), for
 each of six places.
 
+**And a basement at our own level is not the sewer either (0.7.2, a third
+player: "weird audio cue bugs in basements ... chirping sounds, rat noises,
+distant car driving").** The three rules above stopped the rescue; the
+ambience still asked only `S.below`, and a vanilla basement is at -1 too.
+`S.inSewer(player)` is the level *and* a square with something of ours on
+it (`S.ours`); the sounds ask that, and so does the street's hearing. Still
+on `S.below` alone, knowingly: the map's menu entry, the dig menu (digging
+out from a cellar is allowed), the vault switch and the lamps, none of which
+does anything to a basement that a player would notice.
+
 What generalises: **a mod that owns one level of the world owns only what it
 put there.** Any rule that starts "below ground" is about other people's
 basements too; say "in the sewer", and decide what that means from records
@@ -1197,8 +1207,8 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | `tools/luacheck.py` | Lua syntax, generated data included |
 | `tests/test_assets.py` (167 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
 | `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (367 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer (and no other zombie, sound or place), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled, no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 203 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so) |
+| `tests/test_flow.py` (369 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer (and no other zombie, sound or place), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled, no WARN, no unknown sprite or text key |
+| `tests/mutate.py` (`dev.py mutate`) | 205 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so) |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -1266,13 +1276,14 @@ gets verified.
 
 ## Current state
 
-Version **0.7.1**, build revision **6**, layout from `tools/gen_sewers.py`.
+Version **0.7.2**, build revision **6**, layout from `tools/gen_sewers.py`.
 **Workshop:** item **3810188405**, public since 0.3.1 (2026-09-29);
-`WORKSHOP_ID` is set in `tools/package_workshop.py`. **0.7.1 is staged**
+`WORKSHOP_ID` is set in `tools/package_workshop.py`. **0.7.2 is staged**
 (`package --install`, 2026-10-02) for the in-game uploader: 0.7's digging,
 blasting and annotated maps, and 0.7.1's fixes from the Workshop's comments
 (bunkers and basements left alone, the click read where it was made, the
-street deaf to the sewer). **None of 0.7.1 and little of 0.7 has been played**:
+street deaf to the sewer), and 0.7.2's (the sewer's sounds kept out of
+basements). **Digging and blasting are played; the fixes are not**:
 the ROADMAP's **(game)** lines under both are the play-test before the
 upload. Before it, 0.6.0 was staged (`package --install`, 2026-10-01) and
 0.5.0 (2026-09-30); 0.3.2 never went up on its own.

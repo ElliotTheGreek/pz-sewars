@@ -33,7 +33,7 @@ Yes, it works. Nothing is built ahead of time: the sewers are built a stretch at
 
 Sandbox: how many of the dead are down there, who they were (ordinary people or survivors with full packs), how many rats, how well the shelters are stocked, how bad the sewer gas is (off, mild, harmful or deadly), whether the sewers can be dug (off, picks and hammers, or explosives too), and whether the street hears the sewer (no, or yes: the game's own rule).
 
-New in 0.7.1: digging and blasting. Fixes from your comments, thank you: the mod no longer touches bunkers and basements (going down to -2, or into the military base, sent people to a sewer ladder or up to the street); a right-click near the edge of the screen finds the cover or the ladder it was on; and the dead on the street no longer come to stand over a player walking in the sewer under them (a sandbox option puts the game's own rule back).
+New in 0.7.2: digging and blasting. Fixes from your comments, thank you: the mod no longer touches bunkers and basements (going down to -2, or into the military base, sent people to a sewer ladder or up to the street), and its drips, rats and groans are heard in the sewers only, not in every basement; a right-click near the edge of the screen finds the cover or the ladder it was on; and the dead on the street no longer come to stand over a player walking in the sewer under them (a sandbox option puts the game's own rule back).
 
 New in 0.6: the rat hole is bigger than it was, with more than one cache in it, and the cult has somewhere of its own. What is written down in each place will lead you to the other. Existing saves keep their sewers; the new parts appear as you walk into them.
 

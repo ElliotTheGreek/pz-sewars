@@ -438,6 +438,10 @@ MUTATIONS = [
      "    local sx, sy = context.requestX, context.requestY", "    local sx, sy = context.x, context.y"),
     ("click: the mouse when no click was kept", "shared/SEW/SEW_Util.lua",
      '        sx = U.try("getMouseX", function() return getMouseX() end)', "        sx = nil"),
+    ("bunker: the sewer's sounds stay in the sewer", "client/SEW/SEW_Client.lua",
+     "    if not S.inSewer(p) then return end\n", "    if not S.below(p) then return end\n"),
+    ("bunker: the sewer's sounds are played", "client/SEW/SEW_Client.lua",
+     '    U.try("ambience", function() p:playSoundLocal(name) end)', ""),
     # The street does not hear the sewer (SEW_Street).
     ("street: only zombies on the street", "client/SEW/SEW_Street.lua",
      "    if z:getZ() < 0 or z:getPathTargetZ() ~= C.Z then return false end", "    if z:getPathTargetZ() ~= C.Z then return false end"),

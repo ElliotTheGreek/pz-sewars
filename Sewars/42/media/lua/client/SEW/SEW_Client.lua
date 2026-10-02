@@ -623,7 +623,9 @@ end
 
 local nextSound = 0
 function Client.ambience(p, now)
-    if not S.below(p) then return end
+    -- In the sewer, not in a basement at its level (found by a player: drips,
+    -- rats and groans in every cellar).
+    if not S.inSewer(p) then return end
     if now < nextSound then return end
     local lo, hi = C.AmbienceTicks[1], C.AmbienceTicks[2]
     nextSound = now + ZombRand(lo, hi)
