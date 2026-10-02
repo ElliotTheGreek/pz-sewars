@@ -2,10 +2,11 @@
 
 A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
-> Status: **0.5.0**: caves, houses with a way down, Louisville, rats and the
-> nest, play-tested. Next, built and passing every static and simulated test,
-> waiting on its play-test: sewer gas, locked gates and storm-drain outfalls
-> (the checklist is in `DEV_GUIDE.md`, *Current state*).
+> Status: **0.7.1**: digging and blasting, annotated maps, a street that no
+> longer hears the sewer, and three fixes from the Workshop's comments
+> (bunkers and basements left alone, the right-click read where it was made),
+> on top of 0.6's temple and warren and 0.5's caves, hatches, Louisville,
+> rats, gas, gates and outfalls.
 
 ## What a player gets
 
@@ -27,8 +28,17 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   channels, pipes, puddles, graffiti from whoever came before. The only
   daylight is what falls through the holes in the covers. The dead are down
   here too, and you will hear things in the pipes.
+- **Out of earshot.** The dead on the street do not come to the noise you
+  make under it; the ones in the tunnels with you do. (The game lets sound
+  through a floor. A sandbox option puts that back.)
 - **Somewhere to build.** The tunnels are yours to wall off, barricade, light
   and furnish.
+- **Room to build.** With a pickaxe (or, slowly, a sledgehammer), right-click
+  below ground and **Dig**: the rock beside you becomes one more square of
+  floor, and a wall with a space behind it comes down. A pipe bomb set off in
+  a tunnel opens the rock for two squares round it. A few things never give:
+  doors, the wall a ladder hangs on, anybody's basement. `DIGGING.md` is the
+  whole of it: tools, bombs, what will not give, the messages.
 - **A map you fill in yourself.** Press **K** below ground (rebindable in
   Options -> Mods; not while driving): the sewer map
   starts black and fills in as you walk. Municipal sewer plans reveal whole
@@ -42,8 +52,10 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   house. Not every house: one the world gave a basement has none.
 - **Rats.** The game's own rats live in the tunnels now: you will hear them
   and see them run. They can be trapped, and eaten if it comes to that.
-- **Something under Louisville.** People who went down there wrote the same
-  four letters on the walls. Nobody believed them.
+- Somewhere in the world there is a rat hole where you can take the bricks apart and enter to find many aggressive ROUS's and a hidden cache.
+- It's possible there are hidden cult members who worship the ROUS's somewhere else in the map
+- **Annotated maps.** Somebody marked both places on a map before you did.
+  They turn up where maps turn up.
 - **Random shelters.** Somewhere along the tunnels, other survivors dug out a
   refuge before you: a maintenance room, a pump station, a squat behind a
   bricked-up junction. Some are stocked. Some still have their builders.
@@ -71,6 +83,12 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   townsfolk; hardly any with a bag), mixed, or survivors who came down with a
   full pack.
 - **Sewer gas**: off, mild (queasy at worst), harmful or deadly.
+- **Digging in the sewers**: off, picks and hammers, or picks, hammers and
+  explosives.
+- **The street hears the sewer**: no, or yes. No (the default): what you do
+  in the sewer draws nobody on the street above. Yes: the game's own rule,
+  where a floor stops no sound and running under a street brings its dead to
+  stand over you.
 
 Each applies to tunnels and shelters not yet found.
 
@@ -105,10 +123,11 @@ servers.
 31 towns, 1,174 manholes that open (732 of them covers the mod adds where the
 map has few, Louisville above all), 16 storm-drain outfalls, 239 shelters (47
 behind locked gates), 152 caves, 189 houses with a way down, 97 stretches of
-sewer gas, 476,399 walkable squares of tunnel, one nest, laid out from the
-game's own street map.
+sewer gas, 479,238 walkable squares of tunnel, one nest of five rooms and one
+temple of thirteen, laid out from the game's own street map.
 
 ## For developers
 
 `DEV_GUIDE.md` is how to build, test and update the mod. `DESIGN.md` is how
-the sewers work and why.
+the sewers work and why. `DIGGING.md` is the player's guide to digging and
+blasting.

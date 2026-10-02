@@ -11,5 +11,10 @@
     "Tooltip_SEW_PryGate": "Old brickwork, gnawed half through from this side. Whatever made the nest was trying to get at something behind it.",
     "Tooltip_SEW_Key": "Stamped DPW - COUNTY SEWERS. Opens the locked grilles on the county's rooms under one town. Keep it in your hands or on a key ring: in a bag it does nothing.",
     "Tooltip_SEW_Outfall": "An iron grate set into the bank where the town's storm water comes out. It lifts. A ladder goes down into the dark.",
-    "Tooltip_SEW_OutfallUp": "Up the ladder and out through the grate, onto the bank by the water."
+    "Tooltip_SEW_OutfallUp": "Up the ladder and out through the grate, onto the bank by the water.",
+    "Tooltip_SEW_Trap": "A trapdoor under the weeds, in the middle of nowhere. A ladder goes down into the dark, and something down there is burning.",
+    "Tooltip_SEW_TrapUp": "Up the ladder and out through the trapdoor, into the field.",
+    "Tooltip_SEW_MineNoTool": "Rock, brick and concrete. You need a pickaxe or a sledgehammer.",
+    "Tooltip_SEW_MinePick": "Heavy work with the pickaxe, and loud. One square at a time.",
+    "Tooltip_SEW_MineHammer": "Heavy work, slow with a sledgehammer, and loud. A pickaxe would be quicker."
 }

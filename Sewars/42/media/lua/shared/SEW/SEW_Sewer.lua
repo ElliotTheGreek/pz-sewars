@@ -120,8 +120,15 @@ function S.manholeNear(x, y, slack)
     return best
 end
 
+--- True on the sewer's own level, C.Z, and nowhere else. **Not "anywhere
+--- under the street"**: the map has bunkers and basements two and fourteen
+--- levels down, and players dig their own; none of that is the sewer, and a
+--- player there gets no map, no dig menu, no gas and no rescue (DEV_GUIDE,
+--- "Below ground is not all ours").
 function S.below(player)
-    return player ~= nil and (U.try("getZ", function() return player:getZ() end) or 0) < -0.5
+    if player == nil then return false end
+    local z = U.try("getZ", function() return player:getZ() end) or 0
+    return z < C.Z + 0.5 and z >= C.Z - 0.5
 end
 
 --- True when a character is close enough to a point to work there.
@@ -153,6 +160,20 @@ function S.hasPryTool(character)
         if U.try("containsTypeRecurse", function() return inv:containsTypeRecurse(bare) end) then return true end
     end
     return false
+end
+
+--- "pick", "hammer" or nil: what the character carries to dig with (a pick
+--- is quicker). The server asks the same of its own copy (SEW_Mine.tool).
+function S.mineTool(character)
+    local inv = U.try("inventory", function() return character:getInventory() end)
+    if not inv then return nil end
+    for _, kind in ipairs({ "pick", "hammer" }) do
+        for _, id in ipairs(C.Mine[kind]) do
+            local bare = id:match("%.(.+)$") or id
+            if U.try("containsTypeRecurse", function() return inv:containsTypeRecurse(bare) end) then return kind end
+        end
+    end
+    return nil
 end
 
 --- The two squares either side of one of the nest's walls ("wall", the false

@@ -16,10 +16,11 @@
               reaches the client before the client steps onto it.
       build   every few ticks, the chunks round each player below ground,
               nearest first, a couple a tick (DEV_GUIDE, "Slice any search").
-      rescue  a player below with no floor under them -- a save from before
-              a chunk was built, or a fall -- is sent to the nearest ladder.
-              Never left to fall (DEV_GUIDE, "Never let a failure strand the
-              player").
+      rescue  a player in the sewer with no floor under them -- a save from
+              before a chunk was built, or a fall -- is sent to the nearest
+              ladder. Never left to fall (DEV_GUIDE, "Never let a failure
+              strand the player"). Only in the sewer: never out of a
+              basement or a bunker (Server.ours).
 ]]
 
 if isClient() then return end
@@ -34,6 +35,8 @@ require "SEW/SEW_Story"
 require "SEW/SEW_Nest"
 require "SEW/SEW_Gas"
 require "SEW/SEW_Keys"
+require "SEW/SEW_Maps"
+require "SEW/SEW_Mine"
 
 SEW = SEW or {}
 local C = SEW.Config
@@ -77,7 +80,8 @@ function Server.grant(player, x, y, mode)
         U.log("%s climbs down at %d,%d (%s; %d chunks built, %d waiting)",
               nameOf(player), x, y, shaft.town, done, left)
         Net.toClient(player, "go", { x = x, y = y, z = C.Z, street = shaft.street or "", mode = "down",
-                                     hatch = shaft.hatch ~= nil, outfall = shaft.outfall == true })
+                                     hatch = shaft.hatch ~= nil or shaft.trapdoor == true,
+                                     outfall = shaft.outfall == true })
         return true
     elseif mode == "up" then
         if not S.below(player) then return refuse(player, "level") end
@@ -88,17 +92,39 @@ function Server.grant(player, x, y, mode)
         SEW.Discovery.ladder(player, x, y)
         U.log("%s climbs out at %d,%d (%s)", nameOf(player), x, y, shaft.town)
         Net.toClient(player, "go", { x = x, y = y, z = 0, street = shaft.street or "", mode = "up",
-                                     hatch = shaft.hatch ~= nil, outfall = shaft.outfall == true })
+                                     hatch = shaft.hatch ~= nil or shaft.trapdoor == true,
+                                     outfall = shaft.outfall == true })
         return true
     end
     return refuse(player, "mode")
 end
 
+--- True when a player with no floor under them is the sewer's to rescue: on
+--- its level, and either standing on no square at all (nobody's basement has
+--- one of those) or on a bare square in or beside a chunk the sewer has
+--- squares in. A basement's stairs, a bunker fourteen levels down and a
+--- cellar another mod dug are none of our business (found by players: each
+--- was "rescued" to a ladder or to the street).
+function Server.ours(player, px, py)
+    if not S.below(player) then return false end
+    local sq = U.try("square", function() return player:getCurrentSquare() end)
+    if not sq then return true end
+    if U.try("sq.z", function() return sq:getZ() end) ~= C.Z or B.foreign(sq) then return false end
+    local cx, cy = math.floor(px / 8), math.floor(py / 8)
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            local key = (cx + dx) .. "," .. (cy + dy)
+            if B.townOf(key) or B.state().dug[key] then return true end
+        end
+    end
+    return false
+end
+
 --- A client below ground found no floor under its player.
 Net.onServer("rescue", function(player, args)
-    if not S.below(player) then return end
     local px = U.try("px", function() return player:getX() end) or 0
     local py = U.try("py", function() return player:getY() end) or 0
+    if not Server.ours(player, px, py) then return end
     -- The floor may simply not be built yet: build here first, and only move
     -- the player if there is still nothing under them.
     B.around(px, py, 1)
@@ -156,6 +182,8 @@ local function service()
     for _, p in ipairs(players) do
         if S.below(p) then U.try("discover", SEW.Discovery.look, p) else U.try("hatches", Server.hatches, p) end
     end
+    -- Whoever a set piece is owed (SEW_Build.setPiece), now that nobody is near.
+    U.try("settle", B.settle)
     local budget = C.BuildChunksPerTick
     for _, p in ipairs(players) do
         if budget <= 0 then return end

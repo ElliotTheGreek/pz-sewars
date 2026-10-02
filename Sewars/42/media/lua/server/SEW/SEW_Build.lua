@@ -8,10 +8,12 @@
         floor    t tunnel  k vault  s shelter  g grating  w channel (sludge,
                  not walkable)  r rock under a wall outside  m cave (dug earth)
                  n the rats' nest and its run (dug earth)  v the rats' hoard
-                 . none
+                 p a passage the cult dug (earth)  h the temple's stone floor
+                 a its carpet  q its boards  . none
         walls    c concrete  b brick  d a door frame with its steel door
                  j a door frame with a locked grille (a county room: DESIGN.md 7, Locked gates)
                  e earth  o breach through concrete  q breach through brick
+                 O Q the same, where the cult broke into a sewer from their side
                  x y the false wall into the nest (concrete, brick): a wall
                  until it is pulled away, then a breach
                  z the gnawed wall from the nest into the hoard: brick until
@@ -85,6 +87,23 @@ function B.state()
     -- Chunks whose sewer gas has its haze and placards (SEW_Gas.dress): once,
     -- first build or not, so gas reaches chunks built before there was any.
     s.gas = s.gas or {}
+    -- Chunks whose pictures -- the cult's marks, the temple's sconces and
+    -- banners -- have been hung (T.pictures): once, first build or not, so
+    -- the marks by a breach reach a sewer a save built before the temple.
+    s.hung = s.hung or {}
+    -- Chunks whose dens of the warren have their caches, relics and dead
+    -- (T.warren, T.warrenDead): once, first build or not, so a save that
+    -- already has the nest gets the dens' contents with their floors.
+    s.warren = s.warren or {}
+    -- The dead of a set piece -- the temple's, the dens' -- who could not be
+    -- put down when their chunk was built, because a player was standing too
+    -- near: chunk key -> { { x, y, outfit, fx, fy }, ... }. They are owed, and
+    -- put down once nobody is (B.settle).
+    s.owed = s.owed or {}
+    -- What players have dug (SEW_Mine): records of their own, read in place
+    -- of the generator's. Chunk key -> { ["x,y"] = record }. It grows with
+    -- the digging, and like the rest of this is never transmitted.
+    s.dug = s.dug or {}
     return s
 end
 
@@ -105,6 +124,50 @@ function B.townOf(key)
 end
 
 function B.resetIndex() chunkTown = nil end
+
+---------------------------------------------------------------------------
+-- Records, by square
+---------------------------------------------------------------------------
+-- chunk key -> { ["x,y"] = record } of the generator's data, cut up the first
+-- time a square of the chunk is asked for.
+local cut = {}
+
+--- The generator's record of x, y, or nil.
+function B.dataAt(x, y)
+    local key = math.floor(x / 8) .. "," .. math.floor(y / 8)
+    local c = cut[key]
+    if c == nil then
+        c = false
+        local tid = B.townOf(key)
+        local body = tid and SEW.Data[tid].chunks[key]
+        if body then
+            c = {}
+            local cx, cy = math.floor(x / 8) * 8, math.floor(y / 8) * 8
+            for i = 1, #body, 7 do
+                local rec = body:sub(i, i + 6)
+                c[(cx + tonumber(rec:sub(1, 1))) .. "," .. (cy + tonumber(rec:sub(2, 2)))] = rec
+            end
+        end
+        cut[key] = c
+    end
+    return c and c[x .. "," .. y] or nil
+end
+
+--- The record of x, y as it stands: what a player dug there (SEW_Mine), else
+--- the generator's, else nil.
+function B.recordAt(x, y)
+    local over = B.state().dug[math.floor(x / 8) .. "," .. math.floor(y / 8)]
+    return (over and over[x .. "," .. y]) or B.dataAt(x, y)
+end
+
+--- Writes a record of the players' own for x, y. It is read in place of the
+--- generator's from now on, by every pass.
+function B.setRecord(x, y, rec)
+    local dug = B.state().dug
+    local key = math.floor(x / 8) .. "," .. math.floor(y / 8)
+    dug[key] = dug[key] or {}
+    dug[key][x .. "," .. y] = rec
+end
 
 function B.isCurrent(key)
     return B.state().built[key] == B.rev()
@@ -189,18 +252,11 @@ local function putDoor(sq, north, key)
     end) == true
 end
 
---- True when the square holds something that is not ours and not a dropped
---- item: somebody else's underground. Left alone.
-local function foreign(sq)
-    local other = false
-    U.eachObject(sq, function(o)
-        if not U.isOurs(o) and not instanceof(o, "IsoWorldInventoryObject") then
-            other = true
-            return false
-        end
-    end)
-    return other
-end
+--- Somebody else's underground, left alone (SEW_Util: the client asks the
+--- same before it calls for a rescue).
+local foreign = U.foreign
+
+B.foreign = foreign
 
 local FLOOR = {
     t = function() return C.Sprites.floorTunnel end,
@@ -219,9 +275,16 @@ local FLOOR = {
     -- lays stripes (the first render of the nest). One step of U.rng mixes it.
     n = function(x, y) return C.Sprites.floorCave[(U.rng(U.hash(x, y, 5))(4) == 1) and 2 or 1] end,
     v = function() return C.Sprites.floorVault end,
+    -- The cult's passages are dug earth, as a cave's; the temple is built.
+    p = function(x, y) return C.Sprites.floorCave[(U.rng(U.hash(x, y, 5))(4) == 1) and 2 or 1] end,
+    h = function() return C.Sprites.floorTemple end,
+    a = function() return C.Sprites.floorCarpet end,
+    q = function() return C.Sprites.floorBoards end,
 }
 
-local BREACH = { o = true, q = true }
+-- A breach, and the wall it was broken through: o concrete, q brick; O and Q
+-- the same where the cult broke into a sewer (tools/gen_temple.py).
+local BREACH = { o = "o", q = "q", O = "o", Q = "q" }
 
 -- The nest's two walls that open: each a wall until it is opened (state, by
 -- which), then a breach through the same material.
@@ -245,7 +308,7 @@ end
 
 --- Floors that belong to a cave or the nest: new ground when their chunk's
 --- caves are dug, even in a chunk built before there were any.
-local DUG = { m = true, n = true, v = true }
+local DUG = { m = true, n = true, v = true, p = true }
 
 local function variant(style, edge, x, y)
     local set = C.Sprites.wallVariants[style]
@@ -294,8 +357,8 @@ function B.unwall(sq, walls, n, w, fix)
     for _, v in ipairs(walls) do want[v] = true end
     if n == "d" or n == "j" then want[C.Sprites.doorFrame.N] = true end
     if w == "d" or w == "j" then want[C.Sprites.doorFrame.W] = true end
-    if BREACH[n] then want[C.Sprites.breach[n].N], want[C.Sprites.doorFrame.N] = true, true end
-    if BREACH[w] then want[C.Sprites.breach[w].W], want[C.Sprites.doorFrame.W] = true, true end
+    if BREACH[n] then want[C.Sprites.breach[BREACH[n]].N], want[C.Sprites.doorFrame.N] = true, true end
+    if BREACH[w] then want[C.Sprites.breach[BREACH[w]].W], want[C.Sprites.doorFrame.W] = true, true end
     if n == "e" then want[C.Sprites.earthFace.N] = true end
     if w == "e" then want[C.Sprites.earthFace.W] = true end
     if fix == "L" then want[C.Sprites.ladder.N] = true end
@@ -335,10 +398,14 @@ local function overlayEdge(name)
                        Sp.gasSign }
         for _, set in pairs(Sp.breach) do sets[#sets + 1] = set end
         for _, set in pairs(Sp.graffiti) do sets[#sets + 1] = set end
+        -- The cult's: sigil, slogan, sconce, banner.
+        for _, k in ipairs({ "sigil", "burrow", "torch", "banner" }) do sets[#sets + 1] = Sp.cult[k] end
         for _, set in ipairs(sets) do
             overlayEdges[set.N] = "N"
             overlayEdges[set.W] = "W"
         end
+        -- And the triptych behind the idol: north walls only.
+        for _, v in ipairs(Sp.cult.mural) do overlayEdges[v] = "N" end
     end
     return name and overlayEdges[name]
 end
@@ -508,8 +575,8 @@ function B.square(x, y, rec, first, caves)
     if BREACH[n] then put(sq, C.Sprites.doorFrame.N) end
     if BREACH[w] then put(sq, C.Sprites.doorFrame.W) end
     if not first then B.rehang(sq) end
-    if BREACH[n] then hang(sq, C.Sprites.breach[n].N) end
-    if BREACH[w] then hang(sq, C.Sprites.breach[w].W) end
+    if BREACH[n] then hang(sq, C.Sprites.breach[BREACH[n]].N) end
+    if BREACH[w] then hang(sq, C.Sprites.breach[BREACH[w]].W) end
     if n == "e" then hang(sq, C.Sprites.earthFace.N) end
     if w == "e" then hang(sq, C.Sprites.earthFace.W) end
     if first then
@@ -564,6 +631,8 @@ function B.furnish(entry, seed)
                                   or C.LootCount[B.option("Loot", 3, #C.LootCount)])
             local mine = U.hash(x, y, seed)
             U.fill(obj, C.Loot[loot], lo + mine % (hi - lo + 1), mine)
+            -- Now and then, somebody's map to the temple or to the nest (SEW_Maps).
+            if SEW.Maps then SEW.Maps.crate(c, x, y) end
         elseif loot then
             U.warnOnce("loot:" .. loot, "no C.Loot list named " .. loot)
         end
@@ -580,12 +649,53 @@ local function nearAPlayer(x, y, range)
     return false
 end
 
-function B.spawn(x, y, outfit)
-    if nearAPlayer(x, y, C.SpawnClearance) then return false end
+--- One of the dead at x, y. `fx, fy`: the square it is turned to -- the
+--- temple's stand round their slab, facing it (tools/gen_temple.py).
+--- Returns how many were made; false, "near" when a player is too close.
+function B.spawn(x, y, outfit, fx, fy)
+    if nearAPlayer(x, y, C.SpawnClearance) then return false, "near" end
     local list = U.try("addZombiesInOutfit", function()
         return addZombiesInOutfit(x, y, B.Z, 1, outfit, 50, false, false, false, false, false, false, 1.0)
     end)
-    return list ~= nil and U.try("zombies.size", function() return list:size() end) or false
+    local n = list ~= nil and U.try("zombies.size", function() return list:size() end) or false
+    if fx and fy and n and n > 0 then
+        U.try("zombie.face", function() list:get(0):faceLocation(fx + 0.5, fy + 0.5) end)
+    end
+    return n
+end
+
+--- One of a set piece's dead (the temple's, the dens'): put down now, or
+--- owed if a player is standing too near. The tunnels' own dead are simply
+--- not put down beside a player; these are the point of the place, and a
+--- hall found empty because somebody arrived through its trapdoor is not it.
+function B.setPiece(key, z)
+    local n, why = B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5])
+    if why == "near" then
+        local s = B.state()
+        s.owed[key] = s.owed[key] or {}
+        table.insert(s.owed[key], { z[1], z[2], z[3], z[4], z[5] })
+    end
+    return n
+end
+
+--- Puts down whoever is owed, in loaded chunks, now that nobody is near.
+--- Returns how many were.
+function B.settle()
+    local s = B.state()
+    local made, done = 0, {}
+    for key, list in pairs(s.owed) do
+        local cx, cy = key:match("^(-?%d+),(-?%d+)$")
+        if U.chunkLoaded(tonumber(cx) * 8 + 4, tonumber(cy) * 8 + 4) then
+            local left = {}
+            for _, z in ipairs(list) do
+                local n, why = B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5])
+                if why == "near" then left[#left + 1] = z elseif n then made = made + 1 end
+            end
+            if #left == 0 then done[#done + 1] = key else s.owed[key] = left end
+        end
+    end
+    for _, key in ipairs(done) do s.owed[key] = nil end
+    return made
 end
 
 --- A Sewars sandbox option, 1..n; `default` when the save has none (a world
@@ -672,7 +782,8 @@ function B.cover(shaft)
     if not U.chunkLoaded(shaft.x, shaft.y) then return nil end
     local top = U.square(shaft.x, shaft.y, 0, false)
     if not top or not U.floorOf(top) then return nil end
-    local sprite = shaft.outfall and C.Sprites.outfall or C.Sprites.cover
+    -- The temple's way out is a trapdoor in a field: a house's hatch, with no house.
+    local sprite = shaft.outfall and C.Sprites.outfall or shaft.trapdoor and C.Sprites.hatch or C.Sprites.cover
     if not U.findSprite(top, sprite) and not put(top, sprite) then return nil end
     s.covers[key] = "placed"
     U.debug("cover at %d,%d (%s) placed", shaft.x, shaft.y, shaft.town)
@@ -693,7 +804,20 @@ end
 --- current; false when it must be tried again (not loaded).
 function B.chunk(key)
     local tid = B.townOf(key)
-    if not tid then return true end
+    if not tid then
+        -- No town's chunk -- but players may have dug into it (SEW_Mine): what
+        -- they dug is all there is here, and a pass puts back any of it missing.
+        local dug = B.state().dug[key]
+        if not dug then return true end
+        local kx, ky = key:match("^(-?%d+),(-?%d+)$")
+        if not U.chunkLoaded(tonumber(kx) * 8 + 4, tonumber(ky) * 8 + 4) then return false end
+        for k, rec in pairs(dug) do
+            local x, y = k:match("^(-?%d+),(-?%d+)$")
+            if B.square(tonumber(x), tonumber(y), rec, false, false) == "unloaded" then return false end
+        end
+        B.state().built[key] = B.rev()
+        return true
+    end
     local T = SEW.Data[tid]
     local body = T.chunks[key]
     local cx, cy = key:match("^(-?%d+),(-?%d+)$")
@@ -704,10 +828,17 @@ function B.chunk(key)
     local first = s.first[key] == nil
     -- Caves not yet dug here: a chunk with cave in it whose caves are not done.
     local caves = s.caves[key] == nil and B.hasCave(body)
-    local built, skipped, open, nest = 0, 0, {}, 0
+    local built, skipped, open, nest, runs = 0, 0, {}, 0, {}
+    -- What players have dug here is read in place of the generator's record.
+    local over, seen = s.dug[key], nil
     for i = 1, #body, 7 do
         local rec = body:sub(i, i + 6)
         local x, y = cx * 8 + tonumber(rec:sub(1, 1)), cy * 8 + tonumber(rec:sub(2, 2))
+        if over then
+            seen = seen or {}
+            seen[x .. "," .. y] = true
+            rec = over[x .. "," .. y] or rec
+        end
         local how = B.square(x, y, rec, first, caves)
         if how == "unloaded" then return false end
         if how == "foreign" then
@@ -716,7 +847,19 @@ function B.chunk(key)
             built = built + 1
             local f = rec:sub(3, 3)
             if f == "t" or f == "k" or f == "m" then open[#open + 1] = { x, y } end
+            -- Where the rats run: the walkway, and the cult's passages and hall --
+            -- they were let go where they liked. None of the tunnels' dead there.
+            if f == "t" or f == "k" or f == "m" or f == "p" or f == "h" then runs[#runs + 1] = { x, y } end
             if f == "n" then nest = nest + 1 end
+        end
+    end
+    -- And the squares they dug that the generator never had.
+    if over then
+        for k, rec in pairs(over) do
+            if not (seen and seen[k]) then
+                local x, y = k:match("^(-?%d+),(-?%d+)$")
+                if B.square(tonumber(x), tonumber(y), rec, false, false) == "unloaded" then return false end
+            end
         end
     end
     if skipped > 0 then
@@ -736,14 +879,18 @@ function B.chunk(key)
                 B.spawn(p[1], p[2], B.outfit(p[1], p[2], k))
             end
         end
-        for _, z in ipairs(T.claimed[key] or {}) do B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2])) end
+        -- A shelter's own dead; the temple's are a set piece, and owed if a player is too near.
+        local piece = SEW.Index.temple ~= nil and SEW.Index.temple.town == tid
+        for _, z in ipairs(T.claimed[key] or {}) do
+            if piece then B.setPiece(key, z) else B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5]) end
+        end
         -- The town's maintenance key, in the unlocked county rooms' crates
         -- (DESIGN.md 7, Locked gates): once, with the rest of the stocking.
         if SEW.Keys then
             for _, k in ipairs(T.keys and T.keys[key] or {}) do U.try("key", SEW.Keys.stock, k[1], k[2], tid) end
         end
         -- And the rats, vanilla's own, on the walkway (SEW_Nest).
-        if SEW.Nest then U.try("rats", SEW.Nest.rats, open, cx, cy) end
+        if SEW.Nest then U.try("rats", SEW.Nest.rats, runs, cx, cy) end
         s.first[key] = B.rev()
     end
     -- The hideouts' furniture and their dead, once, first build or not.
@@ -762,6 +909,22 @@ function B.chunk(key)
         U.try("gas", SEW.Gas.dress, key)
         s.gas[key] = B.rev()
     end
+    -- The warren's dens (0.6): what the rats dragged there and who came after
+    -- it, once. Stocked like the hoard where the generator says so.
+    if s.warren[key] == nil and T.warren and (T.warren[key] or T.warrenDead[key]) then
+        local seed = U.hash(cx, cy, 43)
+        for _, e in ipairs(T.warren[key] or {}) do B.furnish(e, seed) end
+        for _, z in ipairs(T.warrenDead[key] or {}) do B.setPiece(key, z) end
+        s.warren[key] = B.rev()
+    end
+    -- The cult's pictures: on the wall of their square, once.
+    if s.hung[key] == nil and T.pictures and T.pictures[key] then
+        for _, e in ipairs(T.pictures[key]) do
+            local sq = U.square(e[1], e[2], B.Z, false)
+            if sq then hang(sq, e[3]) end
+        end
+        s.hung[key] = B.rev()
+    end
     s.built[key] = B.rev()
     U.debug("built chunk %s (%s): %d squares%s", key, tid, built, first and ", first" or "")
     return true
@@ -775,7 +938,7 @@ function B.pending(x, y, r)
     for dx = -r, r do
         for dy = -r, r do
             local key = (pcx + dx) .. "," .. (pcy + dy)
-            if B.townOf(key) and not B.isCurrent(key) then
+            if (B.townOf(key) or B.state().dug[key]) and not B.isCurrent(key) then
                 out[#out + 1] = { key = key, d = dx * dx + dy * dy }
             end
         end

@@ -106,6 +106,92 @@ function Client.offer(playerObj, x, y)
 end
 
 ---------------------------------------------------------------------------
+-- Digging
+---------------------------------------------------------------------------
+Client.DIRS = { { "N", 0, -1 }, { "E", 1, 0 }, { "S", 0, 1 }, { "W", -1, 0 } }
+
+--- True when a ladder of ours hangs on that edge of the square that holds it
+--- (as an object, or attached to its wall): the wall behind a ladder stays.
+local function ladderOn(holder, north)
+    local name = north and C.Sprites.ladder.N or C.Sprites.ladder.W
+    if not holder then return false end
+    if U.findSprite(holder, name) then return true end
+    local spr, found = getSprite(name), false
+    U.eachObject(holder, function(o)
+        if U.try("isAttached", function() return o:isAttachedAnimSprite(spr) end) == true then
+            found = true
+            return false
+        end
+    end)
+    return found
+end
+
+--- What can be dug from where the player stands, each way: { dir, dx, dy,
+--- kind } with kind "dig" (rock there) or "break" (a wall, and a space behind
+--- it). What this machine can see for itself; the server decides (SEW_Mine).
+function Client.mineOffers(p)
+    local out = {}
+    if not S.below(p) then return out end
+    if SandboxVars and SandboxVars.Sewars and tonumber(SandboxVars.Sewars.Digging) == 1 then return out end
+    local x, y = math.floor(p:getX()), math.floor(p:getY())
+    local here = U.square(x, y, C.Z, false)
+    if not here or not U.floorOf(here) then return out end
+    for _, d in ipairs(Client.DIRS) do
+        local sq = U.square(x + d[2], y + d[3], C.Z, false)
+        local floor = sq and U.floorOf(sq)
+        -- The edge is held by the southern or eastern of the two squares.
+        local edgeHolder, edgeNorth = (d[2] + d[3] > 0) and sq or here, d[2] == 0
+        if ladderOn(edgeHolder, edgeNorth) then
+            -- Nothing to offer: the ladder's wall is the way out.
+        elseif not floor or U.spriteName(floor) == C.Sprites.floorRock then
+            out[#out + 1] = { dir = d[1], dx = d[2], dy = d[3], kind = "dig" }
+        elseif U.try("blocked", function() return here:isBlockedTo(sq) end) == true then
+            -- Not a door: that opens. (The edge is held by the southern or eastern square.)
+            local holder, north = (d[2] + d[3] > 0) and sq or here, d[2] == 0
+            local door = false
+            U.eachObject(holder, function(o)
+                if instanceof(o, "IsoDoor") and U.try("door.north", function() return o:getNorth() end) == north then
+                    door = true
+                    return false
+                end
+            end)
+            if not door then out[#out + 1] = { dir = d[1], dx = d[2], dy = d[3], kind = "break" } end
+        end
+    end
+    return out
+end
+
+function Client.mine(playerObj, dx, dy)
+    ISTimedActionQueue.add(SEWMine:new(playerObj, math.floor(playerObj:getX()), math.floor(playerObj:getY()), dx, dy))
+end
+
+--- The Dig submenu: one entry for each way that can be dug, greyed with the
+--- reason when there is nothing to dig with.
+function Client.mineMenu(playerObj, context)
+    local offers = Client.mineOffers(playerObj)
+    if #offers == 0 then return false end
+    local top = context:addOption(getText("ContextMenu_SEW_Mine"), nil, nil)
+    local tool = S.mineTool(playerObj)
+    if not tool then
+        top.notAvailable = true
+        local tip = ISWorldObjectContextMenu.addToolTip()
+        tip.description = getText("Tooltip_SEW_MineNoTool")
+        top.toolTip = tip
+        return true
+    end
+    local sub = context:getNew(context)
+    context:addSubMenu(top, sub)
+    for _, o in ipairs(offers) do
+        local opt = sub:addOption(getText("ContextMenu_SEW_" .. (o.kind == "dig" and "Dig_" or "Break_") .. o.dir),
+                                  playerObj, Client.mine, o.dx, o.dy)
+        local tip = ISWorldObjectContextMenu.addToolTip()
+        tip.description = getText(tool == "pick" and "Tooltip_SEW_MinePick" or "Tooltip_SEW_MineHammer")
+        opt.toolTip = tip
+    end
+    return true
+end
+
+---------------------------------------------------------------------------
 -- The dev build's menu
 ---------------------------------------------------------------------------
 -- The author tests by playing and never types in the debug console, so
@@ -113,7 +199,7 @@ end
 -- "Sewars (dev)" submenu, only when SEW.Dev is set (the installed SewarsDev
 -- copy) and only in single player, where this process is also the server.
 -- Each stop goes round the dev town's list (C.DevStartTown) in turn.
-Client.devNext = { gas = 0, gate = 0 }
+Client.devNext = { gas = 0, gate = 0, breach = 0 }
 
 --- The places of one kind in the dev town, in a fixed order: "gas" (index
 --- in SEW.Index.gas) or "gate" (index in SEW.Index.gates).
@@ -168,9 +254,61 @@ function Client.devArrive(p)
     end
 end
 
---- One dev stop: "gas", "gate", "key", "outfall" or "poison".
+--- One dev stop: "gas", "gate", "key", "outfall", "poison", "temple" (the
+--- passage short of the temple's south gate), "breach" (where the cult broke
+--- into a sewer, each in turn), "trapdoor" (the field over the temple's
+--- postern), "nest" (the false wall under Louisville) or "warren" (its first den).
 function Client.devGo(p, what)
     if not SEW.Dev or isClient() then return false end
+    local T = SEW.Index.temple
+    if what == "temple" or what == "breach" then
+        if not T then return false end
+        local x, y, note = T.hx, T.hy, getText("IGUI_SEW_DevAtTemple")
+        if what == "breach" then
+            Client.devNext.breach = Client.devNext.breach % #T.breaches + 1
+            local b = T.breaches[Client.devNext.breach]
+            x, y, note = b.tx, b.ty, getText("IGUI_SEW_DevAtBreach", b.n)
+        end
+        Client.devTravel = { x = x, y = y, waited = 0, note = note }
+        U.teleport(p, x, y, 0)
+        Client.vault(p)
+        return true
+    elseif what == "nest" or what == "warren" then
+        -- The tunnel side of the nest's false wall; or its first den, past the
+        -- rodents (who will come: that is the test).
+        local L, Wn = SEW.Index.lair, SEW.Index.warren
+        if not L or not Wn then return false end
+        local x, y, note = L.tx, L.ty, getText("IGUI_SEW_DevAtNest")
+        if what == "warren" then x, y, note = Wn.dens[1], Wn.dens[2], getText("IGUI_SEW_DevAtWarren", #Wn.dens / 3) end
+        Client.devTravel = { x = x, y = y, waited = 0, note = note }
+        U.teleport(p, x, y, 0)
+        Client.vault(p)
+        return true
+    elseif what == "dig" then
+        -- A pick and three pipe bombs, to dig and to blast with.
+        local inv, n = p:getInventory(), 0
+        for _, id in ipairs({ C.Mine.pick[1], "Base.PipeBomb", "Base.PipeBomb", "Base.PipeBomb" }) do
+            if U.addItem(inv, id) then n = n + 1 end
+        end
+        U.note(p, getText("IGUI_SEW_DevDig", n), 200, 190, 150)
+        return n > 0
+    elseif what == "maps" then
+        -- Both annotated maps, in hand: read them from the inventory.
+        if not SEW.Maps then return false end
+        local inv, n = p:getInventory(), 0
+        for _, which in ipairs(SEW.Maps.WHICH) do
+            local item = SEW.Maps.make(which)
+            if item then inv:AddItem(item); n = n + 1 end
+        end
+        U.note(p, getText("IGUI_SEW_DevMaps", n), 200, 190, 150)
+        return n > 0
+    elseif what == "trapdoor" then
+        if not T then return false end
+        U.teleport(p, T.tx, T.ty + 1, 0)
+        Client.vault(p)
+        U.note(p, getText("IGUI_SEW_DevTemple"), 200, 190, 150)
+        return true
+    end
     if what == "gas" or what == "gate" then
         local list = Client.devList(what)
         if #list == 0 then return false end
@@ -204,7 +342,7 @@ function Client.devMenu(playerObj, context)
     local top = context:addOption(getText("ContextMenu_SEW_Dev"), nil, nil)
     local sub = context:getNew(context)
     context:addSubMenu(top, sub)
-    for _, what in ipairs({ "outfall", "gas", "poison", "gate", "key" }) do
+    for _, what in ipairs({ "dig", "maps", "temple", "breach", "trapdoor", "nest", "warren", "outfall", "gas", "poison", "gate", "key" }) do
         sub:addOption(getText("ContextMenu_SEW_Dev_" .. what), playerObj, Client.devGo, what)
     end
 end
@@ -217,6 +355,8 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
     if S.below(playerObj) and SEW.Map and not test then
         context:addOption(getText("ContextMenu_SEW_Map"), playerObj, SEW.Map.toggle)
     end
+    -- Digging, from wherever the player stands below.
+    if S.below(playerObj) and not test then U.try("mineMenu", Client.mineMenu, playerObj, context) end
     local x, y = U.clickedSquare(playerIndex, context, playerObj)
     if not x then return end
     local what, where = Client.offer(playerObj, x, y)
@@ -235,7 +375,9 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
     elseif what == "hatch" then
         local opt = context:addOption(getText("ContextMenu_SEW_HatchDown"), playerObj, Client.climbDown, where)
         local tip = ISWorldObjectContextMenu.addToolTip()
-        tip.description = getText("Tooltip_SEW_Hatch")
+        -- In a house's floor, or (the temple's) under the weeds of a field.
+        local shaft = S.shaftAt(where:getX(), where:getY())
+        tip.description = getText((shaft and shaft.trapdoor) and "Tooltip_SEW_Trap" or "Tooltip_SEW_Hatch")
         opt.toolTip = tip
     elseif what == "shut" then
         local opt = context:addOption(getText("ContextMenu_SEW_Enter"), nil, nil)
@@ -250,16 +392,16 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
         tip.description = getText(where == "gate" and "Tooltip_SEW_PryGate" or "Tooltip_SEW_PryWall")
         opt.toolTip = tip
     elseif what == "up" then
-        local label = where.hatch and "ContextMenu_SEW_HatchUp" or where.outfall and "ContextMenu_SEW_OutfallUp"
-            or "ContextMenu_SEW_Exit"
+        local label = (where.hatch or where.trapdoor) and "ContextMenu_SEW_HatchUp"
+            or where.outfall and "ContextMenu_SEW_OutfallUp" or "ContextMenu_SEW_Exit"
         local opt = context:addOption(getText(label), playerObj, Client.climbUp, where)
         if where.outfall then
             local tip = ISWorldObjectContextMenu.addToolTip()
             tip.description = getText("Tooltip_SEW_OutfallUp")
             opt.toolTip = tip
-        elseif where.hatch then
+        elseif where.hatch or where.trapdoor then
             local tip = ISWorldObjectContextMenu.addToolTip()
-            tip.description = getText("Tooltip_SEW_HatchUp")
+            tip.description = getText(where.trapdoor and "Tooltip_SEW_TrapUp" or "Tooltip_SEW_HatchUp")
             opt.toolTip = tip
         elseif where.street and where.street ~= "" then
             local tip = ISWorldObjectContextMenu.addToolTip()
@@ -281,7 +423,9 @@ Net.onClient("go", function(args)
 end)
 
 local REFUSED = { shut = "IGUI_SEW_Shut", reach = "IGUI_SEW_Reach", level = "IGUI_SEW_Level",
-                  unready = "IGUI_SEW_Unready", rous = "IGUI_SEW_RousAlive", open = "IGUI_SEW_Refused" }
+                  unready = "IGUI_SEW_Unready", rous = "IGUI_SEW_RousAlive", open = "IGUI_SEW_Refused",
+                  solid = "IGUI_SEW_MineSolid", foreign = "IGUI_SEW_MineForeign", tool = "IGUI_SEW_MineTool",
+                  off = "IGUI_SEW_MineOff" }
 Net.onClient("refused", function(args)
     local p = getPlayer()
     U.note(p, getText(REFUSED[args.why] or "IGUI_SEW_Refused"), 220, 170, 120)
@@ -299,6 +443,13 @@ Net.onClient("nest", function(args)
     elseif key then
         U.note(p, getText(key), 210, 190, 150)
     end
+end)
+
+-- Digging (SEW_Mine): a square dug out, a wall down, a blast near by.
+local MINED = { dig = "IGUI_SEW_MineDug", ["break"] = "IGUI_SEW_MineBroke", blast = "IGUI_SEW_MineBlast" }
+Net.onClient("mined", function(args)
+    local p = getPlayer()
+    if MINED[args.what] then U.note(p, getText(MINED[args.what]), 200, 190, 150) end
 end)
 
 -- Sewer gas (SEW_Gas): walked into a stretch, with or without a mask on.
@@ -377,6 +528,10 @@ function Client.checkFloor(p, now)
     if pending or not S.below(p) then return end
     local sq = U.try("square", function() return p:getCurrentSquare() end)
     if sq and U.floorOf(sq) then return end
+    -- Somebody else's underground: a stair with no floor under it, or one
+    -- going on down from this level (the square is then the one below).
+    -- Found by players: a bunker's stairs sent them to a ladder a town away.
+    if sq and (U.try("sq.z", function() return sq:getZ() end) ~= C.Z or U.foreign(sq)) then return end
     if now - lastRescue < 180 then return end
     lastRescue = now
     U.log("no floor under the player at %.1f,%.1f,%.1f: asking for a rescue", p:getX(), p:getY(), p:getZ())
@@ -434,8 +589,10 @@ function Client.light(p)
     -- 442 shafts and 93 shelters: a walk of the whole index every 90 ticks
     -- costs nothing worth slicing.
     for _, s in pairs(SEW.Index.shafts) do
-        -- No daylight through a trapdoor in somebody's floor.
-        if not s.hatch and math.abs(s.x - px) <= r and math.abs(s.y - py) <= r then lamp(s.x, s.y, shaftLight) end
+        -- No daylight through a trapdoor, in somebody's floor or in a field.
+        if not s.hatch and not s.trapdoor and math.abs(s.x - px) <= r and math.abs(s.y - py) <= r then
+            lamp(s.x, s.y, shaftLight)
+        end
     end
     for _, h in ipairs(SEW.Index.shelters) do
         local cx, cy = h.x + math.floor(h.w / 2), h.y + math.floor(h.h / 2)
@@ -443,6 +600,24 @@ function Client.light(p)
     end
     for _, v in ipairs(SEW.Index.caves or {}) do
         if math.abs(v.x - px) <= r and math.abs(v.y - py) <= r then lamp(v.x, v.y, C.CaveLight) end
+    end
+    -- The temple's sconces, braziers and candles, and the candles down its passages.
+    -- The candles the cult's pilgrims left burning in the warren.
+    local Wn = SEW.Index.warren
+    if Wn then
+        for i = 1, #Wn.lights, 2 do
+            local lx, ly = Wn.lights[i], Wn.lights[i + 1]
+            if math.abs(lx - px) <= r and math.abs(ly - py) <= r then lamp(lx, ly, C.CaveLight) end
+        end
+    end
+    -- Nearer than the rest: there are sixty of them, and the hall alone has twenty.
+    local T = SEW.Index.temple
+    if T and math.abs(T.x - px) <= 600 and math.abs(T.y - py) <= 600 then
+        r = C.TempleLightRange
+        for i = 1, #T.lights, 2 do
+            local lx, ly = T.lights[i], T.lights[i + 1]
+            if math.abs(lx - px) <= r and math.abs(ly - py) <= r then lamp(lx, ly, C.TempleLight) end
+        end
     end
 end
 
@@ -545,6 +720,15 @@ function Client.devStart(p, now)
     if now < devStartAt then return false end
     devStartAt = nil
     md.SEWDevStart = true
+    -- In the field over the temple: the trapdoor to its postern goes into the
+    -- ground a square north within a few seconds (SEW_Build.cover).
+    local T = C.DevStart == "temple" and SEW.Index and SEW.Index.temple
+    if T then
+        U.teleport(p, T.tx, T.ty + 1, 0)
+        U.log("dev build: started in the field over the temple, by its trapdoor %d,%d", T.tx, T.ty)
+        U.note(p, getText("IGUI_SEW_DevTemple"), 200, 190, 150)
+        return true
+    end
     -- On the bank by a storm-drain outfall: the grate goes into the bank
     -- within a few seconds (SEW_Build.cover).
     local o = C.DevStart == "outfall" and Client.devOutfall()

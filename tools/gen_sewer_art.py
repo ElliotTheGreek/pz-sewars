@@ -69,6 +69,12 @@ FLOOR_DECAL = {"attachedFloor": "", "RenderLayer": "Floor"}
 # it can be drawn over a character beside the wall (the same report).
 WALL_W = {"attachedW": "", "WallOverlay": ""}
 WALL_N = {"attachedN": "", "WallOverlay": ""}
+# A thing of ours that stands on its square: it blocks the square the way
+# vanilla's statues and furniture do, and can be seen and shot past.
+STANDING = {"solidtrans": "", "BlocksPlacement": ""}
+# The raws the image model painted for the cult (DEV_GUIDE, Art: keep the raw),
+# each on a flat key colour that `keyed` measures rather than assumes.
+CULT = os.path.join(ROOT, "design", "art", "cult")
 
 # Index -> (name, kind, properties). The Lua (SEW_Config.Sprites) names these by index.
 TILES_DEF = [
@@ -143,6 +149,35 @@ TILES_DEF += [
     # an outfall's ladder, set into a riverbank -- a concrete apron with iron
     # bars over the dark, laid on the ground the bank has.
     ("outfall", "floor", FLOOR_DECAL),
+    # The temple of the rat cult (ROADMAP 0.6; DESIGN.md 7d). On walls, hung
+    # like every picture of ours: their sigil, their creed, a lit sconce, a
+    # banner, and the triptych behind the idol (a north wall, three squares).
+    ("sigil_W", "wallW", WALL_W),
+    ("sigil_N", "wallN", WALL_N),
+    ("burrow_W", "wallW", WALL_W),
+    ("burrow_N", "wallN", WALL_N),
+    ("torch_W", "wallW", WALL_W),
+    ("torch_N", "wallN", WALL_N),
+    ("banner_W", "wallW", WALL_W),
+    ("banner_N", "wallN", WALL_N),
+    ("mural0_N", "wallN", WALL_N),
+    ("mural1_N", "wallN", WALL_N),
+    ("mural2_N", "wallN", WALL_N),
+    # Standing: the idol and a brazier. Each fills its square and nobody walks
+    # through it (solidtrans, as vanilla's own statues), so the default depth
+    # the engine gives a tile of ours never has a character to be wrong about.
+    ("idol", "prop", STANDING),
+    ("brazier", "prop", STANDING),
+    # Low, and walked past in the cult's one-wide passages: drawn in the floor
+    # pass, under whoever stands there, like every decal of ours.
+    ("candles", "floor", FLOOR_DECAL),
+    # The circle round the slab: one drawing, three squares by three, row by
+    # row from its north-west square.
+    ("circle0", "floor", FLOOR_DECAL), ("circle1", "floor", FLOOR_DECAL), ("circle2", "floor", FLOOR_DECAL),
+    ("circle3", "floor", FLOOR_DECAL), ("circle4", "floor", FLOOR_DECAL), ("circle5", "floor", FLOOR_DECAL),
+    ("circle6", "floor", FLOOR_DECAL), ("circle7", "floor", FLOOR_DECAL), ("circle8", "floor", FLOOR_DECAL),
+    # What was left for the Great Ones: a bowl, small skulls, coins.
+    ("offering", "floor", FLOOR_DECAL),
 ]
 
 
@@ -630,7 +665,160 @@ def floor_tex(kind, rnd):
     raise ValueError(kind)
 
 
+# --- the cult's (painted by the image model, cut and placed here) ----------------------------
+
+_KEYED = {}
+
+
+def keyed(name):
+    """design/art/cult/<name>_raw.png with its key colour taken out, cropped
+    to what is left. The model paints on "flat magenta" and delivers a pink
+    with a vignette and sometimes a shadow, so the key is measured off the
+    border and taken out by hue, not by value: a pixel is background when its
+    colour points the same way as the border's, however dark. Black has no
+    hue and is kept."""
+    if name in _KEYED:
+        return _KEYED[name].copy()
+    import numpy as np
+    im = np.asarray(Image.open(os.path.join(CULT, name + "_raw.png")).convert("RGB"), float)
+    border = np.concatenate([im[:8].reshape(-1, 3), im[-8:].reshape(-1, 3),
+                             im[:, :8].reshape(-1, 3), im[:, -8:].reshape(-1, 3)])
+    key = np.median(border, axis=0)
+    if not (key[0] > 120 and key[1] < 110 and key[2] > key[1] + 20):
+        raise SystemExit("%s_raw.png: the border is %s, not a magenta key" % (name, key))
+    ku = key / np.linalg.norm(key)
+    mag = np.linalg.norm(im, axis=2)
+    d = np.linalg.norm(im / np.maximum(mag, 1)[..., None] - ku, axis=2)
+    a = np.clip((d - 0.10) / 0.10, 0, 1)
+    a[mag < 45] = 1
+    out = Image.fromarray(np.dstack([im, a * 255]).astype(np.uint8), "RGBA")
+    # Cropped to the body of it: a stray speck of off-key pink would stretch the box.
+    solid = out.split()[3].point(lambda v: 255 if v > 128 else 0).filter(ImageFilter.MinFilter(5))
+    box = solid.getbbox()
+    if not box:
+        raise SystemExit("%s_raw.png: nothing left after keying" % name)
+    out = out.crop((max(0, box[0] - 4), max(0, box[1] - 4), box[2] + 4, box[3] + 4))
+    _KEYED[name] = out
+    return out.copy()
+
+
+def fit(img, w=None, h=None):
+    """Scaled to a width or a height, keeping its shape."""
+    k = (w / img.width) if w else (h / img.height)
+    return img.resize((max(1, round(img.width * k)), max(1, round(img.height * k))), Image.LANCZOS)
+
+
+def standing(name, height, base=250):
+    """A raw stood on its square: centred, its foot `base` px down the cell
+    (the floor diamond runs 192..256; its middle is 224)."""
+    img = fit(keyed(name), h=height)
+    if img.width > CW:
+        img = fit(img, w=CW)
+    cell = Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
+    cell.alpha_composite(img, ((CW - img.width) // 2, base - img.height))
+    return cell
+
+
+def tint(img, color):
+    """The shape of a keyed raw in one colour: the sigil as paint, or as thread."""
+    out = Image.new("RGBA", img.size, color)
+    out.putalpha(img.split()[3].point(lambda v: v * color[3] // 255))
+    return out
+
+
+def cult_wall(base, rnd):
+    """The cult's pictures, as face textures (TW x TH)."""
+    tex = Image.new("RGBA", (TW, TH), (0, 0, 0, 0))
+    if base == "sigil":
+        s = fit(tint(keyed("sigil"), (150, 16, 14, 235)), w=190)
+        tex.alpha_composite(s, ((TW - s.width) // 2, int(TH * 0.26)))
+        return weather(tex, rnd, 0.18, 1)
+    if base == "burrow":
+        return spray("THE\nBURROW\nPROVIDES", (160, 22, 18, 235), 40, rnd, angle=-2)
+    if base == "torch":
+        t = fit(keyed("torch"), h=230)
+        glow = Image.new("L", (TW, TH), 0)
+        gx, gy = TW // 2, int(TH * 0.20)
+        gd = ImageDraw.Draw(glow)
+        for r in range(110, 0, -4):
+            gd.ellipse([gx - r, gy - r, gx + r, gy + r], fill=int(120 * (1 - r / 110) ** 1.5))
+        tex.paste(Image.new("RGBA", (TW, TH), (255, 150, 50, 255)), (0, 0), glow.filter(ImageFilter.GaussianBlur(6)))
+        tex.alpha_composite(t, ((TW - t.width) // 2, int(TH * 0.12)))
+        return tex
+    if base == "banner":
+        d = ImageDraw.Draw(tex)
+        x0, x1, y0, y1 = int(TW * 0.20), int(TW * 0.80), int(TH * 0.10), int(TH * 0.74)
+        d.rectangle([x0 - 10, y0 - 8, x1 + 10, y0], fill=(52, 38, 26, 255))                 # the pole
+        hem = [(x0, y0)] + [(x0 + (x1 - x0) * k / 8, y1 + (14 if k % 2 else -6) + rnd.randint(-4, 4)) for k in range(9)]
+        d.polygon(hem + [(x1, y0)], fill=(22, 20, 22, 250))
+        for k in range(6):                                                                   # folds
+            fx = x0 + (x1 - x0) * (k + 0.5) / 6
+            d.line([fx, y0 + 4, fx + rnd.randint(-4, 4), y1 - 16], fill=(36, 33, 36, 255), width=3)
+        d.rectangle([x0, y0 + 10, x1, y0 + 16], fill=(120, 16, 14, 255))
+        s = fit(tint(keyed("sigil"), (170, 24, 18, 245)), w=int((x1 - x0) * 0.86))
+        tex.alpha_composite(s, ((TW - s.width) // 2, y0 + 34))
+        return tex
+    raise ValueError(base)
+
+
+def cult_mural():
+    """The triptych: one painting three squares wide, cut into its faces."""
+    wide = Image.new("RGBA", (TW * 3, TH), (0, 0, 0, 0))
+    m = fit(keyed("mural"), w=int(TW * 3 * 0.94))
+    if m.height > TH * 0.9:
+        m = fit(m, h=int(TH * 0.9))
+    wide.alpha_composite(m, ((wide.width - m.width) // 2, int(TH * 0.94) - m.height))
+    return [wide.crop((i * TW, 0, (i + 1) * TW, TH)) for i in range(3)]
+
+
+def cult_circle():
+    """The circle: one drawing three squares across, cut into nine floor textures."""
+    c = keyed("circle").resize((768, 768), Image.LANCZOS)
+    return [c.crop(((i % 3) * 256, (i // 3) * 256, (i % 3) * 256 + 256, (i // 3) * 256 + 256)) for i in range(9)]
+
+
+def offering(rnd):
+    """A wooden bowl of something dark, small skulls round it, a few coins."""
+    s = 256
+    tex = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(tex)
+    d.ellipse([84, 92, 172, 164], fill=(74, 50, 30, 255))
+    d.ellipse([92, 98, 164, 156], fill=(40, 26, 16, 255))
+    d.ellipse([98, 104, 158, 150], fill=(96, 10, 10, 255))
+    d.ellipse([112, 110, 136, 122], fill=(150, 30, 26, 200))
+    bone = (214, 206, 180, 245)
+    for _ in range(5):
+        a = rnd.uniform(0, 2 * math.pi)
+        r = rnd.randint(70, 96)
+        x, y = s / 2 + r * math.cos(a), s / 2 + r * math.sin(a)
+        d.ellipse([x - 13, y - 10, x + 13, y + 10], fill=bone)
+        d.polygon([(x + 8, y - 5), (x + 24, y), (x + 8, y + 5)], fill=bone)
+        d.ellipse([x - 8, y - 5, x - 2, y + 1], fill=(30, 26, 20, 255))
+        d.ellipse([x + 1, y - 5, x + 7, y + 1], fill=(30, 26, 20, 255))
+    for _ in range(9):
+        x, y = rnd.randint(40, 216), rnd.randint(40, 216)
+        d.ellipse([x - 5, y - 4, x + 5, y + 4], fill=(198, 160, 52, 255))
+        d.arc([x - 5, y - 4, x + 5, y + 4], 200, 340, fill=(246, 222, 130, 255), width=2)
+    for _ in range(6):
+        x, y = rnd.randint(40, 200), rnd.randint(40, 200)
+        ln, ang = rnd.randint(18, 34), rnd.uniform(0, math.pi)
+        d.line([x, y, x + ln * math.cos(ang), y + ln * math.sin(ang)], fill=bone, width=4)
+    return tex.filter(ImageFilter.GaussianBlur(0.6))
+
+
 def draw(name, kind, rnd, vanilla):
+    if kind == "prop":
+        return standing(name, 204 if name == "idol" else 104)
+    if name == "candles":
+        return standing("candles", 58, base=238)
+    if name.startswith("circle"):
+        return to_floor(cult_circle()[int(name[6:])])
+    if name == "offering":
+        return to_floor(offering(rnd))
+    if name.startswith("mural"):
+        return to_wall(cult_mural()[int(name[5])], "N")
+    if name.rsplit("_", 1)[0] in ("sigil", "burrow", "torch", "banner"):
+        return to_wall(cult_wall(name.rsplit("_", 1)[0], rnd), kind[-1])
     if kind.startswith("copy:"):
         return vanilla[kind[5:]]
     if kind.startswith("copyfloor:"):

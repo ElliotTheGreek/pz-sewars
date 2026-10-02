@@ -160,7 +160,47 @@ function instanceItem(id)
     function it.getKeyId(self) return self.keyId end
     function it.setName(self, v) self.name = v end
     function it.getName(self) return self.name end
+    -- InventoryItem.getStashMap / setStashMap: every item has them; only a
+    -- MapItem (a script item with Map = ...) is a map.
+    function it.getStashMap(self) return self.stashMap end
+    function it.setStashMap(self, v) self.stashMap = v end
+    if bare:match("Map%d*$") then it.class, it.symbols = "MapItem", {} end
     return it
+end
+
+-- zombie.core.stash.StashSystem, as far as the mod uses it. The descriptions
+-- are the Lua global StashDescriptions, read when a world starts; getStash
+-- answers nil for a name nobody described; doStashItem throws for an item
+-- that is not a map (IllegalArgumentException), names it by the stash's
+-- customName, puts the stash's stamps on it and sets its stash map.
+StashSystem = {}
+function StashSystem.getStash(name)
+    for _, s in ipairs(StashDescriptions or {}) do
+        if s.name == name then return s end
+    end
+    return nil
+end
+function StashSystem.doStashItem(stash, item)
+    if stash == nil then error("doStashItem(null stash)") end
+    if type(item) ~= "table" or item.class ~= "MapItem" then error("IllegalArgumentException: not a MapItem") end
+    violation("StashSystem.doStashItem")
+    if stash.customName then item:setName(stash.customName) end
+    for _, a in ipairs(stash.annotations or {}) do
+        item.symbols[#item.symbols + 1] = { symbol = a.symbol, text = a.text, x = a.x, y = a.y }
+    end
+    item:setStashMap(stash.name)
+end
+
+-- LootMaps and MapUtils (client/ISUI/Maps/ISMapDefinitions.lua): a map
+-- item's sheet is LootMaps.Init[its stash name or map id](mapUI). The sim's
+-- mapUI records the bounds it is given.
+LootMaps = { Init = {}, DEFAULT_MAP_DIRECTORY = "media/maps/Muldraugh, KY" }
+MapUtils = { initDirectoryMapData = function() end, initDefaultStyleV3 = function() end, overlayPaper = function() end }
+function SIM.mapUI()
+    local ui = {}
+    local api = { setBoundsInSquares = function(_, x1, y1, x2, y2) ui.bounds = { x1, y1, x2, y2 } end }
+    ui.javaObject = { getAPIv1 = function() return api end }
+    return ui
 end
 
 local IsoObjectMT = {}
@@ -235,10 +275,13 @@ function instanceof(o, class)
     if type(o) ~= "table" then return false end
     if class == "IsoDoor" then return o.class == "IsoDoor" end
     if class == "IsoWorldInventoryObject" then return o.class == "IsoWorldInventoryObject" end
-    if class == "IsoObject" then return o.class ~= nil and o.class ~= "InventoryItem" and o.class ~= "Clothing" end
-    if class == "InventoryItem" then return o.class == "InventoryItem" or o.class == "Clothing" end
+    if class == "IsoObject" then
+        return o.class ~= nil and o.class ~= "InventoryItem" and o.class ~= "Clothing" and o.class ~= "MapItem"
+    end
+    if class == "InventoryItem" then return o.class == "InventoryItem" or o.class == "Clothing" or o.class == "MapItem" end
     if class == "Clothing" then return o.class == "Clothing" end
     if class == "IsoAnimal" then return o.class == "IsoAnimal" end
+    if class == "MapItem" then return o.class == "MapItem" end
     return false
 end
 
@@ -286,6 +329,19 @@ end
 function SquareMT:transmitRemoveItemFromSquare(o)
     violation("transmitRemoveItemFromSquare")
     self.objects:remove(o)
+    -- A server tells its clients (RemoveItemFromSquarePacket).
+    if SIM.role == "server" then SIM.outbox[#SIM.outbox + 1] = { "removeObject", o } end
+end
+-- IsoGridSquare.SpawnWorldInventoryItem(String, x, y, z): an item lying on
+-- the square, made there; nil for an item the build does not have.
+function SquareMT:SpawnWorldInventoryItem(id, _, _, _)
+    violation("SpawnWorldInventoryItem")
+    checkOrphan(self)
+    local item = instanceItem(id)
+    if not item then return nil end
+    self.dropped = self.dropped or {}
+    self.dropped[#self.dropped + 1] = item
+    return item
 end
 function SquareMT:getChunk() return { getMinLevel = function() return -1 end } end
 -- The engine's rule (RecalcProperties): exterior unless a room or a roof, and
@@ -389,6 +445,11 @@ function PlayerMT:setHaloNote(text) SIM.notes[#SIM.notes + 1] = text end
 function PlayerMT:playSound(name) SIM.sounds[#SIM.sounds + 1] = name return 1 end
 function PlayerMT:playSoundLocal(name) SIM.sounds[#SIM.sounds + 1] = name return 1 end
 function PlayerMT:setIgnoreAutoVault(b) self.noVault = b end
+-- IsoGameCharacter.setMetabolicTarget(Metabolics): heavy work tires.
+function PlayerMT:setMetabolicTarget(m)
+    if m == nil then error("setMetabolicTarget(nil)") end
+    self.metabolic = m
+end
 function PlayerMT:faceLocation() return true end
 function PlayerMT:SetVariable() end
 function PlayerMT:isTimedActionInstant() return false end
@@ -540,8 +601,36 @@ end
 
 SandboxVars = { Sewars = { Zombies = 3 } }
 
+-- Metabolics (an enum), Perks, addXp(character, perk, amount), and the world
+-- sound a server makes: addSound(source, x, y, z, radius, volume).
+Metabolics = setmetatable({ HeavyWork = "HeavyWork", UsingTools = "UsingTools" },
+    { __index = function(_, k) error("no Metabolics." .. tostring(k)) end })
+Perks = setmetatable({ Masonry = "Masonry", Strength = "Strength" },
+    { __index = function(_, k) error("no Perks." .. tostring(k)) end })
+SIM.xp = {}
+function addXp(character, perk, amount)
+    if character == nil or perk == nil or type(amount) ~= "number" then error("addXp: bad arguments") end
+    SIM.xp[#SIM.xp + 1] = { character = character, perk = perk, amount = amount }
+end
+SIM.worldSounds = {}
+function addSound(source, x, y, z, radius, volume)
+    if type(radius) ~= "number" or type(volume) ~= "number" then error("addSound: expected radius and volume") end
+    SIM.worldSounds[#SIM.worldSounds + 1] = { x = x, y = y, z = z, radius = radius, volume = volume }
+end
+
+--- A bomb, as the engine hands one to OnThrowableExplode: an IsoTrap on a
+--- square, with the explosion range of the item it was made from.
+function SIM.newTrap(x, y, z, range)
+    local sq = SIM.squares[x .. "," .. y .. "," .. z] or SIM.newSquare(x, y, z, false)
+    return { getExplosionRange = function() return range end, getSquare = function() return sq end }, sq
+end
+
 function screenToIsoX(_, x, _, _) return x end
 function screenToIsoY(_, _, y, _) return y end
+-- The mouse, for a menu that kept no click (one made by another mod's code).
+SIM.mouse = { x = 0, y = 0 }
+function getMouseX() return SIM.mouse.x end
+function getMouseY() return SIM.mouse.y end
 
 ---------------------------------------------------------------------------
 -- Zombies
@@ -558,12 +647,39 @@ function SIM.newZombie(x, y, z, outfit)
     return zed
 end
 
+--- A zombie that hears (SEW_Street): on its way to a sound a player made
+--- (IsoZombie.isMovingToPlayerSound: pathing, the goal a sound, its source a
+--- player), at tx, ty, tz. The engine fires OnZombieUpdate for each zombie
+--- on each update; SIM.updateZombie is that. Stopped as the engine stops one
+--- (RespondToSound bci 168-188): bPathfind and bMoving off, the path nil.
+function SIM.hearingZombie(x, y, z, tx, ty, tz, remote)
+    local zed = SIM.newZombie(x, y, z, nil)
+    zed.goal, zed.vars, zed.path, zed.remote = { tx, ty, tz }, { bPathfind = true, bMoving = true }, {}, remote == true
+    function zed.isMovingToPlayerSound(self) return self.path ~= nil and self.vars.bPathfind == true end
+    function zed.getPathTargetX(self) return self.goal[1] end
+    function zed.getPathTargetY(self) return self.goal[2] end
+    function zed.getPathTargetZ(self) return self.goal[3] end
+    function zed.isRemoteZombie(self) return self.remote end
+    function zed.setVariable(self, k, v)
+        if type(k) ~= "string" or type(v) ~= "boolean" then error("setVariable(String, boolean)") end
+        self.vars[k] = v
+    end
+    function zed.setPath2(self, path) self.path = path end
+    return zed
+end
+function SIM.updateZombie(zed) SIM.fire("OnZombieUpdate", zed) end
+
 function addZombiesInOutfit(x, y, z, count, outfit, female, ...)
     if select("#", ...) ~= 7 then error("addZombiesInOutfit: expected the 13-argument overload") end
     if not SIM.outfits[outfit] then return List({}) end
     local out = {}
     for _ = 1, count do
         local zed = { x = x, y = y, z = z, outfit = outfit }
+        -- IsoGameCharacter.faceLocation(float, float).
+        function zed.faceLocation(self, fx, fy)
+            if type(fx) ~= "number" or type(fy) ~= "number" then error("faceLocation: expected two numbers") end
+            self.facing = { fx, fy }
+        end
         SIM.zombies[#SIM.zombies + 1] = zed
         out[#out + 1] = zed
     end
@@ -725,8 +841,14 @@ end
 ---------------------------------------------------------------------------
 ISWorldObjectContextMenu = { addToolTip = function() return {} end }
 
+-- ISContextMenu.get(player, x, y), build 42.20: the click is kept in
+-- requestX/requestY. The menu itself is kept on screen (ISUIElement:setX
+-- clamps it) and starts SLIDEY (10 px) above the click and slides down
+-- (setSlideGoalY) -- so `x, y` is where the menu is drawn, not where the
+-- click was. The tests' screenToIso is 1 px a square, so reading `y` lands
+-- ten squares off.
 function SIM.newMenu(x, y)
-    local m = { x = x, y = y, options = {} }
+    local m = { requestX = x, requestY = y, x = x, y = y - 10, options = {} }
     function m:addOption(name, target, fn, a, b, c)
         local o = { name = name, target = target, onSelect = fn, args = { a, b, c } }
         self.options[#self.options + 1] = o
@@ -734,7 +856,7 @@ function SIM.newMenu(x, y)
     end
     -- ISContextMenu:getNew(parent) and addSubMenu(option, menu), as vanilla's
     -- world menu builds its submenus.
-    function m:getNew(_) return SIM.newMenu(self.x, self.y) end
+    function m:getNew(_) return SIM.newMenu(self.requestX, self.requestY) end
     function m:addSubMenu(option, sub) option.subMenu = sub end
     return m
 end
@@ -996,6 +1118,17 @@ function require(name)
     if name == "ISUI/ISPanelJoypad" then return ISPanelJoypad end
     if name == "ISUI/ISButton" then return ISButton end
     if name == "ISUI/ISCollapsableWindowJoypad" then return ISCollapsableWindowJoypad end
+    if name == "ISUI/Maps/ISMapDefinitions" then return LootMaps end
+    -- Vanilla's own helper for stash descriptions, from the game.
+    if name == "StashDescriptions/StashUtil" then
+        if not StashUtil then
+            local f = assert(io.open(SIM.pzLua .. "/shared/StashDescriptions/StashUtil.lua", "rb"))
+            local src = f:read("*a")
+            f:close()
+            assert(load(src, "StashUtil"))()
+        end
+        return StashUtil
+    end
     local found
     for _, side in ipairs({ "shared", "client", "server" }) do
         local path = SIM.root .. "/" .. side .. "/" .. name .. ".lua"

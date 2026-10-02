@@ -10,12 +10,16 @@ Vanilla paints 446 manhole covers on its streets and puts nothing under them. Se
 - Shelters: other survivors dug in before you. Maintenance rooms, pump stations, squats and last stands behind steel doors, some stocked, some still occupied.
 - Broken walls and dug caves: somebody knocked through the tunnel wall and kept digging. A winding dirt passage, and a hideout at the end of it.
 - Houses with a way down: a trapdoor in the floor of some garages, kitchens and storerooms, and a ladder down to the sewer under the street.
-- Something under Louisville. People who went down there wrote the same four letters on the walls. Nobody believed them.
+- Somewhere in the world there is a rat hole where you can take the bricks apart and enter to find many aggressive ROUS's and a hidden cache.
+- It's possible there are hidden cult members who worship the ROUS's somewhere else in the map
+- Annotated maps to both turn up where maps turn up: in a drawer, in a glovebox, on the dead.
 - Locked gates: half the county's maintenance rooms and pump stations sit behind barred grilles. Each town has one Sewer Maintenance Key, in the rooms that are not locked and on some of the dead in sanitation overalls. Keep it in your hands or on a key ring. A grille latches behind you once the room is empty, and never shuts anybody in.
 - Sewer gas: some narrow culverts, well away from the ladders, hold foul air behind the county's warning placards. Without a gas mask or respirator it makes you sick, and it costs health if you stay; with one, it uses up your filter.
 - Storm-drain outfalls: down on the banks of the river, the creeks and the lakes, an iron grate in the ground. A way into the sewers nobody on the street sees, and a way out of town the dead will not be waiting at.
 - Build down there. The tunnels are yours to wall off, barricade and furnish; the mod never touches anything you build.
-- 31 towns, 1,174 manholes that open, 16 storm-drain outfalls, 239 shelters (47 behind locked gates), 152 caves, 189 houses with a way down, 97 stretches of sewer gas, over 476,000 squares of tunnel.
+- Dig. With a pickaxe (or, slowly, a sledgehammer), right-click below ground and Dig: the rock beside you becomes one more square of floor, and a wall with a space behind it comes down. A pipe bomb set off in a tunnel opens the rock for two squares round it. Doors, a ladder's wall and anybody's basement never give.
+- Out of earshot. The dead on the street do not come to the noise you make under it; the ones in the tunnels with you do.
+- 31 towns, 1,174 manholes that open, 16 storm-drain outfalls, 239 shelters (47 behind locked gates), 152 caves, 189 houses with a way down, 97 stretches of sewer gas, over 479,000 squares of tunnel.
 
 THE SEWER MAP
 The sewers are something you learn. Your map starts black and fills in as you walk: the ladders you have used (with the street above), the shelters you have found. Open it with K (rebindable in Options -> Mods) or Sewer map on the right-click menu below ground. Municipal sewer plans, left in maintenance rooms and pump stations, reveal whole sheets of a town at once, and the journals the shelters' builders left behind point you to the next place worth finding.
@@ -27,6 +31,10 @@ Single player, hosted co-op and dedicated servers. Build 42.
 ADDING IT TO A SAVE OR SERVER MID GAME
 Yes, it works. Nothing is built ahead of time: the sewers are built a stretch at a time as players come near, so an existing world simply fills in as people explore it. The manholes are the map's own; the extra covers, house hatches and everything below go in the first time someone comes near, and anything already underground that is not the mod's is left alone. On a server, add the mod and its Workshop ID to the config and restart; every player needs it. A save that never had the mod uses the default sandbox settings for it. In a house someone already lives in, a trapdoor can turn up under their furniture: it is only a picture on the floor. Removing the mod from a save is the risky direction, so be up on the street when you do.
 
-Sandbox: how many of the dead are down there, who they were (ordinary people or survivors with full packs), how many rats, how well the shelters are stocked, and how bad the sewer gas is (off, mild, harmful or deadly).
+Sandbox: how many of the dead are down there, who they were (ordinary people or survivors with full packs), how many rats, how well the shelters are stocked, how bad the sewer gas is (off, mild, harmful or deadly), whether the sewers can be dug (off, picks and hammers, or explosives too), and whether the street hears the sewer (no, or yes: the game's own rule).
 
-New in 0.5: caves, houses with a way down, sewers under Louisville and the towns the map gave no covers, rats, locked gates and their keys, sewer gas, storm-drain outfalls, and something else. Existing saves keep their sewers; the new parts appear in tunnels as you walk into them.
+New in 0.7.1: digging and blasting. Fixes from your comments, thank you: the mod no longer touches bunkers and basements (going down to -2, or into the military base, sent people to a sewer ladder or up to the street); a right-click near the edge of the screen finds the cover or the ladder it was on; and the dead on the street no longer come to stand over a player walking in the sewer under them (a sandbox option puts the game's own rule back).
+
+New in 0.6: the rat hole is bigger than it was, with more than one cache in it, and the cult has somewhere of its own. What is written down in each place will lead you to the other. Existing saves keep their sewers; the new parts appear as you walk into them.
+
+New in 0.5: caves, houses with a way down, sewers under Louisville and the towns the map gave no covers, rats, locked gates and their keys, sewer gas, storm-drain outfalls, and something else.

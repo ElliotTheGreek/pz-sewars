@@ -43,7 +43,8 @@ function SEWClimb:new(character, x, y, mode)
     o.stopOnRun = true
     local ticks = C.ClimbTicks
     local shaft = S.shaftAt(x, y)
-    o.hatch = shaft ~= nil and shaft.hatch ~= nil
+    -- The temple's trapdoor in the field is a hatch to the hand: no lid.
+    o.hatch = shaft ~= nil and (shaft.hatch ~= nil or shaft.trapdoor == true)
     -- An outfall's grate lifts like a trapdoor: no iron lid to prise up.
     o.outfall = shaft ~= nil and shaft.outfall == true
     if mode == "down" and (o.hatch or o.outfall) then
@@ -165,6 +166,71 @@ function SEWPry:complete()
 end
 
 function SEWPry:getDuration()
+    return self.maxTime
+end
+
+---------------------------------------------------------------------------
+-- SEWMine: digging into the rock, or through a wall (SEW_Mine.lua)
+---------------------------------------------------------------------------
+-- The same contract again: global, and `new`'s parameter names are what the
+-- server rebuilds it from. x, y is the square the digger stands on; dx, dy
+-- the way they dig (one of them 0, the other 1 or -1). A pick is quicker
+-- than a sledgehammer; the work is vanilla's heavy work, as its own pickaxe
+-- action has it (ISPickAxeGroundCoverItem: HammerOre, Metabolics.HeavyWork).
+
+SEWMine = ISBaseTimedAction:derive("SEWMine")
+
+function SEWMine:new(character, x, y, dx, dy)
+    local o = ISBaseTimedAction.new(self, character)
+    o.character = character
+    o.x = x
+    o.y = y
+    o.dx = dx
+    o.dy = dy
+    o.stopOnWalk = true
+    o.stopOnRun = true
+    local tool = S.mineTool(character)
+    o.maxTime = U.try("instant", function() return character:isTimedActionInstant() end) and 1
+        or C.Mine.ticks[tool or "hammer"]
+    return o
+end
+
+function SEWMine:isValid()
+    return S.below(self.character) and S.mineTool(self.character) ~= nil
+        and S.within(self.character, self.x, self.y, C.Reach)
+end
+
+function SEWMine:waitToStart()
+    U.try("face", function() self.character:faceLocation(self.x + self.dx + 0.5, self.y + self.dy + 0.5) end)
+    return false
+end
+
+function SEWMine:start()
+    self:setActionAnim("HammerOre")
+end
+
+function SEWMine:update()
+    U.try("mine.work", function() self.character:setMetabolicTarget(Metabolics.HeavyWork) end)
+end
+
+function SEWMine:stop()
+    ISBaseTimedAction.stop(self)
+end
+
+function SEWMine:perform()
+    ISBaseTimedAction.perform(self)
+end
+
+function SEWMine:complete()
+    if SEW.Mine and SEW.Mine.dig then
+        U.try("dig", SEW.Mine.dig, self.character, self.x, self.y, self.dx, self.dy)
+    else
+        U.warnOnce("noMine", "SEWMine completed where SEW.Mine is not loaded")
+    end
+    return true
+end
+
+function SEWMine:getDuration()
     return self.maxTime
 end
 

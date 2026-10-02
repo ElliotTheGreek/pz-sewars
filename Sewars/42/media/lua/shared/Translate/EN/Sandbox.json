@@ -28,5 +28,14 @@
     "Sandbox_Sewars.Gas_option1": "Off",
     "Sandbox_Sewars.Gas_option2": "Mild",
     "Sandbox_Sewars.Gas_option3": "Harmful",
-    "Sandbox_Sewars.Gas_option4": "Deadly"
+    "Sandbox_Sewars.Gas_option4": "Deadly",
+    "Sandbox_Sewars.Digging": "Digging in the sewers",
+    "Sandbox_Sewars.Digging_tooltip": "Whether players can widen the sewers. With a pickaxe or a sledgehammer, a square of rock can be dug out or a tunnel wall knocked through. With explosives, a bomb that goes off below ground opens the rock round it.",
+    "Sandbox_Sewars.Digging_option1": "Off",
+    "Sandbox_Sewars.Digging_option2": "Picks and hammers",
+    "Sandbox_Sewars.Digging_option3": "Picks, hammers and explosives",
+    "Sandbox_Sewars.StreetHears": "The street hears the sewer",
+    "Sandbox_Sewars.StreetHears_tooltip": "Whether zombies up on the street come to the noise a player makes in the sewer under them. No: footsteps, digging and gunfire below draw nobody above; the dead in the tunnels hear as well as ever. Yes: the game's own rule, where a floor stops no sound, and running under a street brings its dead to stand over you.",
+    "Sandbox_Sewars.StreetHears_option1": "No",
+    "Sandbox_Sewars.StreetHears_option2": "Yes"
 }

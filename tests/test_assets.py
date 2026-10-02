@@ -151,6 +151,73 @@ def main():
           and "Hoppable" not in gn and "Hoppable" not in gw,
           "the gates are barred doors facing the way the config says (%s)" % (gate.groups() if gate else None,))
 
+    # The temple (tools/gen_temple.py, DESIGN.md 7d). Every sprite it places
+    # exists; its floors are floors; what the generator calls a tile of ours
+    # is that tile (the generator and the config both name them by index);
+    # the idol and the brazier block their squares and nothing else of ours
+    # does; its crates and shelves hold things.
+    import gen_temple
+    placed = set()
+    for v in list(gen_temple.V.values()) + list(gen_temple.OURS.values()):
+        placed |= set(v.values()) if isinstance(v, dict) else set(v) if isinstance(v, list) else {v}
+    missing = sorted(s for s in placed if s not in tiles and s not in our_tiles)
+    check(len(placed) > 50 and not missing, "every sprite the temple places exists (%d, %s)" % (len(placed), missing))
+    try:
+        from gen_sewer_art import vanilla_cells
+        vanilla_cells({s for s in placed if s in tiles})
+        drawn = True
+    except SystemExit as e:
+        drawn = str(e)
+    check(drawn is True, "and has a picture in the packs (%s)" % drawn)
+    for name in ("floorTemple", "floorCarpet", "floorBoards"):
+        m = re.search(r'%s\s*=\s*"([^"]+)"' % name, config)
+        check(m and "solidfloor" in tiles.get(m.group(1), {}), "%s is a solid floor" % name)
+    names = {n: "sewars_01_%d" % i for i, (n, _k, _p) in enumerate(TILES_DEF)}
+    O = gen_temple.OURS
+    agree = (all(O[k] == {"W": names[k + "_W"], "N": names[k + "_N"]} for k in ("sigil", "burrow", "torch", "banner"))
+             and O["mural"] == [names["mural%d_N" % i] for i in range(3)]
+             and O["circle"] == [names["circle%d" % i] for i in range(9)]
+             and all(O[k] == names[k] for k in ("idol", "brazier", "candles", "offering", "bones")))
+    check(agree, "the generator's names for the cult's tiles are the art's")
+    cult_cfg = config[config.index("cult = {"):config.index("offering = ", config.index("cult = {")) + 40]
+    flat_ours = set()
+    for v in O.values():
+        flat_ours |= set(v.values()) if isinstance(v, dict) else set(v) if isinstance(v, list) else {v}
+    check(flat_ours - {O["bones"]} == set(re.findall(r'"(sewars_01_\d+)"', cult_cfg)),
+          "and SEW_Config.Sprites.cult names the same ones")
+    blockers = sorted(k for k, pr in our_tiles.items() if {"solid", "solidtrans"} & set(pr))
+    check(blockers == sorted([re.search(r'\bsludge\s*=\s*"([^"]+)"', config).group(1), O["idol"], O["brazier"]]),
+          "only the sludge, the idol and the brazier block a square (%s)" % blockers)
+    check(all("container" in tiles[gen_temple.V[k]] for k in ("crate_metal", "crate_wood", "shelves")),
+          "the temple's crates and shelves are containers")
+    check(all(os.path.exists(os.path.join(ROOT, "design", "art", "cult", n + "_raw.png"))
+              for n in ("idol", "mural", "brazier", "circle", "sigil", "candles", "torch")),
+          "the image model's raws for the cult are kept (design/art/cult)")
+
+    # Annotated maps (SEW_Maps): the junction the temple's map starts from is
+    # on painted road, where the two streets it names really meet; every
+    # stamp is a symbol vanilla's own maps use; the name on the item is
+    # vanilla's own key.
+    import gen_sewers
+    fx, fy = [int(v) for v in re.search(r"from = \{ (\d+), (\d+) \}", config).groups()]
+    road, _keep = gen_sewers.region(fx - 2, fy - 2, fx + 2, fy + 2)
+    frank = [pts for n, _w, pts in gen_sewers.streets() if n == "Frank Road"]
+    on_frank = any(abs(x - fx) <= 1 and y >= fy for pts in frank for x, y in pts)
+    hwys = [pts for n, _w, pts in gen_sewers.streets() if n == "Dixie Highway (Route 31W)"]
+    on_hwy = any(a[1] == b[1] == fy and min(a[0], b[0]) <= fx <= max(a[0], b[0])
+                 for hwy in hwys for a, b in zip(hwy, hwy[1:]))
+    check(bool(road[2, 2]) and on_frank and on_hwy,
+          "the temple map's starting junction is on the road, where Frank Road meets Dixie Highway (%d,%d)" % (fx, fy))
+    stash = src[os.path.join(LUA, "shared", "StashDescriptions", "SewarsStashDesc.lua")]
+    vanilla_stash = "\n".join(open(f, encoding="utf-8").read()
+                              for f in glob.glob(os.path.join(PZ, "lua", "shared", "StashDescriptions", "*.lua")))
+    symbols = set(re.findall(r'addStamp\("(\w+)"', stash))
+    known_symbols = set(re.findall(r'addStamp\("(\w+)"', vanilla_stash))
+    check(len(symbols) >= 3 and symbols <= known_symbols, "every stamp on our maps is one vanilla's maps use (%s)"
+          % sorted(symbols - known_symbols))
+    vstash = json.load(open(os.path.join(PZ, "lua", "shared", "Translate", "EN", "Stash.json"), encoding="utf-8"))
+    check("Stash_AnnotedMap" in vstash and '"Stash_AnnotedMap"' in stash, "an annotated map of ours is named as vanilla's are")
+
     # Items.
     items = json.load(open(os.path.join(CAT, "items.json")))
     known = {"%s.%s" % (m, n) for m, ns in items.items() for n in ns}
@@ -201,7 +268,11 @@ def main():
     gen_dead = set(re.findall(r'dead\.append\(\(x0 \+ x, y0 \+ y, \(([^)]*)\)', gen))
     gen_dead = sorted({o for group in gen_dead for o in re.findall(r'"([^"]+)"', group)})
     check(len(gen_dead) >= 3, "the generator's shelter and hideout dead read (%s)" % gen_dead)
-    outfits = ordinary + equipped + gen_dead
+    # The temple's: the cult's own, and whoever was in its pens.
+    cult = re.search(r'C\.Temple\s*=\s*\{\s*outfit\s*=\s*"([^"]+)"', config)
+    temple_dead = [gen_temple.CULTIST] + list(gen_temple.PRISONERS)
+    check(cult is not None and cult.group(1) == gen_temple.CULTIST, "the config and the generator dress the cult alike")
+    outfits = ordinary + equipped + gen_dead + temple_dead
     bad = sorted({o for o in outfits if o not in fem or o not in male})
     check(ordinary and equipped and not bad, "every outfit is in both of vanilla's lists (%s)" % bad)
     # What each outfit can be dressed in, by the file guid table: an ordinary
@@ -224,7 +295,7 @@ def main():
     check(not carry, "no ordinary outfit carries a bag (%s)" % carry)
     empty = sorted(o for o in equipped if not bags[o])
     check(not empty, "every equipped outfit does (%s)" % empty)
-    loose = sorted(o for o in gen_dead if bags[o] and o not in equipped)
+    loose = sorted(o for o in gen_dead + temple_dead if bags[o] and o not in equipped)
     check(not loose, "every generator outfit with a bag is one the build can undress (%s)" % loose)
 
     # Sounds, both ways.
@@ -255,7 +326,8 @@ def main():
     cats = {}
     for f in glob.glob(os.path.join(LUA, "shared", "Translate", "EN", "*.json")):
         cats[os.path.basename(f)[:-5]] = json.load(open(f, encoding="utf-8"))
-    prefix = {"ContextMenu": "ContextMenu_", "Tooltip": "Tooltip_", "IG_UI": "IGUI_", "Sandbox": "Sandbox_"}
+    prefix = {"ContextMenu": "ContextMenu_", "Tooltip": "Tooltip_", "IG_UI": "IGUI_", "Sandbox": "Sandbox_",
+              "Stash": "Stash_"}
     for cat, keys in cats.items():
         if cat == "ItemName":
             # Keyed by the bare full id, no prefix (pz_trekship DEV_GUIDE, "Translations").
@@ -269,7 +341,7 @@ def main():
         used |= set(re.findall(r"Tooltip\s*=\s*(\w+)", body))
     for s in src.values():
         # A literal ending in "_" is the front of an assembled key, not a key.
-        used |= {k for k in re.findall(r'"((?:ContextMenu|Tooltip|IGUI)_SEW_\w+)"', s) if not k.endswith("_")}
+        used |= {k for k in re.findall(r'"((?:ContextMenu|Tooltip|IGUI|Stash)_SEW_\w+)"', s) if not k.endswith("_")}
     # Assembled keys, written out whole from the data they are assembled from
     # (pz_trekship DEV_GUIDE, "An id assembled from parts is invisible to a
     # static check"): SEW_StoryUI.page and SEW_Map's shelter labels.
@@ -287,6 +359,11 @@ def main():
     if stops:
         used |= {"ContextMenu_SEW_Dev_%s" % w for w in re.findall(r'"(\w+)"', stops.group(1))}
     used |= {"IGUI_SEW_Shelter_%s" % k for k in kinds}
+    # The Dig submenu: "ContextMenu_SEW_" .. "Dig_" or "Break_" .. each way it lists.
+    ways = re.search(r"Client\.DIRS = \{([^\n]*)\}", client)
+    check(ways is not None and len(re.findall(r'"([NESW])"', ways.group(1))) == 4, "the four ways to dig read from SEW_Client")
+    if ways:
+        used |= {"ContextMenu_SEW_%s_%s" % (k, w) for k in ("Dig", "Break") for w in re.findall(r'"([NESW])"', ways.group(1))}
     gen = open(os.path.join(ROOT, "tools", "gen_sewers.py"), encoding="utf-8").read()
     variants = dict(re.findall(r'"(\w+)": (\d+)', re.search(r"JOURNAL_VARIANTS = \{([^}]*)\}", gen).group(1)))
     for kind, n in variants.items():

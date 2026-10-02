@@ -2,10 +2,10 @@
 if isClient() then return end
 SEW = SEW or {}
 SEW.Data = SEW.Data or {}
-local T = { id = "brandenburg", name = "Brandenburg", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }
+local T = { id = "brandenburg", name = "Brandenburg", chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, caveClaimed = {}, gas = {}, gasSigns = {}, keys = {}, pictures = {}, warren = {}, warrenDead = {} }
 SEW.Data["brandenburg"] = T
 local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed
-local g, p, k = T.gas, T.gasSigns, T.keys
+local g, p, k, h, w, d = T.gas, T.gasSigns, T.keys, T.pictures, T.warren, T.warrenDead
 c["439,759"]="44scc..45s.c..46s.c..47s.c..54sc...55s....56s....57s....64sc...65s....66s....67s....74sc...75s....76s....77s...."
 c["439,760"]="40s.c..41s.c..42rc...50s....51s....52rc...60s....61s....62rc...70s....71s....72rc..."
 c["440,754"]="47tbbQ.55tbbQ.56t.b..57t....63tbbQ.64t.b..65t....66t....67t....71tbbQ.72t.b.i73t....74t....75t....76t....77t...."

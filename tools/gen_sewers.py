@@ -58,6 +58,7 @@ from scipy import ndimage as ndi
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pzmap  # noqa: E402
+import gen_temple  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LUA = os.path.join(ROOT, "Sewars", "42", "media", "lua")
@@ -110,6 +111,13 @@ LAIR_ORIGIN = (11776, 1024)
 LAIR_CLEAR = 14       # rock round the nest's middle, clear of everything by two squares
 LAIR_NEST_R = 6
 LAIR_ROUS = 4
+# The warren (dig_warren, 0.6): dens dug off the nest, each a rough round of
+# earth this wide at the end of a run this long; this many wanted, at least
+# WARREN_MIN or the layout is refused.
+WARREN_DENS = 4
+WARREN_MIN = 3
+WARREN_R = (4, 5)
+WARREN_RUN = (4, 7)
 # Sewer gas (vent_gas): one stretch for so many shafts in a town, this many
 # squares of culvert each, this far apart, and this far from any street ladder.
 GAS_PER_SHAFTS = 12
@@ -852,6 +860,10 @@ def lay_out(tid, holes, streets_all, district=None, forbid=frozenset()):
     gas = vent_gas(tid, tunnel, channel, chamber, room_id, rooms, cave_id, caves, hatches, lair,
                    list(shafts) + [o["bank"] for o in outfalls])
 
+    # The warren: dens dug off the nest, last of all and from a generator of
+    # its own. New squares only, and the nest's own stay where they are.
+    warren = dig_warren(tid, lair, lair_id, tunnel, keep_all, room_id, cave_id) if lair else []
+
     # The street each shaft is under, for the note on the way down.
     street_of = {}
     if names:
@@ -866,7 +878,7 @@ def lay_out(tid, holes, streets_all, district=None, forbid=frozenset()):
                 trunk=trunk, channel=channel, sk=sk, shafts=shafts, dropped=dropped,
                 rooms=rooms, room_id=room_id, junctions=placed, street_of=street_of,
                 caves=caves, cave_id=cave_id, hatches=hatches, made=bool(district), tid=tid,
-                lair=lair, lair_id=lair_id, gas=gas, outfalls=outfalls)
+                lair=lair, lair_id=lair_id, gas=gas, outfalls=outfalls, warren=warren)
 
 
 def dig_outfalls(tid, x0, y0, tunnel, channel, keep, room_id, rooms, cave_id, caves, hatches, lair, lair_id, shafts):
@@ -1442,6 +1454,171 @@ def dig_lair(tid, tunnel, channel, keep, room_id, rooms, cave_id, caves, hatches
                                                                           or chamber[entry[1], entry[0]])), lair_id
 
 
+def dig_warren(tid, lair, lair_id, tunnel, keep, room_id, cave_id):
+    """The warren (ROADMAP 0.6): the nest was one round of earth; it is a few
+    now. Dens dug off it and off one another, each at the end of a short run
+    through the rock, where the rats dragged what they took and where those
+    who came looking for them ended up.
+
+    Made after everything else in its town, from a generator of its own, and
+    only ever added to the nest: every square here is new, and the one record
+    of the old nest that changes is the earth wall a run leaves by. The dens
+    are nest to the code (`lair_id` 1, floor `n`): no wall between them and
+    it, and no way to them but through it -- so the false wall is still the
+    only way in (tests/test_layout.py). Mutates `lair_id`. Returns
+    [{centre, r, cells: [squares], mouth: the den square its run enters by}],
+    in the order they were dug, local coords.
+    """
+    import math
+    H, W = tunnel.shape
+    rng = random.Random(SEED * 2741 + h32("warren", tid))
+    hoard = lair_id == 2
+    other = tunnel | (room_id > 0) | (cave_id > 0) | hoard
+    shut = keep | ndi.binary_dilation(other, structure=np.ones((5, 5), bool))
+    # The run in from the false wall stays a run: nothing opens off it.
+    run = np.zeros((H, W), bool)
+    for x, y in lair["run"]:
+        run[y, x] = True
+    shut |= ndi.binary_dilation(run, structure=np.ones((7, 7), bool))
+    cx, cy = lair["centre"]
+    nest = [(int(x), int(y)) for y, x in zip(*np.nonzero((lair_id == 1) & ~run))]
+    owner = np.zeros((H, W), int)                   # 1 the nest, 2.. the dens
+    for x, y in nest:
+        owner[y, x] = 1
+    anchors = [dict(id=1, centre=(cx, cy), r=LAIR_NEST_R)]
+    dens = []
+    for _try in range(4000):
+        if len(dens) >= WARREN_DENS:
+            break
+        # Off the nest first, then off whichever den is newest as often as not:
+        # a chain with a branch, not a star.
+        base = anchors[-1] if (len(anchors) > 1 and rng.random() < 0.6) else rng.choice(anchors)
+        ang = rng.uniform(0, 2 * math.pi)
+        r = rng.randint(*WARREN_R)
+        reach = base["r"] + rng.randint(*WARREN_RUN) + r
+        nx, ny = int(round(base["centre"][0] + reach * math.cos(ang))), int(round(base["centre"][1] + reach * math.sin(ang)))
+        if not (r + 4 <= nx < W - r - 4 and r + 4 <= ny < H - r - 4):
+            continue
+        k = len(dens) + 2
+        cells = set()
+        for y in range(ny - r - 1, ny + r + 2):
+            for x in range(nx - r - 1, nx + r + 2):
+                wob = (h32("den", tid, x, y) % 100) / 180.0
+                if ((x - nx) ** 2 + (y - ny) ** 2) ** 0.5 <= r + 0.3 - wob:
+                    cells.add((x, y))
+        cells.add((nx, ny))
+        # Its run: from the base's middle to this one's, a step at a time, the
+        # long way first so it bends once.
+        line, (x, y) = [], base["centre"]
+        horizontal = abs(nx - x) >= abs(ny - y)
+        while (x, y) != (nx, ny):
+            if (horizontal and x != nx) or y == ny:
+                x += 1 if nx > x else -1
+            else:
+                y += 1 if ny > y else -1
+            line.append((x, y))
+        path = [c for c in line if owner[c[1], c[0]] != base["id"] and c not in cells]
+        if len(path) < 2 or any(owner[y, x] for x, y in path) or any(owner[y, x] for x, y in cells):
+            continue
+        new = cells | set(path)
+        if any(shut[y, x] for x, y in new):
+            continue
+        # Rock all round: nothing dug within two squares of a den, and nothing
+        # but the two things it joins beside its run.
+        ok = True
+        for x, y in cells:
+            if (owner[y - 2:y + 3, x - 2:x + 3] > 0).any():
+                ok = False
+                break
+        for x, y in path if ok else ():
+            near = owner[y - 1:y + 2, x - 1:x + 2]
+            if ((near > 0) & (near != base["id"])).any():
+                ok = False
+                break
+        if not ok:
+            continue
+        for x, y in new:
+            owner[y, x] = k
+            lair_id[y, x] = 1
+        mouth = next(c for c in reversed(line) if c in cells and any((c[0] + a, c[1] + b) in path for a, b in N4))
+        dens.append(dict(id=k, centre=(nx, ny), r=r, cells=sorted(cells), mouth=mouth))
+        anchors.append(dict(id=k, centre=(nx, ny), r=r))
+    if len(dens) < WARREN_MIN:
+        raise SystemExit("%s: only %d dens fit round the rats' nest" % (tid, len(dens)))
+    return dens
+
+
+# What is in each den, in the order they are dug: (pieces, the dead, relics).
+# A piece is (sprite kind, loot list, the writing left in it or None); the
+# writings are filled in by gen_temple.cross once the temple is sited.
+WARREN = [
+    # The larder: what they dragged down.
+    dict(pieces=[("crate_wood", "hoardFood", None), ("crate_wood", "food", None)], dead=[], relics=["bones"]),
+    # Where the cult's pilgrims got to: what they carried, and what is left of them.
+    # (m1: an annotated map of the way back to the temple, SEW_Maps.)
+    dict(pieces=[("crate_metal", "cultRelics", "warren_1"), ("crate_wood", "cultRobes", "m1"),
+                 ("crate_wood", "cultOfferings", None)],
+         dead=["Cultist", "Cultist"], relics=["offering", "candles", "candles", "offering", "sigil", "burrow"]),
+    # A county flood crew, with their tools: the first to find it, and the last log they wrote.
+    dict(pieces=[("crate_metal", "hoardTools", "warren_3"), ("crate_metal", "tools", None),
+                 ("crate_wood", "hardware", None)],
+         dead=["Sanitation", "Sanitation"], relics=["bones"]),
+    # The deepest: what glitters, and a map on a hymn sheet.
+    dict(pieces=[("crate_metal", "hoardValuables", "warren_2"), ("crate_metal", "hoardMedical", None),
+                 ("crate_wood", "hoardSurvival", None)],
+         dead=["Cultist"], relics=["offering", "candles", "sigil"]),
+]
+
+
+def furnish_warren(t):
+    """What is in the dens: ([(x, y, sprite, loot, slot)], [(x, y, outfit)],
+    [(x, y, sprite)] pictures, [(x, y)] lights), world coords. Crates against
+    the earth, away from the den's mouth; the dead in the open; relics --
+    offerings, candles, the cult's marks on the earth -- wherever is left."""
+    x0, y0 = t["x0"], t["y0"]
+    out, dead, pictures, lights = [], [], [], []
+    for den, plan in zip(t["warren"], WARREN):
+        cells = set(den["cells"])
+        mx, my = den["mouth"]
+        used = {(mx, my)} | {(mx + a, my + b) for a, b in N4}
+
+        def rock(p, a, b):
+            return (p[0] + a, p[1] + b) not in cells and (p[0] + a, p[1] + b) not in used
+
+        # Against the north earth, front to the south, furthest from the mouth first.
+        north = sorted((p for p in cells if rock(p, 0, -1) and p not in used),
+                       key=lambda p: (-(abs(p[0] - mx) + abs(p[1] - my)), p))
+        for kind, loot, slot in plan["pieces"]:
+            spot = next((p for p in north if p not in used and all(abs(p[0] - u[0]) + abs(p[1] - u[1]) > 1
+                                                                 for u in used - {(mx, my)})), None)
+            if spot is None:
+                raise SystemExit("the warren: no room for a %s in den %d" % (kind, den["id"]))
+            out.append((x0 + spot[0], y0 + spot[1], SPRITES[kind]["S"], loot, slot))
+            used.add(spot)
+        free = sorted(p for p in cells if p not in used)
+        rng = random.Random(SEED * 97 + h32("warren-in", den["id"]))
+        rng.shuffle(free)
+        for outfit in plan["dead"]:
+            p = next(q for q in free if q not in used)
+            dead.append((x0 + p[0], y0 + p[1], outfit))
+            used.add(p)
+        for what in plan["relics"]:
+            if what in ("sigil", "burrow"):
+                # On the earth: a den square with rock north (or west) of it and nothing in front.
+                spot = next(((p, "N") for p in free if p not in used and rock(p, 0, -1)), None) or \
+                    next(((p, "W") for p in free if p not in used and rock(p, -1, 0)), None)
+                if spot:
+                    pictures.append((x0 + spot[0][0], y0 + spot[0][1], gen_temple.OURS[what][spot[1]]))
+                    used.add(spot[0])
+                continue
+            p = next(q for q in free if q not in used)
+            out.append((x0 + p[0], y0 + p[1], gen_temple.OURS[what], None, None))
+            used.add(p)
+            if what == "candles":
+                lights.append((x0 + p[0], y0 + p[1]))
+    return out, dead, pictures, lights
+
+
 def shelters(tid, tunnel, keep, shafts, rng):
     H, W = tunnel.shape
     want = max(1, round(len(shafts) / 5))
@@ -1529,10 +1706,12 @@ def key_spots(t, furniture):
 #
 # Legend (SEW_Data.lua decodes it):
 #   floor    . none  t tunnel  k vault  s shelter  g grating  w channel (sludge, not walkable)  r rock (outside, under a wall)
-#            m cave (dug earth)
+#            m cave (dug earth)  n the rats' nest  v their hoard
+#            p a passage the cult dug  h the temple's stone floor  a its carpet  q its boards (gen_temple.py)
 #   walls    . none  c concrete  b brick  d a door frame, with its steel door  e earth (a cave's)
 #            j a door frame, with a locked grille (a county room: gate_shelters)
 #            o a breach, broken through concrete  q a breach, broken through brick (both walked through)
+#            O Q the same, broken through from the cult's side (gen_temple.py)
 #   fixture  . none  L ladder on the N edge  l ladder on the W edge  P pillar (concrete)  Q pillar (brick)
 #   dressing . none  p pipe  e EXIT stencil  a-g graffiti  h SAFE stencil  i grime  u puddle  v debris  x light pool  y smear
 #            z loose stones (rubble)
@@ -2065,7 +2244,8 @@ def lua_str(s):
     return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def write_town(tid, name, chunks, furniture, dead, cave_furniture=(), cave_dead=(), gas=None, keys=()):
+def write_town(tid, name, chunks, furniture, dead, cave_furniture=(), cave_dead=(), gas=None, keys=(), pictures=(),
+               warren=((), ())):
     os.makedirs(DATA, exist_ok=True)
 
     def furn(items):
@@ -2077,24 +2257,29 @@ def write_town(tid, name, chunks, furniture, dead, cave_furniture=(), cave_dead=
 
     def zeds(items):
         out = collections.defaultdict(list)
-        for x, y, outfit in items:
-            out[(x // 8, y // 8)].append("{%d,%d,%s}" % (x, y, lua_str(outfit)))
+        for x, y, outfit, *face in items:
+            # `face`: the square one of the temple's dead is turned to (gen_temple.py).
+            out[(x // 8, y // 8)].append("{%d,%d,%s%s}" % (x, y, lua_str(outfit), "".join(",%d" % v for v in face)))
         return out
     fx, zx, vx, ux = furn(furniture), zeds(dead), furn(cave_furniture), zeds(cave_dead)
+    # The warren (dig_warren): what is in its dens and who, placed once in a
+    # chunk whatever that chunk's history -- a save that has the nest gets them.
+    wx, dx = furn(warren[0]), zeds(warren[1])
     lines = [
         "-- GENERATED by tools/gen_sewers.py -- do not edit. %s: the squares, by chunk." % name,
         "if isClient() then return end",
         "SEW = SEW or {}",
         "SEW.Data = SEW.Data or {}",
         "local T = { id = %s, name = %s, chunks = {}, furniture = {}, claimed = {}, caveFurniture = {}, "
-        "caveClaimed = {}, gas = {}, gasSigns = {}, keys = {} }" % (lua_str(tid), lua_str(name)),
+        "caveClaimed = {}, gas = {}, gasSigns = {}, keys = {}, pictures = {}, warren = {}, warrenDead = {} }"
+        % (lua_str(tid), lua_str(name)),
         "SEW.Data[%s] = T" % lua_str(tid),
         "local c, f, z, v, u = T.chunks, T.furniture, T.claimed, T.caveFurniture, T.caveClaimed",
-        "local g, p, k = T.gas, T.gasSigns, T.keys",
+        "local g, p, k, h, w, d = T.gas, T.gasSigns, T.keys, T.pictures, T.warren, T.warrenDead",
     ]
     for (cx, cy), squares in sorted(chunks.items()):
         lines.append('c["%d,%d"]=%s' % (cx, cy, lua_str("".join(v for _, v in sorted(squares.items())))))
-    for letter, table in (("f", fx), ("z", zx), ("v", vx), ("u", ux)):
+    for letter, table in (("f", fx), ("z", zx), ("v", vx), ("u", ux), ("w", wx), ("d", dx)):
         for (cx, cy), items in sorted(table.items()):
             lines.append('%s["%d,%d"]={%s}' % (letter, cx, cy, ",".join(items)))
     # Sewer gas (place_gas): its squares, and the placards at its ways in.
@@ -2110,6 +2295,12 @@ def write_town(tid, name, chunks, furniture, dead, cave_furniture=(), cave_dead=
         by[(x // 8, y // 8)].append("{%d,%d}" % (x, y))
     for (cx, cy), items in sorted(by.items()):
         lines.append('k["%d,%d"]={%s}' % (cx, cy, ",".join(items)))
+    # The cult's pictures (gen_temple.py): hung on the wall of their square, once.
+    by = collections.defaultdict(list)
+    for x, y, spr in pictures:
+        by[(x // 8, y // 8)].append("{%d,%d,%s}" % (x, y, lua_str(spr)))
+    for (cx, cy), items in sorted(by.items()):
+        lines.append('h["%d,%d"]={%s}' % (cx, cy, ",".join(items)))
     lines.append("return T")
     path = os.path.join(DATA, "SEW_Town_%s.lua" % tid)
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
@@ -2125,7 +2316,7 @@ def write_index(towns, rev, journals=(), plans=()):
         "-- server knows which manhole leads where. The squares are server-only (Data/).",
         "SEW = SEW or {}",
         "local I = { rev = %s, towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil, "
-        "gas = {}, gates = {} }" % lua_str(rev),
+        "gas = {}, gates = {}, temple = nil, warren = nil }" % lua_str(rev),
         "SEW.Index = I",
         "local S, H, J, P, V, G, K = I.shafts, I.shelters, I.journals, I.plans, I.caves, I.gas, I.gates",
     ]
@@ -2203,6 +2394,30 @@ def write_index(towns, rev, journals=(), plans=()):
                      "hx=%d,hy=%d,cx=%d,cy=%d,hoard={%d,%d,%d,%d},rous={%s}}"
                      % (lua_str(tid), tx, ty, ex, ey, cx, cy, gx, gy, vx, vy, hx, hy, sx, sy,
                         t["x0"] + rx, t["y0"] + ry, w, h, rous))
+    # The warren (dig_warren): each den's middle and its size (x, y, r, ...),
+    # and the candles the cult's pilgrims left burning in it (x, y, ...).
+    for tid, name, t, ladders in towns:
+        if t.get("warren"):
+            lines.append("I.warren={town=%s,dens={%s},lights={%s}}"
+                         % (lua_str(tid), ",".join("%d,%d,%d" % (t["x0"] + d["centre"][0], t["y0"] + d["centre"][1], d["r"])
+                                                   for d in t["warren"]),
+                            ",".join("%d,%d" % q for q in t["warren_lights"])))
+    # The temple (gen_temple.py): its trapdoor's shaft -- a cover of ours to the
+    # code, a trapdoor in a field to look at -- the idol, where the dev build
+    # arrives, its lights (x, y, x, y, ...), and where each passage breaks
+    # into a town's sewer (tunnel side tx, ty; passage side ex, ey).
+    for tid, name, t, ladders in towns:
+        T = t.get("temple")
+        if not T:
+            continue
+        (tx, ty), (ix, iy), (hx, hy) = T["trap"], T["idol"], T["hall"]
+        lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="N",street="",made=true,trapdoor=true}'
+                     % (tx, ty, lua_str(tid), tx, ty, tx, ty))
+        lines.append("I.temple={town=%s,x=%d,y=%d,hx=%d,hy=%d,tx=%d,ty=%d,lights={%s},breaches={%s}}"
+                     % (lua_str(tid), ix, iy, hx, hy, tx, ty, ",".join("%d,%d" % q for q in T["lights"]),
+                        ",".join("{town=%s,tx=%d,ty=%d,ex=%d,ey=%d,gx=%d,gy=%d,n=%d}"
+                                 % (lua_str(b["town"]), b["a"][0], b["a"][1], b["e"][0], b["e"][1],
+                                    b["gate"][0], b["gate"][1], b["length"]) for b in T["breaches"])))
     lines.append("return I")
     with open(INDEX, "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(lines) + "\n")
@@ -2224,6 +2439,8 @@ def map_images(tid, t):
     from PIL import Image
     W, H = t["W"], t["H"]
     space = t["tunnel"] | (t["room_id"] > 0) | (t["cave_id"] > 0)
+    for x, y in t.get("cult", ()):
+        space[y, x] = True
     rgba = np.zeros((H, W, 4), np.uint8)
     rgba[t["road"] & ~space] = (120, 104, 80, 60)             # the streets above, faint
     water = water_region(t["x0"], t["y0"], t["x0"] + W - 1, t["y0"] + H - 1)[0]
@@ -2235,6 +2452,8 @@ def map_images(tid, t):
     rgba[t["channel"]] = (104, 140, 112, 255)
     rgba[t["room_id"] > 0] = (190, 180, 150, 255)
     rgba[t["cave_id"] > 0] = (150, 118, 82, 255)                 # dug earth
+    for x, y in t.get("cult", ()):                              # a passage the cult dug under this town's sheet
+        rgba[y, x] = (150, 118, 82, 255)
     os.makedirs(MAPS_UI, exist_ok=True)
     tw, th = (W + MAP_TILE - 1) // MAP_TILE, (H + MAP_TILE - 1) // MAP_TILE
     for i in range(tw):
@@ -2263,6 +2482,8 @@ def plan(t, path):
     for c in t["caves"]:
         x, y = c["breach"]
         im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (255, 120, 255)
+    for x, y in t.get("cult", ()):
+        im[y, x] = (220, 60, 160)
     for g in t.get("gas", []):
         for x, y in g["squares"]:
             im[y, x] = (190, 230, 40)
@@ -2272,6 +2493,9 @@ def plan(t, path):
     if t.get("lair") is not None:
         im[t["lair_id"] == 1] = (200, 60, 60)
         im[t["lair_id"] == 2] = (255, 215, 0)
+        for d in t.get("warren", []):
+            for x, y in d["cells"]:
+                im[y, x] = (240, 110, 60)
     for x, y in t["shafts"]:
         im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (255, 210, 0)
     for o in t.get("outfalls", []):
@@ -2304,12 +2528,8 @@ def main():
     groups = clusters(holes)
     print("%d manholes in %d towns, %d streets" % (len(holes), len(groups), len(streets_all)))
 
-    for old in glob.glob(os.path.join(DATA, "SEW_Town_*.lua")):
-        os.remove(old)
-    for old in glob.glob(os.path.join(MAPS_UI, "*.png")):
-        os.remove(old)
-
     towns, used, digest, totals = [], collections.Counter(), hashlib.md5(), collections.Counter()
+    built = []
     journals, plans = [], []
     # The biggest cluster near a town takes its plain name; strays get a number.
     taken = set()          # chunks some town already has
@@ -2337,7 +2557,20 @@ def main():
         if t.get("lair"):
             cave_furniture = list(cave_furniture) + furnish_lair(t)
             t["lair_access"] = lair_access(t, ladders)
-        write_town(tid, name, chunks, furniture, dead, cave_furniture, cave_dead, place_gas(t, chunks), t["keys"])
+        # Not written yet: the temple's passages break into two towns' tunnels
+        # (gen_temple.py), and those towns' records are patched first.
+        b = dict(tid=tid, name=name, t=t, chunks=chunks, ladders=ladders, furniture=furniture, dead=dead,
+                 cave_furniture=cave_furniture, cave_dead=cave_dead, pictures=[], warren=([], []))
+        if t.get("warren"):
+            wf, wd, wp, t["warren_lights"] = furnish_warren(t)
+            b["warren"] = (wf, wd)
+            b["pictures"] += wp
+        built.append(b)
+
+    def finish(b):
+        tid, name, t, chunks, ladders = b["tid"], b["name"], b["t"], b["chunks"], b["ladders"]
+        write_town(tid, name, chunks, b["furniture"], b["dead"], b["cave_furniture"], b["cave_dead"],
+                   place_gas(t, chunks), t["keys"], b["pictures"], b["warren"])
         t["map_tiles"] = map_images(tid, t)
         t["n_chunks"] = len(chunks)
         towns.append((tid, name, t, ladders))
@@ -2370,6 +2603,26 @@ def main():
     # every town above so none of those moves, each with covers of our own.
     for name, box, cells in sparse_districts(holes, names):
         town(name, [], (box, cells))
+    # The temple, last of all and from a generator of its own: a town in
+    # chunks no town has, and two passages out to the sewers either side.
+    temple = gen_temple.dig(built, journals, region, room_mask, under_map, water_region)
+    # What each of the two places says of the other (ROADMAP 0.6): the
+    # writings left in the dens, pointing at the temple and its breaches.
+    gen_temple.cross(built, journals, temple)
+    # Only now is the old layout taken away: everything that can fail has not.
+    # (It went first once, and a temple that would not fit left the tree with
+    # no sewers at all until the next good run.)
+    for old in glob.glob(os.path.join(DATA, "SEW_Town_*.lua")):
+        os.remove(old)
+    for old in glob.glob(os.path.join(MAPS_UI, "*.png")):
+        os.remove(old)
+    for b in built:
+        finish(b)
+    finish(temple)
+    T = temple["t"]["temple"]
+    print("the temple: idol at %d,%d, trapdoor at %d,%d; passages %s"
+          % (T["idol"] + T["trap"] + (", ".join("%s %d squares from %d,%d" % (b["town"], b["length"], b["a"][0], b["a"][1])
+                                                for b in T["breaches"]),)))
     write_index(towns, digest.hexdigest()[:12], journals, plans)
     print("story: %d journals, %d plans" % (len(journals), len(plans)))
     print("total: %(squares)d squares, %(shafts)d shafts under the map's covers and %(made)d under ours, "
