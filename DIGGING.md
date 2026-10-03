@@ -226,6 +226,6 @@ the explosion are the server's too, so they draw the dead for everybody.
 
 ## For testing (dev build only)
 
-Right-click → **Sewars (dev)** → **Give me a pickaxe and pipe bombs** puts a
+Right-click → **Sewers (dev)** → **Give me a pickaxe and pipe bombs** puts a
 pickaxe and three pipe bombs in your inventory. Then go below ground and
 right-click for **Dig**. The pipe bombs are the plain kind: throw them.

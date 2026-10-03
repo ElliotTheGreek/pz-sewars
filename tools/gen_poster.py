@@ -41,7 +41,7 @@ def titled(img, size, at=None):
     img = ImageEnhance.Brightness(img).enhance(1.35)
     d = ImageDraw.Draw(img)
     f = ImageFont.truetype(FONT, size)
-    text = "SEWARS"
+    text = "SEWERS"
     w = d.textlength(text, font=f)
     if at is None:
         x, y = (img.width - w) / 2, img.height * 0.08

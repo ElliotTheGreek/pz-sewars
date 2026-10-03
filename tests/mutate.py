@@ -467,6 +467,21 @@ MUTATIONS = [
      '            z:setVariable("bMoving", false)\n', ""),
     ("street: the look is kept up", "client/SEW/SEW_Street.lua",
      '    if tick % C.Street.every == 0 then U.try("street.look", Street.look) end', ""),
+    # No square of the sewer's keeps a room on a server (SEW_Rooms).
+    ("rooms: the room comes off", "server/SEW/SEW_Rooms.lua",
+     "    sq:setRoomID(-1)\n", ""),
+    ("rooms: only a square of ours", "server/SEW/SEW_Rooms.lua",
+     "    if not S.ours(sq) then return false end\n", ""),
+    ("rooms: only on a server", "server/SEW/SEW_Rooms.lua",
+     "    return isServer()\n", "    return true\n"),
+    ("rooms: when a chunk loads", "server/SEW/SEW_Rooms.lua",
+     "        local ok, err = pcall(Rooms.loaded, sq)", "        local ok, err = true, nil"),
+    ("rooms: when the builder revisits", "server/SEW/SEW_Build.lua",
+     "    if SEW.Rooms then SEW.Rooms.built(sq) end\n", ""),
+    ("rooms: at the foot of a climb", "server/SEW/SEW_Server.lua",
+     "        SEW.Rooms.around(x, y, C.Rooms.reach + 1)\n", ""),
+    ("rooms: round a player, every tick", "server/SEW/SEW_Rooms.lua",
+     "        local ok, err = pcall(Rooms.walk)", "        local ok, err = true, nil"),
 ]
 
 

@@ -11,7 +11,7 @@
     python tools/dev.py package --install   # and into ~/Zomboid/Workshop/Sewars for the in-game uploader
     python tools/dev.py all             # build + check + deploy
 
-The deployed copy is **SewarsDev** ("Sewars [DEV]" on the mods screen), so a
+The deployed copy is **SewarsDev** ("Sewers [DEV]" on the mods screen), so a
 subscribed Workshop copy can sit beside it without the game confusing the two.
 Enable SewarsDev, not Sewars, to test. Nothing here uploads anything: the
 upload is the in-game Workshop screen, by hand, after `package --install`.
@@ -84,7 +84,7 @@ def main():
     elif cmd == "dev":
         check()
         run("tools/deploy_windows.py", what="deploy SewarsDev")
-        print("\nready: start the game (python tools/dev.py run), enable 'Sewars [DEV]', new world.")
+        print("\nready: start the game (python tools/dev.py run), enable 'Sewers [DEV]', new world.")
     elif cmd == "all":
         build()
         check()

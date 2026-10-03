@@ -1,10 +1,10 @@
 Every manhole in Kentucky goes somewhere.
 
-Vanilla paints 446 manhole covers on its streets and puts nothing under them. Sewars digs the sewers: brick and concrete tunnels running under the streets of every town, laid out from the game's own street map, so a highway is a trunk sewer with a sludge channel down it, a street is a main, and a back lane is a culvert you can barely turn round in.
+Vanilla paints 446 manhole covers on its streets and puts nothing under them. This mod digs the sewers: brick and concrete tunnels running under the streets of every town, laid out from the game's own street map, so a highway is a trunk sewer with a sludge channel down it, a street is a main, and a back lane is a culvert you can barely turn round in.
 
 - Right-click a manhole cover in the road: Climb down into the sewer. A crowbar or a pipe wrench makes quicker work of the lid.
 - Every cover has a ladder under it. Right-click a ladder: Climb out to the street, and you come up through the cover above it.
-- Louisville too. Vanilla gives all of Louisville 13 covers, and none to Irvington, Brandenburg, March Ridge or Valley Station. Sewars adds its own there, at the junctions and along the long streets, with sewers under every street.
+- Louisville too. Vanilla gives all of Louisville 13 covers, and none to Irvington, Brandenburg, March Ridge or Valley Station. The mod adds its own there, at the junctions and along the long streets, with sewers under every street.
 - It is dark. Daylight comes down through the holes in the covers; bring a torch for the rest.
 - The dead are down here too. So are the rats.
 - Shelters: other survivors dug in before you. Maintenance rooms, pump stations, squats and last stands behind steel doors, some stocked, some still occupied.
@@ -32,6 +32,8 @@ ADDING IT TO A SAVE OR SERVER MID GAME
 Yes, it works. Nothing is built ahead of time: the sewers are built a stretch at a time as players come near, so an existing world simply fills in as people explore it. The manholes are the map's own; the extra covers, house hatches and everything below go in the first time someone comes near, and anything already underground that is not the mod's is left alone. On a server, add the mod and its Workshop ID to the config and restart; every player needs it. A save that never had the mod uses the default sandbox settings for it. In a house someone already lives in, a trapdoor can turn up under their furniture: it is only a picture on the floor. Removing the mod from a save is the risky direction, so be up on the street when you do.
 
 Sandbox: how many of the dead are down there, who they were (ordinary people or survivors with full packs), how many rats, how well the shelters are stocked, how bad the sewer gas is (off, mild, harmful or deadly), whether the sewers can be dug (off, picks and hammers, or explosives too), and whether the street hears the sewer (no, or yes: the game's own rule).
+
+New in 0.7.3: a fix for multiplayer servers that stopped for everyone when a player went down into the sewer (thank you for the log), and the name is spelled Sewers now (same mod, same id: nothing to change in your mod list).
 
 New in 0.7.2: digging and blasting. Fixes from your comments, thank you: the mod no longer touches bunkers and basements (going down to -2, or into the military base, sent people to a sewer ladder or up to the street), and its drips, rats and groans are heard in the sewers only, not in every basement; a right-click near the edge of the screen finds the cover or the ladder it was on; and the dead on the street no longer come to stand over a player walking in the sewer under them (a sandbox option puts the game's own rule back).
 

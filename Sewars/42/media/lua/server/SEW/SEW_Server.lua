@@ -37,6 +37,7 @@ require "SEW/SEW_Gas"
 require "SEW/SEW_Keys"
 require "SEW/SEW_Maps"
 require "SEW/SEW_Mine"
+require "SEW/SEW_Rooms"
 
 SEW = SEW or {}
 local C = SEW.Config
@@ -76,6 +77,8 @@ function Server.grant(player, x, y, mode)
         if not B.isCurrent(math.floor(x / 8) .. "," .. math.floor(y / 8)) then
             return refuse(player, "unready")
         end
+        -- Nobody is sent onto a square the engine has left a room on (SEW_Rooms).
+        SEW.Rooms.around(x, y, C.Rooms.reach + 1)
         SEW.Discovery.ladder(player, x, y)
         U.log("%s climbs down at %d,%d (%s; %d chunks built, %d waiting)",
               nameOf(player), x, y, shaft.town, done, left)
@@ -136,6 +139,7 @@ Net.onServer("rescue", function(player, args)
     local shaft, d = S.nearestShaft(px, py, 400)
     if shaft then
         B.around(shaft.x, shaft.y, 1)
+        SEW.Rooms.around(shaft.x, shaft.y, C.Rooms.reach + 1)
         U.log("rescue: %s had no floor at %d,%d; sent to the ladder at %d,%d (%d squares)",
               nameOf(player), px, py, shaft.x, shaft.y, d)
         Net.toClient(player, "go", { x = shaft.x, y = shaft.y, z = C.Z, street = shaft.street, mode = "rescue" })
