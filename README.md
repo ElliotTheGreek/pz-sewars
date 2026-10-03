@@ -2,7 +2,8 @@
 
 A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
-> Status: **0.7.3**: a fix for servers that stopped when a player went below, the name
+> Status: **0.7.4**: the street and the sewer out of earshot of each other both ways,
+> on top of 0.7.3: a fix for servers that stopped when a player went below, the name
 > spelled right, and 0.7.2's digging and blasting, annotated maps, a street that no
 > longer hears the sewer, and fixes from the Workshop's comments (bunkers and
 > basements left alone and left quiet, the right-click read where it was made),

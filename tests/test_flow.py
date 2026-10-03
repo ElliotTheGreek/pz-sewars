@@ -2082,9 +2082,11 @@ def rooms_test(L, p, server):
 
 
 def street_test(L, p):
-    """The street does not hear the sewer (SEW_Street): a zombie on the road
-    on its way to a player's sound under it is stopped -- and nobody else's
-    zombie, no other sound, no other place, and not with the sandbox's Yes."""
+    """The street and the sewer do not hear each other (SEW_Street): a zombie
+    on the road on its way to a player's sound under it is stopped, and one
+    after a player who has gone down forgets them; the same for a zombie in
+    the sewer and a player on the road -- and nobody else's zombie, no other
+    sound, no other place, no basement, and not with the sandbox's Yes."""
     g = L.globals()
     sim, SEW = g.SIM, g.SEW
     C = SEW.Config
@@ -2131,6 +2133,59 @@ def street_test(L, p):
     check(not case(x + 6.5, y + 0.5, 0, x + 2, y + 1, -1, moving=False)[0],
           "a zombie not on its way to a player's sound is not touched")
 
+    # Seen, not heard: a zombie on the street that was after a player when
+    # they climbed down. And the other way: a zombie in the sewer, a player
+    # on the road over it.
+    L.execute("""
+        function SIM.chaseCase(zx, zy, zz, target, tx, ty, tz, remote)
+            local zed = SIM.hearingZombie(zx, zy, zz, tx or 0, ty or 0, tz or zz, remote)
+            if tx == nil then zed.vars.bPathfind = false end
+            zed.target = target
+            SIM.updateZombie(zed)
+            return zed.target == nil, zed.path == nil
+        end
+    """)
+    chase = L.eval("SIM.chaseCase")
+    forgot, stopped = chase(x + 6.5, y + 0.5, 0, p)
+    check(forgot and stopped, "a zombie on the street after a player who has gone down forgets them and stops (%s, %s)"
+          % (forgot, stopped))
+    forgot, stopped = chase(x + 6.5, y + 0.5, 0, p, None, None, None, True)
+    check(not forgot, "another client's zombie keeps its target")
+    forgot, stopped = chase(x + 1.5, y + 0.5, -1, p)
+    check(not forgot and not stopped, "a zombie in the sewer with them goes on chasing")
+    other = sim.newPlayer("bob", x + 6.5, y + 0.5, 0)
+    forgot, stopped = chase(x + 5.5, y + 0.5, 0, other)
+    check(not forgot, "and one on the street goes on after a player on the street")
+    # The other way. The player goes up; the zombie is on a square of ours below.
+    p.x, p.y, p.z = x + 0.5, y + 0.5, 0
+    sim.tickN(C.Street.every)
+    check(len(lua_list(SEW.Street.below)) == 0, "nobody is in the sewer now")
+    forgot, stopped = chase(x + 0.5, y + 0.5, -1, p)
+    check(forgot and stopped, "a zombie in the sewer after a player up on the street forgets them and stops (%s, %s)"
+          % (forgot, stopped))
+    forgot, stopped = chase(x + 0.5, y + 0.5, -1, None, x + 3, y + 1, 0)
+    check(stopped, "a zombie in the sewer going to a player's sound on the street is stopped")
+    forgot, stopped = chase(x + 0.5, y + 0.5, -1, None, x + 3, y + 1, 0, True)
+    check(not stopped, "another client's zombie in the sewer is left to its owner")
+    forgot, stopped = chase(x + 0.5, y + 0.5, -1, None, x + 3, y + 1, -1)
+    check(not stopped, "a zombie in the sewer still goes to a sound in the sewer")
+    # Two levels down, on something of ours even (the other guard is the square).
+    L.execute("""
+        local sq = getCell():getOrCreateGridSquare(%d, %d, -2)
+        local o = IsoObject.new(sq, "floors_exterior_street_01_0", "")
+        o:getModData()[SEW.Config.Tag] = true
+        sq.objects:add(o)
+    """ % (x, y))
+    forgot, stopped = chase(x + 0.5, y + 0.5, -2, p, x + 3, y + 1, 0)
+    check(not forgot and not stopped, "a zombie two levels down is none of ours")
+    L.execute("SandboxVars.Sewars.StreetHears = 2")
+    sim.tickN(C.Street.every)
+    forgot, stopped = chase(x + 0.5, y + 0.5, -1, p, x + 3, y + 1, 0)
+    check(not forgot and not stopped, "with the sandbox's Yes the sewer hears and sees the street as the game has it")
+    L.execute("SandboxVars.Sewars.StreetHears = nil")
+    p.x, p.y, p.z = x + 0.5, y + 0.5, -1
+    sim.tickN(C.Street.every)
+
     # The sandbox's Yes: the game's own rule.
     L.execute("SandboxVars.Sewars.StreetHears = 2")
     sim.tickN(C.Street.every)
@@ -2149,6 +2204,10 @@ def street_test(L, p):
     sim.tickN(C.Street.every)
     check(not case(bx + 6.5, by + 0.5, 0, bx + 1, by + 1, -1)[0],
           "over a basement that is not ours, the house still hears what is done in it")
+    forgot, stopped = chase(bx + 6.5, by + 0.5, 0, p)
+    check(not forgot, "and a zombie in the house goes on after a player in its basement")
+    forgot, stopped = chase(bx + 0.5, by + 0.5, -1, other, bx + 3, by + 1, 0)
+    check(not forgot and not stopped, "and a zombie in that basement hears and chases the house over it")
     # And a player on the street, standing on something of ours (a cover).
     L.execute("""
         local sq = getCell():getOrCreateGridSquare(%d, %d, 0)

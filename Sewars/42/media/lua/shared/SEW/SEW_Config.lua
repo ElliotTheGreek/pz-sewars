@@ -9,7 +9,7 @@ SEW = SEW or {}
 SEW.Config = SEW.Config or {}
 local C = SEW.Config
 
-C.Version = "0.7.3"
+C.Version = "0.7.4"
 C.ModPrefix = "[SEW]"
 C.Debug = false
 

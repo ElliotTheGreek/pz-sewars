@@ -18,7 +18,7 @@ Vanilla paints 446 manhole covers on its streets and puts nothing under them. Th
 - Storm-drain outfalls: down on the banks of the river, the creeks and the lakes, an iron grate in the ground. A way into the sewers nobody on the street sees, and a way out of town the dead will not be waiting at.
 - Build down there. The tunnels are yours to wall off, barricade and furnish; the mod never touches anything you build.
 - Dig. With a pickaxe (or, slowly, a sledgehammer), right-click below ground and Dig: the rock beside you becomes one more square of floor, and a wall with a space behind it comes down. A pipe bomb set off in a tunnel opens the rock for two squares round it. Doors, a ladder's wall and anybody's basement never give.
-- Out of earshot. The dead on the street do not come to the noise you make under it; the ones in the tunnels with you do.
+- Out of earshot. The dead on the street do not come to the noise you make under it, and the dead in the tunnels do not come to the noise you make on the street; the ones on your own level do. Climb down a manhole and whoever was chasing you gives up.
 - 31 towns, 1,174 manholes that open, 16 storm-drain outfalls, 239 shelters (47 behind locked gates), 152 caves, 189 houses with a way down, 97 stretches of sewer gas, over 479,000 squares of tunnel.
 
 THE SEWER MAP
@@ -32,6 +32,8 @@ ADDING IT TO A SAVE OR SERVER MID GAME
 Yes, it works. Nothing is built ahead of time: the sewers are built a stretch at a time as players come near, so an existing world simply fills in as people explore it. The manholes are the map's own; the extra covers, house hatches and everything below go in the first time someone comes near, and anything already underground that is not the mod's is left alone. On a server, add the mod and its Workshop ID to the config and restart; every player needs it. A save that never had the mod uses the default sandbox settings for it. In a house someone already lives in, a trapdoor can turn up under their furniture: it is only a picture on the floor. Removing the mod from a save is the risky direction, so be up on the street when you do.
 
 Sandbox: how many of the dead are down there, who they were (ordinary people or survivors with full packs), how many rats, how well the shelters are stocked, how bad the sewer gas is (off, mild, harmful or deadly), whether the sewers can be dug (off, picks and hammers, or explosives too), and whether the street hears the sewer (no, or yes: the game's own rule).
+
+New in 0.7.4: the street and the sewer are out of earshot of each other both ways (the dead in the tunnels came to players on the street), and a zombie that was chasing you gives up when you climb down or out. Thank you for the reports.
 
 New in 0.7.3: a fix for multiplayer servers that stopped for everyone when a player went down into the sewer (thank you for the log), and the name is spelled Sewers now (same mod, same id: nothing to change in your mod list).
 
