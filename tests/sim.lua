@@ -282,6 +282,7 @@ function instanceof(o, class)
     if class == "Clothing" then return o.class == "Clothing" end
     if class == "IsoAnimal" then return o.class == "IsoAnimal" end
     if class == "MapItem" then return o.class == "MapItem" end
+    if class == "IsoPlayer" then return o.isPlayerObject == true end
     return false
 end
 
@@ -448,6 +449,7 @@ function getCell() return cell end
 ---------------------------------------------------------------------------
 local PlayerMT = {}
 PlayerMT.__index = PlayerMT
+PlayerMT.isPlayerObject = true
 function PlayerMT:getX() return self.x end
 function PlayerMT:getY() return self.y end
 function PlayerMT:getZ() return self.z end
@@ -690,6 +692,12 @@ function SIM.hearingZombie(x, y, z, tx, ty, tz, remote)
         self.vars[k] = v
     end
     function zed.setPath2(self, path) self.path = path end
+    -- Who it is after (IsoZombie.target), and the square it stands on.
+    function zed.getTarget(self) return self.target end
+    function zed.setTarget(self, t) self.target = t end
+    function zed.getCurrentSquare(self)
+        return getCell():getGridSquare(math.floor(self.x), math.floor(self.y), math.floor(self.z))
+    end
     return zed
 end
 function SIM.updateZombie(zed) SIM.fire("OnZombieUpdate", zed) end

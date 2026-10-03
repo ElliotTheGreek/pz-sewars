@@ -8,6 +8,18 @@ below ground moves; new parts appear as you walk into them.
 
 ---
 
+## 0.7.4 (3 October 2026)
+
+**Fixed, from your comments (thank you)**
+
+- The dead in the sewer came to the noise of a player up on the street, and
+  stood under them. They no longer do: the street and the sewer are out of
+  earshot of each other, both ways.
+- A zombie that was chasing you when you climbed down a manhole (or out of
+  one) went on standing over the spot. It gives up now.
+- The sandbox option, The street hears the sewer, covers all of it: Yes puts
+  the game's own rule back.
+
 ## 0.7.3 (3 October 2026)
 
 **Fixed, from your comments (thank you)**

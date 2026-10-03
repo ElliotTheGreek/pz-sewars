@@ -1,25 +1,33 @@
---[[ Sewars -- the street does not hear the sewer.
+--[[ Sewars -- the street and the sewer do not hear each other.
 
     To the engine a level is three squares of distance and a floor stops no
     sound (DEV_GUIDE, "The street hears the sewer"): a zombie on the road
-    hears a player walking under it and comes to stand over them. Asked for
-    by a player on a server; the sandbox's "The street hears the sewer" puts
-    the engine's own behaviour back.
+    hears a player walking under it and comes to stand over them, and one in
+    the tunnel hears a player on the road and comes to stand under them.
+    Asked for by players, twice: first the street's side, then (0.7.4) "same
+    when I am outside with zombies in sewers". The sandbox's "The street
+    hears the sewer" puts the engine's own behaviour back, both ways.
 
     It runs on a client (single player too) and never on a server, because
     that is where a zombie hears: IsoZombie.RespondToSound returns at once on
     a server and for a zombie this machine does not own. The engine fires
-    OnZombieUpdate for each zombie on each update, before its hearing; a
-    zombie at street level that is on its way to a player's sound at the
-    sewer's level, near a player who is in the sewer, is stopped the way the
-    engine stops one itself (RespondToSound, bci 168-188: bPathfind and
-    bMoving off, the path dropped).
+    OnZombieUpdate for each zombie on each update, before its hearing and
+    before it acts on what it is after. Then, for a zombie on one side of
+    the street's floor:
 
-    What it does not do: a zombie already chasing somebody it saw keeps
-    after them for a few seconds when they climb down (the engine's own
-    memory of a sighting, which Lua cannot clear before it is read again);
-    a zombie may still turn its head to the noise; and a sound not made by
-    a player -- a bomb -- is heard as before.
+      heard   on its way to a player's sound on the other side: stopped the
+              way the engine stops one itself (RespondToSound, bci 168-188:
+              bPathfind and bMoving off, the path dropped)
+      seen    after a player who is on the other side (it saw them before
+              they climbed, and the engine keeps its memory of a sighting
+              for a while): the target is dropped, and it is stopped
+
+    "The other side" is the sewer and nothing else: a square of ours at the
+    sewer's level. A basement at that level is not, and the house over it
+    goes on hearing what is done there.
+
+    What it does not do: a zombie may still turn its head to the noise; and
+    a sound not made by a player -- a bomb -- is heard as before.
 ]]
 
 if isServer() then return end
@@ -37,8 +45,10 @@ local Street = {}
 SEW.Street = Street
 
 -- { x, y } for each player this machine knows of who is in the sewer.
--- Empty nearly always, and then a zombie's update costs one length check.
+-- Empty nearly always, and then a zombie on the street costs one length check.
 Street.below = {}
+-- The sandbox's Yes, read when the list is written.
+Street.off = false
 
 --- The sandbox's "The street hears the sewer": 1 (the default) is no.
 function Street.hears()
@@ -66,7 +76,8 @@ local ours = S.ours
 --- Who is in the sewer, written down every C.Street.every ticks.
 function Street.look()
     local out = {}
-    if not Street.hears() then
+    Street.off = Street.hears()
+    if not Street.off then
         for _, p in ipairs(Street.players()) do
             if S.below(p) then
                 local sq = U.try("street.sq", function() return p:getCurrentSquare() end)
@@ -78,32 +89,77 @@ function Street.look()
     return #out
 end
 
---- One zombie's update. Returns true when it was stopped. No U.try in here:
---- it runs for every zombie on every tick, and the caller's one pcall is the
---- guard (DEV_GUIDE, "Slice any search that touches thousands of squares").
-function Street.quiet(z)
-    local list = Street.below
-    if #list == 0 then return false end
-    -- Cheapest first: nearly every zombie is not on its way to a player's sound.
+-- As the engine stops one (RespondToSound, bci 168-188).
+local function halt(z)
+    z:setVariable("bPathfind", false)
+    z:setVariable("bMoving", false)
+    z:setPath2(nil)
+end
+
+-- The player a zombie is after, or nil.
+local function prey(z)
+    local t = z:getTarget()
+    if t ~= nil and instanceof(t, "IsoPlayer") then return t end
+    return nil
+end
+
+--- A zombie at street level or over it, with somebody in the sewer.
+function Street.above(z)
+    -- Seen: it is after a player who has gone down.
+    local t = prey(z)
+    if t ~= nil and S.inSewer(t) then
+        z:setTarget(nil)
+        halt(z)
+        return true
+    end
+    -- Heard. Cheapest first: nearly every zombie is not on its way to a player's sound.
     if not z:isMovingToPlayerSound() then return false end
-    if z:getZ() < 0 or z:getPathTargetZ() ~= C.Z then return false end
-    -- Somebody else's to decide: the client that owns it runs this too.
-    if z:isRemoteZombie() then return false end
+    if z:getPathTargetZ() ~= C.Z then return false end
     local tx, ty, r = z:getPathTargetX(), z:getPathTargetY(), C.Street.reach
+    local list = Street.below
     for i = 1, #list do
         local p = list[i]
         if math.abs(p[1] - tx) <= r and math.abs(p[2] - ty) <= r then
-            z:setVariable("bPathfind", false)
-            z:setVariable("bMoving", false)
-            z:setPath2(nil)
+            halt(z)
             return true
         end
     end
     return false
 end
 
+--- A zombie at the sewer's level: after a player up on the street, or on
+--- its way to one's noise there. Only one of the sewer's: a basement's dead
+--- hear the house over them.
+function Street.under(z)
+    local t = prey(z)
+    local seen = t ~= nil and t:getZ() >= 0
+    local heard = z:isMovingToPlayerSound() and z:getPathTargetZ() >= 0
+    if not seen and not heard then return false end
+    local sq = z:getCurrentSquare()
+    if sq == nil or not ours(sq) then return false end
+    if seen then z:setTarget(nil) end
+    halt(z)
+    return true
+end
+
+--- One zombie's update. Returns true when it was stopped. No U.try in here:
+--- it runs for every zombie on every tick, and the caller's one pcall is the
+--- guard (DEV_GUIDE, "Slice any search that touches thousands of squares").
+function Street.quiet(z)
+    if Street.off then return false end
+    local zz = z:getZ()
+    if zz >= 0 then
+        if #Street.below == 0 then return false end
+        -- Somebody else's to decide: the client that owns it runs this too.
+        if z:isRemoteZombie() then return false end
+        return Street.above(z)
+    end
+    if math.floor(zz + 0.5) ~= C.Z then return false end
+    if z:isRemoteZombie() then return false end
+    return Street.under(z)
+end
+
 Events.OnZombieUpdate.Add(function(z)
-    if #Street.below == 0 then return end
     local ok, err = pcall(Street.quiet, z)
     if not ok then U.warnOnce("street.quiet", tostring(err)) end
 end)

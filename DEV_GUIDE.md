@@ -72,7 +72,7 @@ media/lua/server/SEW/SEW_Story.lua         reading plans and journals: reveals a
 media/lua/server/SEW/Data/SEW_Town_*.lua   GENERATED: every town's squares, by chunk -- 5 MB, server only
 media/lua/client/SEW/SEW_Client.lua        the menus, the move, the vault switch, lamps, ambience, the dev build's start
 media/lua/client/SEW/SEW_Map.lua           the sewer map: panel, fog, markers, the K key
-media/lua/client/SEW/SEW_Street.lua        the street does not hear the sewer: a zombie overhead going to a player's noise below is stopped
+media/lua/client/SEW/SEW_Street.lua        the street and the sewer do not hear each other: a zombie going to, or after, a player across the street's floor is stopped
 media/lua/client/SEW/SEW_StoryUI.lua       the Read menu on plans and journals, and the journal's page
 media/lua/shared/Translate/EN/*.json       ContextMenu, Tooltip, IG_UI, Sandbox, ItemName -- one file per category
 media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 72 tiles
@@ -1090,12 +1090,28 @@ one of them, is stopped the engine's way. It runs on every client, not only
 the one in the sewer: the zombies overhead belong to the nearest player in
 x, y, who may be on the street.
 
+**Both ways, and sight too (0.7.4, the same player again: "zombies on the
+surface can hear me when I'm inside, same when I outside with zombies in
+sewers").** The first version handled one direction of one sense. Now a
+zombie at the sewer's level, on a square of ours, on its way to a player's
+sound at street level or above is stopped the same way (a basement's dead
+are on no square of ours, and go on hearing the house). And a zombie whose
+*target* is a player on the other side -- it saw them before they climbed --
+has the target dropped: `IsoZombie.setTarget(null)` is a field write and a
+network nudge (`NetworkZombieAI.extraUpdate`), no gate, no vanilla Lua
+caller outside the debug panels. 0.7.1 said Lua could not clear a sighting
+because the engine re-sets it after the event; it may, for `bonusSpotTime`
+(720), but the event comes first on every update, so the zombie never acts
+on it. **The report that street zombies still came arrived after 0.7.2 went
+up: the first fix is not known to work in game at all.** If the play-test
+says they still come, suspect the event and `isMovingToPlayerSound` (which
+needs the zombie already in `PathFindState` or `WalkTowardState`) before
+anything else.
+
 Known and left: the zombie still turns to the noise every two seconds
-(`setTurnAlertedValues` runs before the path it makes is dropped); one
-already chasing a player it saw keeps their place for `bonusSpotTime` (720)
-after they climb down, re-set by the engine each tick after the event, so
-Lua cannot clear it; a sound with no player for a source -- a bomb -- is
-heard as before; gunfire below is a player's sound and is not. `setPath2`
+(`setTurnAlertedValues` runs before the path it makes is dropped); a sound
+with no player for a source -- a bomb -- is heard as before; gunfire below
+is a player's sound and is not. `setPath2`
 is the only one of these calls vanilla Lua makes (`WalkToTimedAction`), and
 on a player: **the rest is the bytecode's word until the game says so**
 (ROADMAP 0.7.1).
@@ -1301,8 +1317,8 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | `tools/luacheck.py` | Lua syntax, generated data included |
 | `tests/test_assets.py` (167 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
 | `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (381 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer (and no other zombie, sound or place), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled, no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 212 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so) |
+| `tests/test_flow.py` (394 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled, no WARN, no unknown sprite or text key |
+| `tests/mutate.py` (`dev.py mutate`) | 220 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so) |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -1372,10 +1388,12 @@ gets verified.
 
 ## Current state
 
-Version **0.7.3**, build revision **6**, layout from `tools/gen_sewers.py`.
+Version **0.7.4**, build revision **6**, layout from `tools/gen_sewers.py`.
 **Workshop:** item **3810188405**, public since 0.3.1 (2026-09-29);
-`WORKSHOP_ID` is set in `tools/package_workshop.py`. **0.7.3 is staged** (`package --install`, 2026-10-03; the staged copy
-compared file by file with the source): the server softlock (no room on a
+`WORKSHOP_ID` is set in `tools/package_workshop.py`. **0.7.4 is staged** (`package --install`, 2026-10-03, compared file by file
+with the source): the street and the sewer out of earshot both ways, and a
+chase dropped at the cover -- *unplayed*. **0.7.3 is on the Workshop**
+(uploaded 2026-10-03 08:05): the server softlock (no room on a
 square of ours on a server, *unproven on a real server*: the author has none,
 so the Workshop's servers are the test) and the name spelled Sewers. Before
 it, 0.7.2 was staged
