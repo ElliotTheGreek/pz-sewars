@@ -603,6 +603,9 @@ function B.square(x, y, rec, first, caves)
         local spr = dressSprite(dress, n, x, y, gateEdge)
         if overlayEdge(spr) then hang(sq, spr) else put(sq, spr) end
     end
+    -- A tunnel is no room: on a server, whatever room the engine gave this
+    -- square comes off (SEW_Rooms).
+    if SEW.Rooms then SEW.Rooms.built(sq) end
     return "built"
 end
 

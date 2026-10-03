@@ -196,7 +196,7 @@ end
 ---------------------------------------------------------------------------
 -- The author tests by playing and never types in the debug console, so
 -- everything a test needs is on the right-click menu in the dev build: a
--- "Sewars (dev)" submenu, only when SEW.Dev is set (the installed SewarsDev
+-- "Sewers (dev)" submenu, only when SEW.Dev is set (the installed SewarsDev
 -- copy) and only in single player, where this process is also the server.
 -- Each stop goes round the dev town's list (C.DevStartTown) in turn.
 Client.devNext = { gas = 0, gate = 0, breach = 0 }

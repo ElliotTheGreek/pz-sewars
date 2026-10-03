@@ -348,7 +348,7 @@ function SquareMT:getChunk() return { getMinLevel = function() return -1 end } e
 -- no square below z 0 is ever roofed (checkHaveRoof stops at 0). The sim has
 -- no rooms and no roofs, so every square is outdoors until a test gives one a
 -- room -- a tunnel included, as in the game.
-function SquareMT:isOutside() return self.room == nil end
+function SquareMT:isOutside() return self:getRoom() == nil end
 function SquareMT:getAnimals() return self.animals end
 -- A wall between two squares, as the game reads one: WallN / WallNW on the
 -- southern square's north edge, WallW / WallNW on the eastern's west edge,
@@ -377,7 +377,18 @@ function SquareMT:isBlockedTo(o)
     if dx == -1 then return edgeBlocked(self, false) end
     return false
 end
-function SquareMT:getRoom() return self.room end
+-- IsoGridSquare.getRoom: nil when the room id is -1, else whatever the
+-- square points at -- which may be a room the engine has since blanked
+-- (IsoRoom.clear: no building). setRoomID(-1) writes the id and nothing else.
+function SquareMT:getRoom()
+    if self.roomId == -1 then return nil end
+    return self.room
+end
+function SquareMT:setRoomID(id)
+    if type(id) ~= "number" then error("setRoomID(" .. tostring(id) .. ")") end
+    self.roomId = id
+end
+function SquareMT:getRoomID() return self.roomId or (self.room and 1 or -1) end
 
 local function key(x, y, z) return x .. "," .. y .. "," .. z end
 local function chunkKey(x, y) return math.floor(x / 8) .. "," .. math.floor(y / 8) end
@@ -389,7 +400,21 @@ function SIM.newSquare(x, y, z, orphan)
     return sq
 end
 
-function SIM.load(cx, cy) SIM.loaded[cx .. "," .. cy] = true end
+-- A chunk read in: the engine fires LoadGridsquare for each of its squares
+-- (the two levels the mod listens on are enough here).
+function SIM.load(cx, cy)
+    local was = SIM.loaded[cx .. "," .. cy]
+    SIM.loaded[cx .. "," .. cy] = true
+    if was or #Events.LoadGridsquare.fns == 0 then return end
+    for z = -1, 0 do
+        for x = cx * 8, cx * 8 + 7 do
+            for y = cy * 8, cy * 8 + 7 do
+                local sq = SIM.squares[key(x, y, z)]
+                if sq then SIM.fire("LoadGridsquare", sq) end
+            end
+        end
+    end
+end
 function SIM.unload(cx, cy) SIM.loaded[cx .. "," .. cy] = nil end
 
 local cell = {}
@@ -523,7 +548,7 @@ end
 -- IsoPlayer.isOutside: a square, and no room on it. Not the exterior flag.
 function PlayerMT:isOutside()
     local sq = self:getCurrentSquare()
-    return sq ~= nil and sq.room == nil
+    return sq ~= nil and sq:getRoom() == nil
 end
 
 function SIM.newPlayer(name, x, y, z)
@@ -1149,6 +1174,19 @@ end
 function SIM.tickN(n)
     for _ = 1, n do
         SIM.tick = SIM.tick + 1
+        -- IsoGameCharacter.updateInternal (bci 345-368), on a server: a
+        -- character on a square with a room reads room.building.def with no
+        -- check, and the exception stops the whole world's update -- before
+        -- any Lua of this tick has run.
+        if SIM.role == "server" then
+            for _, p in ipairs(SIM.players) do
+                local sq = p:getCurrentSquare()
+                local room = sq and sq:getRoom()
+                if room and room.building == nil then
+                    error('NullPointerException: Cannot read field "def" because "getRoom().building" is null')
+                end
+            end
+        end
         SIM.fire("OnTick")
         if SIM.streamRadius then
             -- And not at once: a chunk is read from disk over a moment

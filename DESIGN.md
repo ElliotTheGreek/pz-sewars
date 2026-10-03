@@ -1,4 +1,4 @@
-# Sewars: design
+# Sewers: design
 
 How the sewers work and why. `DEV_GUIDE.md` is how to work on them without
 breaking them. Where this file says **open**, nothing is decided yet and the

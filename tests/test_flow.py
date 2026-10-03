@@ -484,7 +484,7 @@ def dev_menu_test(L, p):
     SEW.Dev = True
     m = menu(L, 0, 10700, 9900)
     top = [o for n, o in options(m) if n == TEXT["ContextMenu_SEW_Dev"]]
-    check(len(top) == 1 and top[0].subMenu is not None, "the dev build's right-click menu has Sewars (dev)")
+    check(len(top) == 1 and top[0].subMenu is not None, "the dev build's right-click menu has Sewers (dev)")
     if not top or top[0].subMenu is None:
         SEW.Dev = None
         return
@@ -1965,6 +1965,122 @@ def temple_test(L, p):
     q.z = 0
 
 
+def rooms_test(L, p, server):
+    """No square of the sewer's keeps a room on a server (SEW_Rooms): a room the
+    engine has blanked, under a player, stops the whole server. Taken off at
+    load, at build, at a climb's foot and round a player -- each asked alone --
+    and never off a square that is not ours, and never in single player."""
+    g = L.globals()
+    sim = g.SIM
+    # Two squares of built tunnel side by side, in Muldraugh.
+    x, y, x2, y2 = L.execute("""
+        local B, T, U = SEW.Build, SEW.Data.muldraugh, SEW.Util
+        local function tunnel(ax, ay)
+            local sq = SIM.squares[ax .. "," .. ay .. ",-1"]
+            local f = sq and U.floorOf(sq)
+            return f and U.isOurs(f) and f.sprite:getName() == SEW.Config.Sprites.floorTunnel
+        end
+        local keys = {}
+        for k in pairs(T.chunks) do if B.state().first[k] then keys[#keys + 1] = k end end
+        table.sort(keys)
+        for _, k in ipairs(keys) do
+            local cx, cy = k:match("(-?%d+),(-?%d+)")
+            for ax = cx * 8 + 1, cx * 8 + 5 do for ay = cy * 8 + 1, cy * 8 + 6 do
+                if tunnel(ax, ay) and tunnel(ax + 1, ay) then return ax, ay, ax + 1, ay end
+            end end
+        end
+    """)
+    blank = L.eval("""function(x, y)
+        local sq = SIM.squares[x .. "," .. y .. ",-1"]
+        sq.room, sq.roomId = { building = nil }, 7
+    end""")
+    room = L.eval('function(x, y) return SIM.squares[x .. "," .. y .. ",-1"]:getRoom() ~= nil end')
+    tick = L.eval("function(n) return (pcall(SIM.tickN, n)) end")
+    old = p.x, p.y, p.z
+    p.x, p.y, p.z = x + 0.5, y + 0.5, -1
+    check(tick(3), "a player in the sewer, and the world goes on")
+
+    if not server:
+        # Single player: the engine keeps a square's room in step itself.
+        blank(x2, y2)
+        sim.unload(x2 // 8, y2 // 8)
+        sim.load(x2 // 8, y2 // 8)
+        L.execute("SEW.Build.square(%d, %d, SEW.Build.recordAt(%d, %d), false, false)" % (x2, y2, x2, y2))
+        tick(3)
+        n = L.execute("return SEW.Rooms.around(%d, %d, 3)" % (x, y))
+        check(room(x2, y2) and n == 0, "in single player a square's room is the engine's to keep (%s)" % n)
+        L.execute('local sq = SIM.squares["%d,%d,-1"]; sq.room, sq.roomId = nil, nil' % (x2, y2))
+        p.x, p.y, p.z = old
+        return
+
+    # The simulation first: a blanked room under a player stops the tick.
+    blank(x, y)
+    L.execute("SEW_on = SEW.Rooms.on; SEW.Rooms.on = function() return false end")
+    stopped = not tick(1)
+    L.execute("SEW.Rooms.on = SEW_on")
+    check(stopped, "a room with no building under a player stops the server (the simulation's engine)")
+
+    # Load: the chunk is read in, and its squares get the map's rooms back.
+    p.x, p.y, p.z = old
+    sim.unload(x // 8, y // 8)
+    sim.load(x // 8, y // 8)
+    check(not room(x, y), "a chunk loads on a server: no square of ours keeps a room")
+    p.x, p.y, p.z = x + 0.5, y + 0.5, -1
+    check(tick(2), "and a player stands there with the server running")
+
+    # Walk: a room that turns up one square ahead of a player is gone before they step.
+    blank(x2, y2)
+    tick(1)
+    check(not room(x2, y2), "a room one square from a player in the sewer comes off within a tick")
+    p.x = x2 + 0.5
+    check(tick(2), "and they walk on to it")
+
+    # Build: the builder revisits the square.
+    p.x, p.y, p.z = old
+    blank(x, y)
+    L.execute("SEW.Build.square(%d, %d, SEW.Build.recordAt(%d, %d), false, false)" % (x, y, x, y))
+    check(not room(x, y), "a square the builder revisits keeps no room")
+
+    # A climb: the foot of the ladder, before anybody is sent there.
+    mx, my = L.execute("""
+        local keys = {}
+        for k, s in pairs(SEW.Index.shafts) do
+            if s.town == "muldraugh" and not s.hatch and not s.made and not s.outfall then keys[#keys + 1] = k end
+        end
+        table.sort(keys)
+        for _, k in ipairs(keys) do
+            local s = SEW.Index.shafts[k]
+            if SIM.squares[s.x .. "," .. s.y .. ",-1"] and SEW.Build.isCurrent(math.floor(s.x / 8) .. "," .. math.floor(s.y / 8)) then
+                return s.x, s.y
+            end
+        end
+    """)
+    blank(mx, my)
+    p.x, p.y, p.z = mx + 0.5, my + 0.5, 0
+    granted = L.execute("return SEW.Server.grant(SIM.players[1], %d, %d, 'down')" % (mx, my))
+    check(granted and not room(mx, my), "a climb down is granted on to squares with no room (%s)" % granted)
+
+    # Somebody's basement at the same level keeps its rooms.
+    kept = L.execute("""
+        local x, y = ...
+        local sq = SIM.squares[x .. "," .. y .. ",-1"]
+        local theirs = {}
+        for _, o in ipairs(sq.objects._t) do theirs[#theirs + 1] = { o, o.md.sew } o.md.sew = nil end
+        sq.room, sq.roomId = { building = {} }, 9
+        SIM.unload(math.floor(x / 8), math.floor(y / 8))
+        SIM.load(math.floor(x / 8), math.floor(y / 8))
+        local n = SEW.Rooms.around(x, y, 0)
+        local kept = sq:getRoom() ~= nil
+        for _, t in ipairs(theirs) do t[1].md.sew = t[2] end
+        sq.room, sq.roomId = nil, nil
+        return kept and n == 0
+    """, x, y)
+    check(kept, "a square with nothing of ours on it keeps its room")
+    check(L.execute("return SEW.Rooms.cleared") == 4, "four rooms taken off, and each said so once (%s)"
+          % L.execute("return SEW.Rooms.cleared"))
+    p.x, p.y, p.z = old
+
+
 def street_test(L, p):
     """The street does not hear the sewer (SEW_Street): a zombie on the road
     on its way to a player's sound under it is stopped -- and nobody else's
@@ -3063,6 +3179,7 @@ def single_player():
     mine_test(L, p)
     sim.players = L.table(p)
     street_test(L, p)
+    rooms_test(L, p, False)
     sim.players = L.table(p)
 
     unknown = [k for k in sim.unknownSprites.keys()]
@@ -3333,6 +3450,8 @@ def multiplayer():
         return n, sent
     """, gate.x, gate.y, gate.edge == "N")
     check(latched[0] == 1 and latched[1] == 1, "on a server the latch locks the grille and sends it (%s)" % (tuple(latched),))
+
+    rooms_test(Ls, ps, True)
 
     check(not warns(Ls), "no WARN on the server (%s)" % warns(Ls)[:3])
     check(not warns(Lc), "no WARN on the client (%s)" % warns(Lc)[:3])

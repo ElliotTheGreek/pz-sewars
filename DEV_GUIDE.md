@@ -1,9 +1,10 @@
-# Working on Sewars
+# Working on Sewers
 
 Orientation for anyone -- human or agent -- picking this up in a new session.
 
 `README.md` says what the mod does. `DESIGN.md` says how the sewers work and
-why. **This file says how to build, test and update it without breaking it.**
+why. `CHANGELOG.md` says what changed in each release, for players. **This
+file says how to build, test and update it without breaking it.**
 
 This mod is a descendant of the Star Trek shuttle in
 `C:\Users\Arcade\pz_trekship`, the way that one descends from the TARDIS. Its
@@ -31,7 +32,7 @@ deploy, about a minute).
 | `C:\Users\Arcade\pz_sewars` | this repo |
 | `C:\Users\Arcade\pz_trekship` | the mod this one is built on; read its `DEV_GUIDE.md` |
 | `C:\Program Files (x86)\Steam\steamapps\common\ProjectZomboid` | game install |
-| `C:\Users\Arcade\Zomboid\mods\Sewars` | the local dev build, installed as `SewarsDev` ("Sewars [DEV]") |
+| `C:\Users\Arcade\Zomboid\mods\Sewars` | the local dev build, installed as `SewarsDev` ("Sewers [DEV]") |
 | `C:\Users\Arcade\Zomboid\Workshop\Sewars` | the Workshop staging folder the in-game uploader reads |
 | `C:\Users\Arcade\Zomboid\console.txt` | the game log, **overwritten each launch** |
 | `C:\Users\Arcade\Zomboid\server-console.txt` | the local dedicated server's log |
@@ -58,6 +59,7 @@ media/lua/server/SEW/SEW_Nest.lua          rats on first build, the leash, the R
 media/lua/server/SEW/SEW_Gas.lua           sewer gas: the haze and placards, who is in it, the dose, the mask
 media/lua/server/SEW/SEW_Keys.lua          the county's maintenance keys: in its rooms, on its dead, the grilles' latch
 media/lua/server/SEW/SEW_Mine.lua          digging and blasting: the records a pick or a bomb changes, and the refusals
+media/lua/server/SEW/SEW_Rooms.lua         a server only: no square of ours keeps a room (the softlock)
 media/lua/server/SEW/SEW_Maps.lua          annotated maps to the temple and the nest: made, and handed out four ways
 media/lua/shared/StashDescriptions/SewarsStashDesc.lua   what is drawn on them (vanilla's stash descriptions, no building)
 media/lua/client/SEW/SEW_MapSheets.lua     the sheet of the game's map each one shows (LootMaps.Init)
@@ -122,7 +124,7 @@ as `[SEW] WARN`, because that is what `dev.py log` and a reader grep for.
 # 1. edit, then:
 python tools/dev.py              # every static test, then install SewarsDev
 
-# 2. run it -- enable "Sewars [DEV]" (not "Sewars") on the mods screen, new world
+# 2. run it -- enable "Sewers [DEV]" (not "Sewars") on the mods screen, new world
 python tools/dev.py run
 
 # 3. read what happened
@@ -203,7 +205,11 @@ items, outfits in both lists, sounds declared both ways, text keys both ways).
 
 ### Releasing to the Workshop
 
-1. Bump `modversion` in `Sewars/42/mod.info` and `C.Version`.
+1. Bump `modversion` in `Sewars/42/mod.info` and `C.Version`, and add the
+   release to the top of `CHANGELOG.md`: what a player will see, in a
+   player's words (no file names, no engine), with the reports that came
+   from the Workshop's comments said to be so. Its top entry is the change
+   note to paste at upload.
 2. `python tools/dev.py all`, then a fresh world in game with SewarsDev.
 3. `python tools/dev.py package --install` stages
    `~/Zomboid/Workshop/Sewars`. Upload from the game's Workshop screen.
@@ -1110,6 +1116,94 @@ appears later in a room a player has since made theirs is worse than one
 that never came. The dev trip into the temple still lands in the south
 passage, twenty squares short of the gate: it is the better way to see it.
 
+### A square of ours keeps no room on a server
+
+**Found by players on dedicated servers (0.7.2): "as soon as another player
+enters the sewer the game completely softlocks for everyone ... and if that
+player tries to rejoin they are soft locked permanently."** One sent the log:
+
+```
+NullPointerException: Cannot read field "def" because
+  "zombie.iso.IsoGridSquare.getRoom().building" is null
+    at IsoGameCharacter.updateInternal(IsoGameCharacter.java:8768)
+    ... IsoPlayer.update ... IsoCell.ProcessObjects ... IsoWorld.update ... GameServer.main
+```
+
+What the bytecode says, and it is certain:
+
+```
+IsoGameCharacter.updateInternal 345-368  current.getRoom() != null -> getRoom().building.def.isAlarmed()
+                                         no check on building: the burglar alarm, for every character
+IsoGridSquare.getRoom                    roomId == -1 -> null; else the `room` field, whatever it is now
+IsoGridSquare.setRoomID(id)              writes roomId; only for id != -1 looks the room up again
+IsoRoom.clear                            building = null, def = null: a room taken out of the meta grid
+IsoGridSquare.discard                    a pooled square is clean (room null, roomId reset)
+```
+
+The exception leaves `IsoWorld.update`, so the server's tick ends there,
+every tick, while that player stands on that square. That is the softlock.
+
+**What is not known: how a server's square under a street comes to point at
+a blanked room.** Read and ruled out, so nobody reads them twice:
+
+```
+IsoMetaGrid.getRoomByID                 the only place an IsoRoom is made; it always gets a building
+IsoRoom.clear                           called only by WorldRegionToMetaGrid.removeIsoRoom and
+                                        BREBuilding.removeIsoRoom (the debug rooms editor, and
+                                        BuildingRoomsEditor.load at world start, before any square)
+WorldRegionToMetaGrid                   an enclosed region half roofed over becomes a "user defined"
+  .clientProcessBuildings               building, at every level a chunk has (so a shelter behind its
+                                        door is a room in single player); every pass removes the
+                                        cell's and makes them again, then updateSquares re-reads each
+                                        square of the dirty chunks
+IsoRegions.update 76-88                 ... and is skipped when GameServer.server: a server never runs it
+Basements                               random basements edit the same tables at world start; no clear
+IsoChunk.LoadFromDiskOrBufferInternal   a loaded square gets getRoomAt(x, y, z) from the meta grid
+```
+
+So the one path that blanks rooms under play does not run on a server, by
+the bytecode -- and a server crashed on a blanked room. Something is unread
+(a save carried from single player to a server, hosted co-op, a path through
+`PlayerRoomsFile`). **The mod had never been run on a dedicated server here**
+when this was found: `server-console.txt` held no `[SEW]` line. The static
+tests said *single player, hosted co-op and dedicated servers*; the
+simulation is not a server.
+
+The fix does not wait on the cause, because the sewer wants the invariant
+anyway (*A runtime-generated interior is not a building*): **on a server no
+square of ours keeps a room.** `SEW_Rooms.lua` calls `setRoomID(-1)` -- after
+which `getRoom()` is null whatever the square points at -- on a square at our
+level with something of ours on it, at four moments, each tested alone
+because they cover each other: a chunk loading (`LoadGridsquare`, which a
+server fires: `ServerMap$ServerCell`), the builder making or revisiting a
+square, the foot of a climb before the move is sent, and round each player
+below every tick. It logs the first (`[SEW] rooms: the engine had a room on
+the sewer at ...`), which is the evidence the next report needs. Not in
+single player: there the engine keeps squares in step itself and a room on a
+shelter does no harm. `setRoomID` has no vanilla Lua call site; it is public,
+ungated (read above), and vanilla Lua passes `getRoomID()` back into Java as
+a long (`ISMoveableSpriteProps`: `IsoLightSwitch.new`), so the number converts.
+
+**Unproven in game, and it cannot be otherwise from here**: if the engine
+updates a player before Lua's tick and the room arrives by a fifth way, the
+guard is late. The dedicated-server test in ROADMAP 0.7.3 is the proof.
+
+What generalises: **"dedicated servers" on the box means a dedicated server
+was started.** And when a crash is in the engine's own update, look for the
+field it read, and make our squares boring in that field.
+
+### One mutation run at a time, and nothing staged while one runs
+
+**Done wrong releasing 0.7.3.** `tests/mutate.py` edits the source in place
+and puts each file back from the copy it read. A second run started while
+the full one was going (and an edit to a file it had open) left a mutation
+in `SEW_Story.lua` and took two new lines out of two other files -- and the
+package had been staged in the middle of it. Found because a mutation was
+"caught" by a check that had nothing to do with it. While a run is going:
+no edits, no second run, no deploy, no package. After any run that was
+stopped: `git diff` the Lua tree before anything else, and compare a staged
+package with the source (`diff -r Sewars <staged>/Contents/mods/Sewars`).
+
 ### `pairs` over string keys is a different order every run
 
 **Found by a full mutation run (0.6): three mutations "caught" by checks that
@@ -1207,8 +1301,8 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | `tools/luacheck.py` | Lua syntax, generated data included |
 | `tests/test_assets.py` (167 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
 | `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (369 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer (and no other zombie, sound or place), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled, no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 205 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so) |
+| `tests/test_flow.py` (381 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer (and no other zombie, sound or place), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled, no WARN, no unknown sprite or text key |
+| `tests/mutate.py` (`dev.py mutate`) | 212 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so) |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -1220,7 +1314,7 @@ you: lighting, rendering, pathfinding, saving -- the game's own.
 
 ### In game
 
-Enable **Sewars [DEV]**, new world, `-debug` (`python tools/dev.py run`).
+Enable **Sewers [DEV]**, new world, `-debug` (`python tools/dev.py run`).
 Debug console (single player, or an admin's server log):
 
 | Function | Does |
@@ -1269,16 +1363,22 @@ gets verified.
 - **Warn before anything destructive** to a save, *before* they load in.
 - **They will spot real bugs from symptoms.** Investigate the report; do not
   explain it away.
-- The author spells it *Sewars*: that is the mod's name and id. In-game text
-  a player reads says *sewer*.
+- The mod's **id** is `Sewars`, and so are its folder, its sandbox table, its
+  item module and its tiles (`sewars_01`): saves, servers' mod lists and
+  subscribers name them, so they stay. Its **name** is *Sewers* since 0.7.3
+  (the Workshop's comments, and the author): everything a player reads.
 
 ---
 
 ## Current state
 
-Version **0.7.2**, build revision **6**, layout from `tools/gen_sewers.py`.
+Version **0.7.3**, build revision **6**, layout from `tools/gen_sewers.py`.
 **Workshop:** item **3810188405**, public since 0.3.1 (2026-09-29);
-`WORKSHOP_ID` is set in `tools/package_workshop.py`. **0.7.2 is staged**
+`WORKSHOP_ID` is set in `tools/package_workshop.py`. **0.7.3 is staged** (`package --install`, 2026-10-03; the staged copy
+compared file by file with the source): the server softlock (no room on a
+square of ours on a server, *unproven on a real server*: the author has none,
+so the Workshop's servers are the test) and the name spelled Sewers. Before
+it, 0.7.2 was staged
 (`package --install`, 2026-10-02) for the in-game uploader: 0.7's digging,
 blasting and annotated maps, and 0.7.1's fixes from the Workshop's comments
 (bunkers and basements left alone, the click read where it was made, the
@@ -1324,7 +1424,7 @@ leaves it), nothing a save holds moved. The dev build now starts a new
 character in the field by the temple's trapdoor.
 
 **The temple's checklist** (every step a click: the dev build's right-click
-menu, *Sewars (dev)*; a **new world** with Sewars [DEV] is cleanest, an old
+menu, *Sewers (dev)*; a **new world** with Sewers [DEV] is cleanest, an old
 save works):
 
 1. **The trapdoor.** A new character starts in a field (`[SEW] dev build:
@@ -1352,7 +1452,7 @@ save works):
    books, food. In the sanctum (behind the idol, a door either side) a shelf
    holds *The Book of the Burrow*: read it, and the nest's false wall is
    marked on Louisville's map.
-6. **The passages.** Right-click, *Sewars (dev)*, *Go to a cult breach*: you
+6. **The passages.** Right-click, *Sewers (dev)*, *Go to a cult breach*: you
    are in a sewer by a wall broken through from the far side, the sigil and
    *THE BURROW PROVIDES* on the walls by it. Through the hole: an earth
    passage, candles along it, 258 squares (or 222, the other breach) to a
@@ -1360,7 +1460,7 @@ save works):
    short of the south gate instead.
 7. **Up again.** At the postern's ladder: *Climb up through the hatch*, and
    you are back in the field.
-8. **The warren.** *Sewars (dev)*, *Go to the nest's false wall*: pull the
+8. **The warren.** *Sewers (dev)*, *Go to the nest's false wall*: pull the
    loose bricks, the run, the nest and its four. Past them, a run leads off
    the nest's south side to four more dens: crates in each (the larder; the
    cult's, with their sigil on the earth, candles and two robed dead; a
@@ -1370,7 +1470,7 @@ save works):
    warren* drops you in the first den without the walk (the four will come).
    In an **old save** that has opened the nest: the dens are there the next
    time you are near, with their crates.
-9. **Digging.** *Sewars (dev)*, *Give me a pickaxe and pipe bombs*. Below
+9. **Digging.** *Sewers (dev)*, *Give me a pickaxe and pipe bombs*. Below
    ground, right-click: *Dig*, and under it an entry for each way there is
    rock beside you. Pick one: the swing, a few seconds, and there is one more
    square of floor with earth walls round it. Walk onto it; dig on. Stand in
@@ -1387,7 +1487,7 @@ save works):
    seven). After vanilla's bang: the rock is open for two squares round
    where it landed, stones on the floor. Watch what the explosion itself did
    to the tunnel's own walls.
-9. **The maps.** *Sewars (dev)*, *Give me the annotated maps*: two
+9. **The maps.** *Sewers (dev)*, *Give me the annotated maps*: two
    *Annotated Map*s in your inventory. Read each: a sheet of the game's map,
    an X on the trapdoor (or the manhole), handwriting beside it. Afterwards
    the world map (M) shows a map icon over each place. In ordinary play they
@@ -1398,9 +1498,9 @@ save works):
    trapdoor reach a joining player; the lights are each client's own.
 
 **The gas, gates and outfalls checklist, in order** (play-tested 2026-09-30;
-kept for the next change to any of them; a **new world** with Sewars [DEV]):
+kept for the next change to any of them; a **new world** with Sewers [DEV]):
 
-1. **The outfall.** *Sewars (dev)*, *Go to the outfall*: a Muldraugh bank.
+1. **The outfall.** *Sewers (dev)*, *Go to the outfall*: a Muldraugh bank.
    Within a few seconds an iron grate is in the ground at your feet. Right-click it: *Climb into the storm drain* --
    no lid scrape, the note *Down into the storm drain*. The culvert runs back
    to town. The ladder under the grate: *Climb out onto the bank*, and up

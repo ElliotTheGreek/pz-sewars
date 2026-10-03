@@ -1,4 +1,4 @@
-# Sewars
+# Sewers
 
 Read `DEV_GUIDE.md` before changing anything, and `DESIGN.md` before changing
 what the sewers are. `README.md` is what a player gets. `ROADMAP.md` is the

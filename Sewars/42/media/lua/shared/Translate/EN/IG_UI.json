@@ -9,7 +9,7 @@
     "IGUI_SEW_Refused": "You cannot climb here.",
     "IGUI_SEW_Rescued": "You find your way back to a ladder.",
     "IGUI_SEW_DevCave": "Dev build: a cave is a climb and a short walk from this cover.",
-    "IGUI_SEW_ModName": "Sewars",
+    "IGUI_SEW_ModName": "Sewers",
     "IGUI_SEW_MapKey": "Sewer map",
     "IGUI_SEW_MapKeyTip": "Open or close your map of the sewers: the tunnels you have walked, the ladders you have used and the shelters you have found.",
     "IGUI_SEW_MapTitle": "The sewers under %1",

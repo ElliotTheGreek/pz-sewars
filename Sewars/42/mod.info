@@ -1,10 +1,10 @@
-name=Sewars
+name=Sewers
 id=Sewars
 poster=poster.png
 description=Every manhole in Kentucky goes somewhere. Right-click a manhole cover in the road and climb down into the sewers: brick and concrete tunnels running under the streets of every town, laid out from the game's own street map, dark, flooded in places, full of the dead that washed down with the rain. Every cover has a ladder under it; climb any ladder to come back up through the cover above. Build down there, and find the shelters other survivors dug out before you.
 author=Ensign Elliot Mousseau
 category=build
 versionMin=42.0
-modversion=0.7.2
+modversion=0.7.3
 pack=sewars
 tiledef=sewars 7462

@@ -9,7 +9,7 @@ SEW = SEW or {}
 SEW.Config = SEW.Config or {}
 local C = SEW.Config
 
-C.Version = "0.7.2"
+C.Version = "0.7.3"
 C.ModPrefix = "[SEW]"
 C.Debug = false
 
@@ -354,6 +354,11 @@ C.Mine = {
 -- them a street zombie's sound may be and still be taken for theirs (the
 -- engine scatters where a zombie goes to look by 40% of how far off it is).
 C.Street = { every = 10, reach = 40 }
+
+-- No room on a square of the sewer's (0.7.3; SEW_Rooms.lua): how far round
+-- each player in the sewer a server looks, every tick, for a room the engine
+-- has put on a square of ours.
+C.Rooms = { reach = 2 }
 
 -- Annotated maps to the temple and to the nest (0.6; SEW_Maps.lua, and
 -- shared/StashDescriptions/SewarsStashDesc.lua for what is drawn on them).

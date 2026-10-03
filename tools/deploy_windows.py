@@ -20,14 +20,14 @@ shutil.copytree(SOURCE, DESTINATION)
 info = DESTINATION / "42" / "mod.info"
 lines = info.read_text(encoding="utf-8").splitlines()
 lines = [
-    "name=Sewars [DEV]" if line == "name=Sewars" else
+    "name=Sewers [DEV]" if line == "name=Sewers" else
     "id=SewarsDev" if line == "id=Sewars" else
     line + "-dev" if line.startswith("modversion=") and not line.endswith("-dev") else
     line
     for line in lines
 ]
 info.write_text("\n".join(lines) + "\n", encoding="utf-8")
-if "id=SewarsDev" not in lines or "name=Sewars [DEV]" not in lines:
+if "id=SewarsDev" not in lines or "name=Sewers [DEV]" not in lines:
     raise SystemExit("development mod identity was not written")
 
 source_files = sorted(p.relative_to(SOURCE) for p in SOURCE.rglob("*") if p.is_file())

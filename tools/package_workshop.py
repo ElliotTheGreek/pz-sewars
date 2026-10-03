@@ -31,7 +31,7 @@ INSTALLED = Path.home() / "Zomboid" / "Workshop" / "Sewars"
 
 WORKSHOP_ID = "3810188405"          # set after the first upload, then never change it
 VISIBILITY = "public"       # "public" once the first upload has been checked
-TITLE = "Sewars: Sewers Under Every Town (Build 42)"
+TITLE = "Sewers Under Every Town (Build 42)"
 DESCRIPTION = (ROOT / "workshop" / "description.txt").read_text(encoding="utf-8").splitlines()
 DESCRIPTION_LIMIT = 8000
 
