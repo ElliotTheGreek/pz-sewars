@@ -43,8 +43,28 @@ SEW.Client = Client
 ---------------------------------------------------------------------------
 -- The menus
 ---------------------------------------------------------------------------
+--- Gets the player to where a climb can start: nowhere, when they stand
+--- within reach already (of x, y, or of x2, y2 -- a ladder's own square),
+--- else a walk to beside `sq`. **The walk is not needed by somebody standing
+--- at the ladder, and it must not be what stops them**: it is vanilla's
+--- path finder, which is told nothing of squares raised below the street
+--- at runtime, and a walk that fails takes the climb with it, silently. A
+--- player was trapped below on a server (0.7.4; DEV_GUIDE, *A climb is
+--- asked for until it is answered*). False, with a word why, when there is
+--- no way to it.
+function Client.approach(playerObj, sq, x, y, x2, y2)
+    if S.within(playerObj, x, y, C.Reach) or (x2 ~= nil and S.within(playerObj, x2, y2, C.Reach)) then
+        ISTimedActionQueue.clear(playerObj)
+        return true
+    end
+    if sq and luautils.walkAdj(playerObj, sq, false) then return true end
+    U.log("no way found to the climb at %d,%d from %.1f,%.1f", x, y, playerObj:getX(), playerObj:getY())
+    U.note(playerObj, getText("IGUI_SEW_Closer"), 220, 170, 120)
+    return false
+end
+
 function Client.climbDown(playerObj, sq)
-    if not luautils.walkAdj(playerObj, sq, false) then return end
+    if not Client.approach(playerObj, sq, sq:getX(), sq:getY()) then return end
     ISTimedActionQueue.add(SEWClimb:new(playerObj, sq:getX(), sq:getY(), "down"))
 end
 
@@ -76,8 +96,7 @@ end
 
 function Client.climbUp(playerObj, shaft)
     local sq = U.square(shaft.x, shaft.y, C.Z, false)
-    if not sq then return end
-    if not luautils.walkAdj(playerObj, sq, false) then return end
+    if not Client.approach(playerObj, sq, shaft.x, shaft.y, shaft.lx, shaft.ly) then return end
     ISTimedActionQueue.add(SEWClimb:new(playerObj, shaft.x, shaft.y, "up"))
 end
 
@@ -292,6 +311,42 @@ function Client.devGo(p, what)
         end
         U.note(p, getText("IGUI_SEW_DevDig", n), 200, 190, 150)
         return n > 0
+    elseif what == "gun" then
+        -- A pistol, a magazine and a box of rounds: for shooting the ROUS (0.7.5).
+        local inv, n = p:getInventory(), 0
+        for _, id in ipairs(C.DevKitGun) do
+            if U.addItem(inv, id) then n = n + 1 end
+        end
+        U.note(p, getText("IGUI_SEW_DevGun", n), 200, 190, 150)
+        return n > 0
+    elseif what == "fire" then
+        -- The street over a tunnel set alight, a few squares from the player:
+        -- for the fire that must not come down (SEW_Fire). The tunnel under it
+        -- is built first, as a climb would build it. Vanilla's own call
+        -- (SCampfireSystem: IsoFireManager.StartFire).
+        if S.below(p) then return false end
+        local px, py, n = math.floor(p:getX()), math.floor(p:getY()), 0
+        if SEW.Build then SEW.Build.around(px, py, 1) end
+        for dx = -6, 6 do
+            for dy = -6, 6 do
+                local top = U.square(px + dx, py + dy, 0, false)
+                local under = U.square(px + dx, py + dy, C.Z, false)
+                if n < 6 and math.abs(dx) + math.abs(dy) >= 3 and top and U.floorOf(top) and under and S.ours(under) then
+                    if U.try("dev.fire", function()
+                        IsoFireManager.StartFire(getCell(), top, true, 100, 500)
+                        return true
+                    end) then n = n + 1 end
+                end
+            end
+        end
+        U.note(p, getText("IGUI_SEW_DevFire", n), 200, 190, 150)
+        return n > 0
+    elseif what == "snow" then
+        -- Snow on the ground, held there (Client.devWeather): for the snow that
+        -- must not lie in the tunnels (SEW_Weather). Again: off.
+        Client.devSnow = not Client.devSnow
+        U.note(p, getText(Client.devSnow and "IGUI_SEW_DevSnowOn" or "IGUI_SEW_DevSnowOff"), 200, 190, 150)
+        return true
     elseif what == "maps" then
         -- Both annotated maps, in hand: read them from the inventory.
         if not SEW.Maps then return false end
@@ -338,11 +393,24 @@ function Client.devGo(p, what)
     return false
 end
 
+--- The dev build's snow: the cell's snow target held at full while it is
+--- switched on (the climate sets it back otherwise). IsoCell.setSnowTarget
+--- is what FBORenderSnow.RenderSnow reads; nothing in vanilla Lua calls it,
+--- and nothing outside the dev build calls it here.
+function Client.devWeather()
+    if not Client.devSnow or not SEW.Dev or isClient() then return false end
+    return U.try("dev.snow", function()
+        getCell():setSnowTarget(100)
+        return true
+    end) == true
+end
+
 function Client.devMenu(playerObj, context)
     local top = context:addOption(getText("ContextMenu_SEW_Dev"), nil, nil)
     local sub = context:getNew(context)
     context:addSubMenu(top, sub)
-    for _, what in ipairs({ "dig", "maps", "temple", "breach", "trapdoor", "nest", "warren", "outfall", "gas", "poison", "gate", "key" }) do
+    for _, what in ipairs({ "dig", "gun", "fire", "snow", "maps", "temple", "breach", "trapdoor", "nest", "warren",
+                            "outfall", "gas", "poison", "gate", "key" }) do
         sub:addOption(getText("ContextMenu_SEW_Dev_" .. what), playerObj, Client.devGo, what)
     end
 end
@@ -417,7 +485,36 @@ Events.OnFillWorldObjectContextMenu.Add(function(...) return U.try("menu", Clien
 ---------------------------------------------------------------------------
 local pending = nil        -- { x, y, z, street, mode, waited }
 
+-- A climb this client has finished and the server has not answered yet:
+-- { x, y, mode, waited, asked }. On a server the grant is the server's half
+-- of the action (SEWClimb:complete), and a player was trapped below on one
+-- (0.7.4) with nothing to say which step had failed. So silence is not left
+-- to stand (DEV_GUIDE, *Never let a failure strand the player*): after
+-- C.ClimbAskAgain ticks the client asks again by command, which needs no
+-- timed action; and if that is not answered either, a climb *out* is made
+-- anyway -- up a ladder the player is standing at, onto a street square this
+-- machine has. It is their own character, and the street needs no building.
+-- A refusal is an answer, and is obeyed.
+local awaited = nil
+-- The last answer: { x, y, mode, at } of a `go`, and the tick of a refusal.
+-- The server's half of the action ends first, so its answer is often here
+-- before this client's half ends: that climb is answered, not awaited.
+local answered, refusedAt = nil, -1e9
+Client.now = 0
+
+--- The action has ended on this client (SEWClimb:perform).
+function Client.expect(x, y, mode)
+    if not isClient() then return false end
+    local g = answered
+    if g and g.x == x and g.y == y and g.mode == mode and Client.now - g.at < 120 then return false end
+    if Client.now - refusedAt < 30 then return false end
+    awaited = { x = x, y = y, mode = mode, waited = 0, asked = false }
+    return true
+end
+
 Net.onClient("go", function(args)
+    awaited = nil
+    answered = { x = args.x, y = args.y, mode = args.mode, at = Client.now }
     pending = { x = args.x, y = args.y, z = args.z, street = args.street, mode = args.mode, hatch = args.hatch,
                 outfall = args.outfall, waited = 0 }
 end)
@@ -427,23 +524,67 @@ local REFUSED = { shut = "IGUI_SEW_Shut", reach = "IGUI_SEW_Reach", level = "IGU
                   solid = "IGUI_SEW_MineSolid", foreign = "IGUI_SEW_MineForeign", tool = "IGUI_SEW_MineTool",
                   off = "IGUI_SEW_MineOff" }
 Net.onClient("refused", function(args)
+    awaited = nil
+    refusedAt = Client.now
     local p = getPlayer()
+    -- In the log with where the server has this player, for the next report.
+    U.log("refused: %s (the server has you at %s)", tostring(args.why), tostring(args.at or "?"))
     U.note(p, getText(REFUSED[args.why] or "IGUI_SEW_Refused"), 220, 170, 120)
 end)
 
--- The nest (SEW_Nest): a wall opened, or the last of them dead.
+--- Every tick while a climb is unanswered.
+function Client.unanswered(p)
+    local a = awaited
+    if not a then return end
+    a.waited = a.waited + 1
+    if not a.asked and a.waited >= C.ClimbAskAgain then
+        a.asked = true
+        U.log("WARN the server has not answered the climb %s at %d,%d; asking again by command", a.mode, a.x, a.y)
+        Net.send(p, "climb", { x = a.x, y = a.y, mode = a.mode })
+    elseif a.asked and a.waited >= C.ClimbAskAgain + C.ClimbGiveUp then
+        awaited = nil
+        local s = S.shaftAt(a.x, a.y)
+        if a.mode == "up" and s and S.below(p)
+                and (S.within(p, s.x, s.y, C.Reach + 0.8) or S.within(p, s.lx, s.ly, C.Reach + 0.8)) then
+            U.log("WARN the server never answered the climb out at %d,%d; climbing out anyway", a.x, a.y)
+            pending = { x = a.x, y = a.y, z = 0, street = s.street or "", mode = "up",
+                        hatch = s.hatch ~= nil or s.trapdoor == true, outfall = s.outfall == true, waited = 0 }
+        else
+            U.log("WARN the server never answered the climb %s at %d,%d", a.mode, a.x, a.y)
+            U.note(p, getText("IGUI_SEW_Unready"), 220, 170, 120)
+        end
+    end
+end
+
+-- The nest (SEW_Nest): a wall opened, the last of them dead, a bite, and
+-- one of them killed. A hit and a shove say nothing: the fight is the notice.
 local NEST = { wall = "IGUI_SEW_NestWall", gate = "IGUI_SEW_NestGate", cleared = "IGUI_SEW_NestCleared",
-               bite = "IGUI_SEW_RousBite" }
+               bite = "IGUI_SEW_RousBite", kill = "IGUI_SEW_RousKill" }
 Net.onClient("nest", function(args)
     local key = NEST[args.what]
     local p = getPlayer()
     if args.what == "bite" then
         U.try("biteSound", function() p:playSound("AnimalVoiceRatStressed") end)
         U.note(p, getText(key), 230, 90, 80)
+    elseif args.what == "kill" then
+        U.try("killSound", function() p:playSound("AnimalVoiceRatStressed") end)
+        U.note(p, getText(key), 210, 190, 150)
     elseif key then
         U.note(p, getText(key), 210, 190, 150)
     end
 end)
+
+--- A swing or a shot near the nest, on a client: the server judges it, from
+--- where it has the rodents (SEW_Nest.swing). In single player the server's
+--- half hears the engine's event itself.
+function Client.swung(character)
+    if not isClient() or character ~= getPlayer() or not S.below(character) then return false end
+    local L = SEW.Index and SEW.Index.lair
+    if not L or U.dist(character:getX(), character:getY(), L.x, L.y) > C.Rous.range + C.Rous.hunt then return false end
+    local dir = U.try("swing.facing", function() return character:getForwardDirection() end)
+    return Net.send(character, "swing", { fx = dir and dir:getX() or nil, fy = dir and dir:getY() or nil })
+end
+Events.OnWeaponSwingHitPoint.Add(function(character) U.try("swung", Client.swung, character) end)
 
 -- Digging (SEW_Mine): a square dug out, a wall down, a blast near by.
 local MINED = { dig = "IGUI_SEW_MineDug", ["break"] = "IGUI_SEW_MineBroke", blast = "IGUI_SEW_MineBlast" }
@@ -818,10 +959,13 @@ end
 local tick = 0
 Events.OnTick.Add(function()
     tick = tick + 1
+    Client.now = tick
     local p = getPlayer()
     if not p then return end
     if pending then U.try("arrive", Client.arrive, p) end
+    U.try("unanswered", Client.unanswered, p)
     if Client.devTravel then U.try("devArrive", Client.devArrive, p) end
+    if Client.devSnow then Client.devWeather() end
     if devStartPlayer then
         if devStartPlayer == p then U.try("devStart", Client.devStart, p, tick) end
         -- Done once no start is waiting for its tick: moved, or refused.

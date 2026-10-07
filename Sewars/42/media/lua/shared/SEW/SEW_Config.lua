@@ -9,7 +9,7 @@ SEW = SEW or {}
 SEW.Config = SEW.Config or {}
 local C = SEW.Config
 
-C.Version = "0.7.4"
+C.Version = "0.7.5"
 C.ModPrefix = "[SEW]"
 C.Debug = false
 
@@ -80,6 +80,26 @@ C.SpawnClearance = 12
 
 -- The client's wait for the floor to reach it before it climbs down, in ticks.
 C.ArriveTimeout = 600
+
+-- A climb the server never answers (0.7.5, a player trapped below on a
+-- server): ticks after the action ends before the client asks again by
+-- command, and ticks after that before a climb *out* is made anyway.
+C.ClimbAskAgain = 90
+C.ClimbGiveUp = 240
+-- The same climb asked twice (the action and the command both arrived) is
+-- answered once: ticks.
+C.ClimbRepeat = 200
+
+-- EXIT stencils by the ladders, by the sandbox's Sewars.ExitSigns (None /
+-- Few / By every ladder): with Few, one in this many is painted.
+C.ExitSignsFew = 3
+
+-- Snow, rain puddles and the like below ground (0.7.5; SEW_Weather.lua). The
+-- engine draws them on any floor square it has flagged outdoors, and flags
+-- every square of ours so. A client takes the flag off the squares of ours
+-- it can see: `reach` squares each way round its player, `rows` rows of that
+-- window a tick. `indoors = false` turns the whole thing off.
+C.Weather = { indoors = true, reach = 30, rows = 1 }
 
 -- Sprites. Vanilla's are checked against tools/_catalog/tiles.json by
 -- tests/test_assets.py; ours are sewars_01, drawn by tools/gen_sewer_art.py.
@@ -391,6 +411,8 @@ C.DevKit = { "Base.HandTorch", "Base.Battery", "Base.Battery", "Base.Crowbar" }
 -- 0.5's gas: a mask (vanilla's puts a filter in it when made) and a spare
 -- filter, once, even for a character that had the first kit.
 C.DevKitGas = { "Base.Hat_GasMask", "Base.GasmaskFilter" }
+-- 0.7.5's shooting at the ROUS: the dev menu's pistol, magazine and rounds.
+C.DevKitGun = { "Base.Pistol", "Base.9mmClip", "Base.Bullets9mmBox" }
 -- And where a new dev character starts (SEW_Client devStart): "outfall", on
 -- the bank by the first storm-drain outfall of C.DevStartTown; "lair", in the
 -- house whose hatch is nearest the rats' nest under Louisville; "cave", on
@@ -423,9 +445,27 @@ C.Rous = {
     every = 30,                 -- ticks between looks for them round each player
     range = 60,                 -- squares from the nest searched for the living
     reach = 1.15,               -- squares: this close, it bites
-    bite = 8,                   -- health off the bitten limb (and a scratch, or a cut)
-    biteEvery = 120,            -- ticks between bites, each
+    -- The fight, as retuned after two play-tests (0.7.5: "unbeatable", then
+    -- "still fully broken and unplayable" -- twelve crowbar hits in twenty
+    -- seconds killed none of four, each of which bit every two seconds).
+    bite = 5,                   -- health off the bitten limb (and a scratch, or one time in `cutOneIn` a cut)
+    cutOneIn = 5,
+    biteEvery = 300,            -- ticks between bites, each (it was 120: four of them, a bite every half second)
+    windup = 90,                -- ticks from reaching a player to its first bite: time to strike first
+    hits = 3,                   -- weapon hits that kill one, whatever the weapon and however tired the arm
+    shotHits = 2,               -- bullets that do
+    stagger = 60,               -- ticks a hit stops one where it stands, biting nothing
+    shove = 150,                -- ticks a shove or a stomp does, and
+    shovePush = 1.0,            --   squares it is thrown back
     speed = 0.07,               -- squares a tick when walked by hand (a sprint outruns it)
+    -- Being hit is the server's too (0.7.5; SEW_Nest.swing). A swing is
+    -- judged `swingDelay` ticks after it is made, and not at all if the
+    -- engine's own hit landed on one of them in the meantime; one swing a
+    -- player every `swingEvery` ticks.
+    swingDelay = 4, swingEvery = 8,
+    girth = 0.6,                -- squares: how far off a weapon's reach, or a bullet's line, still hits one
+    arc = 0.5,                  -- a melee swing hits within this of straight ahead (a dot product: 60 degrees)
+    shotRange = 20,             -- squares: no bullet is judged further than this
 }
 -- Every so many ticks, an animal below ground found off the walkway is put
 -- back on it (within this many squares) or taken away (SEW_Nest.leash).

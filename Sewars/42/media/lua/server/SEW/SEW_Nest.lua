@@ -209,6 +209,18 @@ end
 N.hunting = {}
 local hunted = 0
 
+--- The hunt's notes on one animal, made if it has none (a hit can land on
+--- one the look round has not found yet).
+function N.mark(a, p)
+    local h = N.hunting[a]
+    if not h then
+        h = { p = p }
+        N.hunting[a] = h
+        hunted = hunted + 1
+    end
+    return h
+end
+
 local LIMBS = { "Hand_L", "Hand_R", "ForeArm_L", "ForeArm_R", "LowerLeg_L", "LowerLeg_R", "Foot_L", "Foot_R" }
 
 --- A bite: a scratch, or now and then a cut, on an arm or a leg, and some
@@ -218,7 +230,7 @@ function N.bite(a, p)
     local ok = U.try("rous.bite", function()
         local limb = LIMBS[ZombRand(#LIMBS) + 1]
         local part = p:getBodyDamage():getBodyPart(BodyPartType[limb])
-        if ZombRand(3) == 0 then part:setCut(true) else part:setScratched(true, true) end
+        if ZombRand(C.Rous.cutOneIn) == 0 then part:setCut(true) else part:setScratched(true, true) end
         part:AddDamage(C.Rous.bite)
         if isServer() then syncBodyPart(part, 0xFFFFFFFFFFF) end
         return true
@@ -235,6 +247,9 @@ local function chase(a, h, tick)
     local px, py = p:getX(), p:getY()
     local d = U.dist(ax, ay, px, py)
     if d > C.Rous.hunt + 6 then return false end
+    -- Hit or shoved: it stands where it is and bites nothing until it has
+    -- shaken it off (N.stagger).
+    if h.stun and tick < h.stun then return true end
     -- Close enough to bite -- and nothing between: a player behind a wall a
     -- step away was bitten through it (found by a test, 0.5).
     local walled = false
@@ -249,6 +264,8 @@ local function chase(a, h, tick)
         if not h.close then
             U.try("rous.stop", function() a:stopAllMovementNow() end)
             h.close = true
+            -- Not the instant it arrives: whoever it reached may strike first.
+            h.bite = math.max(h.bite or 0, tick + C.Rous.windup)
         end
         U.try("rous.face", function() a:faceThisObject(p) end)
         if tick >= (h.bite or 0) then
@@ -398,14 +415,224 @@ function N.leash()
     return moved, removed
 end
 
---- A hit on a ROUS, logged: what the weapon did and what it has left. The
---- first test in game could not shoot them (0.5); this says why next time.
+local ticks = 0
+
+-- animal -> the tick the engine's own hit last landed on it.
+N.struck = {}
+
+--- Stops a ROUS where it stands for `n` ticks: no step, no bite -- and none
+--- the moment it is over either: it has to close with them again, which
+--- has its own wait (chase, C.Rous.windup). With `push`, thrown that many
+--- squares straight back from `p` first, if the way is open and it is
+--- walkway it lands on.
+function N.stagger(a, p, n, push)
+    local h = N.mark(a, p)
+    h.stun = ticks + n
+    h.close = false
+    U.try("rous.stop", function() a:stopAllMovementNow() end)
+    if not push then return h end
+    local ax, ay, px, py = a:getX(), a:getY(), p:getX(), p:getY()
+    local d = U.dist(ax, ay, px, py)
+    if d < 0.05 then return h end
+    local nx, ny = ax + (ax - px) / d * push, ay + (ay - py) / d * push
+    local cell = U.cell()
+    local here = cell and cell:getGridSquare(math.floor(ax), math.floor(ay), C.Z)
+    local there = cell and cell:getGridSquare(math.floor(nx), math.floor(ny), C.Z)
+    if here and there and walkway(cell, nx, ny)
+            and (here == there or U.try("blocked", function() return here:isBlockedTo(there) end) == false) then
+        N.place(a, nx, ny)
+    end
+    return h
+end
+
+--- What a weapon's hit takes off a ROUS: a share of it, the same for every
+--- weapon of its kind (C.Rous.hits, C.Rous.shotHits), so that a fight has
+--- an end a player can count to. Not the weapon's damage: the engine hands
+--- an animal 0.02 to 0.28 of a fresh crowbar's and 0.1 of a tired one's
+--- (found in play, twice).
+function N.lossOf(weapon)
+    local ranged = U.try("swing.ranged", function() return weapon:isRanged() end) == true
+    return 1 / (ranged and C.Rous.shotHits or C.Rous.hits) + 0.001
+end
+
+--- A hit on a ROUS: ours to decide, whoever landed it. Health off, and it
+--- is stopped for a moment. Returns the health left. `finish`: call killed()
+--- when it runs out (not inside the engine's own hit, which does that
+--- itself: IsoAnimal.hitConsequences 142-167).
+function N.hurt(a, p, loss, weaponName, how, finish)
+    local hp = U.try("rous.hp", function() return a:getHealth() end) or 1
+    local left = math.max(0, hp - loss)
+    N.stagger(a, p, C.Rous.stagger)
+    -- As vanilla's own slaughter does it (ISKillAnimal: setHealth, killed).
+    U.try("rous.hurt", function()
+        a:setHealth(left)
+        if finish and left <= 0 then a:killed(p) end
+    end)
+    U.log("a ROUS was hit by %s with %s (%s); health %.2f -> %.2f", nameOf(p),
+          tostring(weaponName), how, hp, left)
+    -- Only the kill is said (the author, after playing it: no note a hit).
+    if left <= 0 then Net.toClient(p, "nest", { what = "kill" }) end
+    return left
+end
+
+--- A hit on a ROUS that the engine landed. **The engine's own loss is next
+--- to nothing** (found in play, 0.7.5: a crowbar's 0.58 took health from
+--- 0.9943 to 0.9859, and a tired arm's hits are 0.1 each -- "basically
+--- unbeatable"; the 0.32 a point worked out from AnimalData.getHealthLoss
+--- was wrong, and the game said so). So the loss is ours here too: this
+--- event comes before the engine takes its own (IsoGameCharacter.Hit 115,
+--- processHitDamage at 261), the health is set now, and the engine's sliver
+--- comes off after. **Bare hands hurt nothing and are worth having**: a
+--- shove or a stomp throws it back a square and stops it for a couple of
+--- seconds -- half of the second play-test's swings were shoves (the game
+--- shoves by itself at what is too close to swing at), and each did
+--- nothing at all. And written down, so the same swing is not judged again
+--- (N.swing).
 function N.onHit(attacker, target, weapon, damage)
     if not target or not isRous(target) then return end
-    local hp = U.try("rous.hp", function() return target:getHealth() end)
-    U.log("a ROUS was hit by %s with %s for %s; health %s", nameOf(attacker),
-          tostring(U.try("wname", function() return weapon:getType() end)), tostring(damage), tostring(hp))
+    N.struck[target] = ticks
+    -- (Only a player has a name to ask for: a zombie's swipe comes through here too.)
+    if not instanceof(attacker, "IsoPlayer") then return end
+    local name = U.try("wname", function() return weapon:getType() end)
+    if name == nil or name == "BareHands" then
+        N.stagger(target, attacker, C.Rous.shove, C.Rous.shovePush)
+        U.log("a ROUS was shoved back by %s", nameOf(attacker))
+        return
+    end
+    N.hurt(target, attacker, N.lossOf(weapon), name, "the engine's hit", false)
 end
+
+---------------------------------------------------------------------------
+-- Hitting them
+---------------------------------------------------------------------------
+-- Found by players (0.7.4): "can you even swing at them?" Nothing in the
+-- engine refuses a weapon's hit on an animal (CombatManager.calcValidTarget,
+-- calculateHitListWeapon: standing, shootable, in reach, in sight, like
+-- anybody), and in the author's own test they could be shot. But the engine
+-- judges a hit where the *attacker's* machine draws the animal, and a ROUS
+-- is walked by hand on the server's (N.hunt) -- the chase and the bite are
+-- ours because the engine's would not do, and being hit goes the same way:
+-- judged here, from where the server has them.
+--
+-- A swing is heard two ways, because which a server gets is unproven:
+-- OnWeaponSwingHitPoint (single player, and a server if the engine fires it
+-- there: zombie.network.fields.hit.Player does), and a `swing` command from
+-- the swinger's client. Either is written down, and judged a few ticks
+-- later -- the event comes *before* the engine's own hit in the same call
+-- (CombatManager.attackCollisionCheck 85-258), and a swing the engine has
+-- landed in the meantime is the engine's, not counted again.
+
+-- username -> the tick of the swing last written down.
+N.swung = {}
+-- Swings waiting to be judged: { p, x, y, fx, fy, due, at }.
+N.swings = {}
+
+local function unit(x, y)
+    local d = math.sqrt(x * x + y * y)
+    if d < 0.0001 then return nil end
+    return x / d, y / d
+end
+
+--- True when nothing of the tunnel stands between two points at the
+--- sewer's level: every edge the line crosses is open.
+function N.clear(ax, ay, bx, by)
+    local cell = U.cell()
+    if not cell then return false end
+    local d = U.dist(ax, ay, bx, by)
+    local steps = math.max(1, math.ceil(d / 0.4))
+    local here = cell:getGridSquare(math.floor(ax), math.floor(ay), C.Z)
+    for i = 1, steps do
+        local x, y = ax + (bx - ax) * i / steps, ay + (by - ay) * i / steps
+        local there = cell:getGridSquare(math.floor(x), math.floor(y), C.Z)
+        if not here or not there then return false end
+        if here ~= there and U.try("blocked", function() return here:isBlockedTo(there) end) ~= false then
+            return false
+        end
+        here = there
+    end
+    return true
+end
+
+--- A player near the nest has swung or fired. `fx, fy`: the way their own
+--- machine had them facing, when it said (a request: reach and sight are
+--- still the server's). Returns true when the swing was written down.
+function N.noteSwing(player, fx, fy)
+    local L = lair()
+    if not L or not player or not S.below(player) then return false end
+    local px, py = player:getX(), player:getY()
+    if U.dist(px, py, L.x, L.y) > C.Rous.range + C.Rous.hunt then return false end
+    local name = nameOf(player)
+    if N.swung[name] and ticks - N.swung[name] < C.Rous.swingEvery then return false end
+    N.swung[name] = ticks
+    local ux, uy = nil, nil
+    if type(fx) == "number" and type(fy) == "number" then ux, uy = unit(fx, fy) end
+    if not ux then
+        local dir = U.try("swing.facing", function() return player:getForwardDirection() end)
+        if dir then ux, uy = unit(dir:getX(), dir:getY()) end
+    end
+    if not ux then return false end
+    N.swings[#N.swings + 1] = { p = player, x = px, y = py, fx = ux, fy = uy, at = ticks,
+                                due = ticks + C.Rous.swingDelay }
+    return true
+end
+
+--- The ROUS a swing from x, y facing fx, fy reaches: the nearest alive,
+--- within the weapon's reach (a bullet's line), in front, with nothing of
+--- the tunnel between. nil when there is none.
+function N.target(x, y, fx, fy, weapon)
+    local ranged = U.try("swing.ranged", function() return weapon:isRanged() end) == true
+    local reach = U.try("swing.range", function() return weapon:getMaxRange() end) or 1.2
+    if ranged then reach = math.min(reach, C.Rous.shotRange) else reach = reach + C.Rous.girth end
+    local best, bd = nil, nil
+    for _, a in ipairs(N.living(x, y, math.ceil(reach) + 1)) do
+        local ax, ay = a:getX(), a:getY()
+        local d = U.dist(x, y, ax, ay)
+        local along = (ax - x) * fx + (ay - y) * fy
+        local hit
+        if ranged then
+            -- On the bullet's line, give or take the animal's own width.
+            local off = math.sqrt(math.max(0, d * d - along * along))
+            hit = along > 0 and d <= reach and off <= C.Rous.girth
+        else
+            hit = d <= reach and (d < 0.3 or along / d >= C.Rous.arc)
+        end
+        if hit and (not bd or d < bd) and N.clear(x, y, ax, ay) then best, bd = a, d end
+    end
+    return best
+end
+
+--- One swing, judged: the weapon in the swinger's hand, on the server's
+--- copy of them, against where the server has the ROUS. Returns the animal
+--- hit, or nil.
+function N.swing(s)
+    local p = s.p
+    -- The engine landed this one itself: it is not counted twice.
+    for _, at in pairs(N.struck) do
+        if at >= s.at then return nil end
+    end
+    local weapon = U.try("swing.weapon", function() return p:getPrimaryHandItem() end)
+    if not weapon or not instanceof(weapon, "HandWeapon") then return nil end
+    local a = N.target(s.x, s.y, s.fx, s.fy, weapon)
+    if not a then return nil end
+    N.hurt(a, p, N.lossOf(weapon), U.try("wname", function() return weapon:getType() end), "the server's hit", true)
+    return a
+end
+
+--- Every tick: the swings that are due.
+function N.judge()
+    if #N.swings == 0 then return end
+    local keep = {}
+    for _, s in ipairs(N.swings) do
+        if ticks >= s.due then U.try("rous.swing", N.swing, s) else keep[#keep + 1] = s end
+    end
+    N.swings = keep
+end
+
+-- A client's swing near the nest. Nothing in it is taken for a fact but the
+-- way it faced.
+Net.onServer("swing", function(player, args)
+    N.noteSwing(player, args and args.fx, args and args.fy)
+end)
 
 ---------------------------------------------------------------------------
 -- The walls that open
@@ -458,13 +685,14 @@ function N.pry(player, which)
     return true
 end
 
-local ticks = 0
 Events.OnTick.Add(function()
     ticks = ticks + 1
     U.try("nest", N.hunt, ticks)
+    U.try("nest.judge", N.judge)
     if ticks % C.LeashEvery == 0 then U.try("leash", N.leash) end
 end)
 Events.OnWeaponHitCharacter.Add(function(...) U.try("rous.hit", N.onHit, ...) end)
+Events.OnWeaponSwingHitPoint.Add(function(character) U.try("rous.swung", N.noteSwing, character) end)
 
 ---------------------------------------------------------------------------
 -- Debug console

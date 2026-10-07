@@ -38,6 +38,7 @@ require "SEW/SEW_Keys"
 require "SEW/SEW_Maps"
 require "SEW/SEW_Mine"
 require "SEW/SEW_Rooms"
+require "SEW/SEW_Fire"
 
 SEW = SEW or {}
 local C = SEW.Config
@@ -53,15 +54,40 @@ local function nameOf(p)
     return U.try("username", function() return p:getUsername() end) or "player"
 end
 
+--- Where the server has a player, for the log on both machines: a refusal
+--- that turns on it ("level", "reach") says what it was judged from.
+local function whereIs(player)
+    return U.try("where", function()
+        return string.format("%.1f,%.1f,%.1f", player:getX(), player:getY(), player:getZ())
+    end) or "?"
+end
+
 local function refuse(player, why)
-    U.log("refused %s: %s", nameOf(player), why)
-    Net.toClient(player, "refused", { why = why })
+    local at = whereIs(player)
+    U.log("refused %s: %s (at %s)", nameOf(player), why, at)
+    Net.toClient(player, "refused", { why = why, at = at })
     return false
 end
 
---- A climb, down a cover or up a ladder. Called from SEWClimb:complete().
+local ticks = 0
+-- username -> { x, y, mode, at }: the climb last granted. The same one asked
+-- again inside C.ClimbRepeat ticks, by a player who has since made it -- the
+-- action's own half, and then the client's command because the answer was
+-- slow -- is answered once, and not with a refusal for standing where the
+-- first answer put them. A player back where they started is asking anew.
+Server.granted = {}
+
+local function repeated(player, x, y, mode)
+    local g = Server.granted[nameOf(player)]
+    return g ~= nil and g.x == x and g.y == y and g.mode == mode and ticks - g.at < C.ClimbRepeat
+        and S.below(player) == (mode == "down")
+end
+
+--- A climb, down a cover or up a ladder. Called from SEWClimb:complete(),
+--- and from the `climb` command a client sends when that went unanswered.
 function Server.grant(player, x, y, mode)
     x, y = math.floor(tonumber(x) or 0), math.floor(tonumber(y) or 0)
+    if repeated(player, x, y, mode) then return true end
     local shaft = S.shaftAt(x, y)
     if not shaft then return refuse(player, "shut") end
 
@@ -82,6 +108,7 @@ function Server.grant(player, x, y, mode)
         SEW.Discovery.ladder(player, x, y)
         U.log("%s climbs down at %d,%d (%s; %d chunks built, %d waiting)",
               nameOf(player), x, y, shaft.town, done, left)
+        Server.granted[nameOf(player)] = { x = x, y = y, mode = mode, at = ticks }
         Net.toClient(player, "go", { x = x, y = y, z = C.Z, street = shaft.street or "", mode = "down",
                                      hatch = shaft.hatch ~= nil or shaft.trapdoor == true,
                                      outfall = shaft.outfall == true })
@@ -94,6 +121,7 @@ function Server.grant(player, x, y, mode)
         end
         SEW.Discovery.ladder(player, x, y)
         U.log("%s climbs out at %d,%d (%s)", nameOf(player), x, y, shaft.town)
+        Server.granted[nameOf(player)] = { x = x, y = y, mode = mode, at = ticks }
         Net.toClient(player, "go", { x = x, y = y, z = 0, street = shaft.street or "", mode = "up",
                                      hatch = shaft.hatch ~= nil or shaft.trapdoor == true,
                                      outfall = shaft.outfall == true })
@@ -122,6 +150,15 @@ function Server.ours(player, px, py)
     end
     return false
 end
+
+--- A client whose climb went unanswered asks again (SEW_Client.unanswered).
+--- The same request as the action's, checked the same way: a client is a
+--- request, never a fact.
+Net.onServer("climb", function(player, args)
+    U.log("%s asks for the climb %s at %s,%s by command: the action went unanswered",
+          nameOf(player), tostring(args.mode), tostring(args.x), tostring(args.y))
+    Server.grant(player, args.x, args.y, args.mode)
+end)
 
 --- A client below ground found no floor under its player.
 Net.onServer("rescue", function(player, args)
@@ -176,7 +213,6 @@ function Server.hatches(p)
     end
 end
 
-local ticks = 0
 local function service()
     ticks = ticks + 1
     if ticks % C.BuildEveryTicks ~= 0 then return end

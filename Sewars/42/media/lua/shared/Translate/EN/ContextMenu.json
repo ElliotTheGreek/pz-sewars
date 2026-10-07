@@ -31,5 +31,8 @@
     "ContextMenu_SEW_Break_E": "Knock through the wall to the east",
     "ContextMenu_SEW_Break_S": "Knock through the wall to the south",
     "ContextMenu_SEW_Break_W": "Knock through the wall to the west",
-    "ContextMenu_SEW_Dev_dig": "Give me a pickaxe and pipe bombs"
+    "ContextMenu_SEW_Dev_dig": "Give me a pickaxe and pipe bombs",
+    "ContextMenu_SEW_Dev_gun": "Give me a pistol and bullets",
+    "ContextMenu_SEW_Dev_fire": "Light the street here",
+    "ContextMenu_SEW_Dev_snow": "Make it snow (again: stop)"
 }

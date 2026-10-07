@@ -117,7 +117,7 @@ end
 function getSprite(name) return spriteOf(name) end
 
 local function Container(capacity)
-    local c = { items = List(), capacity = capacity, explored = false }
+    local c = { items = List(), capacity = capacity, explored = false, class = "ItemContainer" }
     function c:getItems() return self.items end
     function c:getCapacity() return self.capacity end
     function c:getContentsWeight()
@@ -283,6 +283,9 @@ function instanceof(o, class)
     if class == "IsoAnimal" then return o.class == "IsoAnimal" end
     if class == "MapItem" then return o.class == "MapItem" end
     if class == "IsoPlayer" then return o.isPlayerObject == true end
+    if class == "ItemContainer" then return o.class == "ItemContainer" end
+    if class == "HandWeapon" then return o.class == "HandWeapon" end
+    if class == "IsoThumpable" then return o.class == "IsoThumpable" end
     return false
 end
 
@@ -303,6 +306,46 @@ function SquareMT:getFloor()
     end
     return nil
 end
+-- A square's own flags. `exterior` is the engine's rule (RecalcProperties
+-- 463-531): set unless the square has a room (nothing below 0 is roofed) --
+-- and worked out again whenever something is put on the square or taken off
+-- it, which is what puts back a flag Lua took off. `burning` is set by a
+-- fire on the square and cleared when it is put out.
+IsoFlagType = setmetatable({ exterior = "exterior", burning = "burning" },
+                           { __index = function(_, k) error("no IsoFlagType " .. tostring(k)) end })
+FBORenderChunk = { DIRTY_REDRAW = 1 }
+local function recalc(sq)
+    sq.flags.exterior = (sq:getRoom() == nil) or nil
+end
+SIM.recalc = recalc
+SIM.redraws = 0
+function SquareMT:has(flag) return self.flags[flag] == true end
+function SquareMT:getProperties()
+    local sq = self
+    return { has = function(_, flag) return sq.flags[flag] == true end,
+             unset = function(_, flag)
+                 if flag == nil then error("unset(nil)") end
+                 sq.flags[flag] = nil
+             end,
+             set = function(_, flag) sq.flags[flag] = true end }
+end
+function SquareMT:invalidateRenderChunkLevel(bits)
+    if type(bits) ~= "number" then error("invalidateRenderChunkLevel(" .. tostring(bits) .. ")") end
+    SIM.redraws = SIM.redraws + 1
+end
+-- IsoGridSquare.stopFire: every fire on the square gone. The global
+-- stopFire(square) is the server's: it does the same and tells the clients.
+SIM.firesOut = {}
+function SquareMT:stopFire()
+    self.flags.burning = nil
+    SIM.firesOut[#SIM.firesOut + 1] = self.x .. "," .. self.y .. "," .. self.z
+end
+function stopFire(sq)
+    if SIM.role ~= "server" then error("the global stopFire off a server does nothing") end
+    sq:stopFire()
+    SIM.outbox[#SIM.outbox + 1] = { "stopFire", sq.x, sq.y, sq.z }
+end
+
 local function checkOrphan(sq)
     if sq.orphan then error("java.lang.NullPointerException: square has no chunk (orphan at "
                             .. sq.x .. "," .. sq.y .. "," .. sq.z .. ")") end
@@ -312,12 +355,14 @@ function SquareMT:AddTileObject(o)
     checkOrphan(self)
     self.objects:add(o)
     o.square = self
+    recalc(self)
 end
 function SquareMT:transmitAddObjectToSquare(o, _)
     violation("transmitAddObjectToSquare")
     checkOrphan(self)
     self.objects:add(o)
     o.square = self
+    recalc(self)
     if SIM.role == "server" then SIM.outbox[#SIM.outbox + 1] = { "addObject", o, false } end
 end
 function SquareMT:AddSpecialObject(o)
@@ -326,10 +371,12 @@ function SquareMT:AddSpecialObject(o)
     self.objects:add(o)
     self.specials:add(o)
     o.square = self
+    recalc(self)
 end
 function SquareMT:transmitRemoveItemFromSquare(o)
     violation("transmitRemoveItemFromSquare")
     self.objects:remove(o)
+    recalc(self)
     -- A server tells its clients (RemoveItemFromSquarePacket).
     if SIM.role == "server" then SIM.outbox[#SIM.outbox + 1] = { "removeObject", o } end
 end
@@ -396,7 +443,7 @@ local function chunkKey(x, y) return math.floor(x / 8) .. "," .. math.floor(y / 
 
 function SIM.newSquare(x, y, z, orphan)
     local sq = setmetatable({ x = x, y = y, z = z, objects = List(), specials = List(), animals = List(),
-                              orphan = orphan }, SquareMT)
+                              orphan = orphan, flags = { exterior = true } }, SquareMT)
     if not orphan then SIM.squares[key(x, y, z)] = sq end
     return sq
 end
@@ -418,7 +465,27 @@ function SIM.load(cx, cy)
 end
 function SIM.unload(cx, cy) SIM.loaded[cx .. "," .. cy] = nil end
 
+-- IsoFireManager.StartFire: the fire is made -- and OnNewFire fired from the
+-- end of its constructor -- before it is on its square.
+function SIM.startFire(x, y, z, permanent)
+    local sq = SIM.squares[key(x, y, z)]
+    if not sq then error("a fire on no square " .. key(x, y, z)) end
+    local fire = { getSquare = function() return sq end, isPermanent = function() return permanent == true end }
+    SIM.fire("OnNewFire", fire)
+    sq.flags.burning = true
+    return fire
+end
+
+IsoFireManager = { StartFire = function(_, sq, _, _, _)
+    if SIM.role == "client" then error("The StartFire function was called on Client") end
+    SIM.startFire(sq.x, sq.y, sq.z)
+end }
+
 local cell = {}
+function cell:setSnowTarget(v)
+    if type(v) ~= "number" then error("setSnowTarget(" .. tostring(v) .. ")") end
+    SIM.snow = v
+end
 function cell:getGridSquare(x, y, z)
     if not SIM.loaded[chunkKey(x, y)] then return nil end
     return SIM.squares[key(x, y, z)]
@@ -460,6 +527,11 @@ function PlayerMT:setLastX(v) end
 function PlayerMT:setLastY(v) end
 function PlayerMT:setLastZ(v) end
 function PlayerMT:getUsername() return self.name end
+function PlayerMT:getPrimaryHandItem() return self.primary end
+function PlayerMT:getForwardDirection()
+    local p = self
+    return { getX = function() return p.fx or 1 end, getY = function() return p.fy or 0 end }
+end
 function PlayerMT:getVehicle() return self.vehicle end
 function PlayerMT:getInventory() return self.inv end
 function PlayerMT:getCurrentSquare()
@@ -551,6 +623,13 @@ end
 function PlayerMT:isOutside()
     local sq = self:getCurrentSquare()
     return sq ~= nil and sq:getRoom() == nil
+end
+
+-- A weapon in the hand: what the mod asks of one.
+function SIM.newWeapon(kind, lo, hi, range, ranged)
+    return { class = "HandWeapon", getType = function() return kind end,
+             getMinDamage = function() return lo end, getMaxDamage = function() return hi end,
+             getMaxRange = function() return range end, isRanged = function() return ranged == true end }
 end
 
 function SIM.newPlayer(name, x, y, z)
@@ -791,7 +870,17 @@ function AnimalMT:setLastY(v) return v end
 function AnimalMT:setNextX(v) return v end
 function AnimalMT:setNextY(v) return v end
 function AnimalMT:getCurrentSquare() return self.square end
-function AnimalMT:getHealth() return self.dead and 0 or 1 end
+function AnimalMT:getHealth() return self.dead and 0 or (self.health or 1) end
+function AnimalMT:setHealth(v)
+    if type(v) ~= "number" then error("setHealth(" .. tostring(v) .. ")") end
+    self.health = v
+end
+-- IsoAnimal.killed(IsoPlayer): what vanilla's slaughter calls after setHealth(0).
+function AnimalMT:killed(p)
+    if not (type(p) == "table" and p.isPlayerObject) then error("killed() wants a player") end
+    self.dead = true
+    self.killer = p
+end
 function AnimalMT:stopAllMovementNow() self.stopped = (self.stopped or 0) + 1 end
 function AnimalMT:faceThisObject(o) self.facing = o end
 function AnimalMT:pathToCharacter(p)
@@ -1082,6 +1171,8 @@ luautils = {}
 --- player is already within 1.6 on both axes. The sim puts them one square
 --- short, diagonally where it can, which is the far end of what vanilla allows.
 function luautils.walkAdj(p, sq)
+    -- SIM.walkFails: the path finder finds no way, as it may below the street.
+    if SIM.walkFails then return false end
     local dx, dy = math.abs(sq:getX() + 0.5 - p.x), math.abs(sq:getY() + 0.5 - p.y)
     if dx <= 1.6 and dy <= 1.6 then return true end
     p.x, p.y = sq:getX() + 1.5, sq:getY() + 1.5
@@ -1117,7 +1208,10 @@ function SIM.runActions()
                 local args = {}
                 -- self and character are not sent: the server supplies its own copy of the player.
                 for i = 3, #names do args[#args + 1] = { names[i], a[names[i]] } end
-                SIM.outbox[#SIM.outbox + 1] = { "netAction", a.character.name, a.Type, args }
+                -- SIM.dropActions: the action never reaches the server's half.
+                if not SIM.dropActions then
+                    SIM.outbox[#SIM.outbox + 1] = { "netAction", a.character.name, a.Type, args }
+                end
                 a:perform()
             else
                 a:perform()

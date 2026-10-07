@@ -599,7 +599,7 @@ function B.square(x, y, rec, first, caves)
     -- Rubble by a breach and the nest's signs on the sewer's side are the
     -- cave's too, on squares a save built before them.
     local late = caves == true and (dress == "z" or dress == "n" or dress == "o")
-    if (fresh or late) and dress ~= "." then
+    if (fresh or late) and dress ~= "." and (dress ~= "e" or B.exitSign(x, y)) then
         local spr = dressSprite(dress, n, x, y, gateEdge)
         if overlayEdge(spr) then hang(sq, spr) else put(sq, spr) end
     end
@@ -708,6 +708,18 @@ function B.option(name, default, n)
     v = tonumber(v)
     if not v or v < 1 or v > n then return default end
     return math.floor(v)
+end
+
+--- Whether the EXIT stencil the generator put at x, y is painted, by the
+--- sandbox's Sewars.ExitSigns: none of them, one in C.ExitSignsFew, or all
+--- (asked by a player, 0.7.4: "there's so many ... yellow tape"). By the
+--- square, so the same ones in every pass. Like all dressing it goes on with
+--- a chunk's first build: tunnels already found keep what they have.
+function B.exitSign(x, y)
+    local v = B.option("ExitSigns", 3, 3)
+    if v == 1 then return false end
+    if v == 3 then return true end
+    return U.rng(U.hash(x, y, 53))(C.ExitSignsFew) == 1
 end
 
 function B.density()

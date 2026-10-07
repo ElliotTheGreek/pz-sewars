@@ -92,6 +92,11 @@ function SEWClimb:stop()
 end
 
 function SEWClimb:perform()
+    -- On a client the move is the server's to grant (complete, there). The
+    -- client starts waiting for the answer, and does not wait for ever.
+    if isClient() and SEW.Client and SEW.Client.expect then
+        U.try("expect", SEW.Client.expect, self.x, self.y, self.mode)
+    end
     ISBaseTimedAction.perform(self)
 end
 

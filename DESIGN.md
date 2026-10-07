@@ -72,6 +72,19 @@ below ground are lit, zombies path on them, and they survive a save and
 reload. The fallback (the trekship's way: tunnels in a mapped black void
 region, each cover a long move to its copy) was never needed.
 
+**What the street's floor does not stop (0.7.1 to 0.7.5).** A real level
+under a real street has a cost the void would not have had: the engine has
+never had anything under a road, and several of its rules reach "the
+squares round this one" with no look at the floor between. Each was found
+by a player and each is answered in its own file, never by changing what a
+tunnel is: sound (`SEW_Street`: a level is three squares of distance), a
+zombie's chase (the same), fire (`SEW_Fire`: it spreads to the level
+below), and the weather (`SEW_Weather`: a square with no room and no roof
+is open ground, so snow lies on it). The decision stands: **a tunnel is not
+a room and gets no roof** (a room with no building stops a server, 0.7.3),
+and what leaks is put right where it lands. The next one will be found the
+same way; DEV_GUIDE keeps the list.
+
 ## 4. Laying the tunnels out from the streets
 
 The layout is **generated offline** and shipped as data, as the trekship
@@ -274,6 +287,11 @@ where no player is standing*, *Tag every object you place*):
   medicine. Each has its own caches, stocked once, the hoard's way where the
   generator says so. No more of the ROUS: the four are still the fight, and
   the hoard still waits for the last of them.
+- **They can be fought (0.7.5).** A fight nobody can win is not one, and
+  players said so. Anything swung or fired at a ROUS in reach, in front and
+  in sight hurts it, judged by the server that moves it (`SEW_Nest.swing`);
+  three blows of any weapon put one down, two bullets, and a shove throws one back and buys a couple of seconds. Bare hands do
+  nothing, on purpose: the nest is for somebody who came armed.
 - **What each place says of the other** (0.6): seven writings, each a
   journal that marks a place on the reader's map. In the temple, four point
   here -- three at the false wall, one at the house whose hatch is nearest

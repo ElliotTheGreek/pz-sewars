@@ -36,3 +36,8 @@ option Sewars.StreetHears = {
     type = enum, numValues = 2, default = 1,
     page = Sewars, translation = Sewars.StreetHears, valueTranslation = Sewars.StreetHears,
 }
+
+option Sewars.ExitSigns = {
+    type = enum, numValues = 3, default = 3,
+    page = Sewars, translation = Sewars.ExitSigns, valueTranslation = Sewars.ExitSigns,
+}

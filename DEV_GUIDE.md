@@ -37,8 +37,11 @@ deploy, about a minute).
 | `C:\Users\Arcade\Zomboid\console.txt` | the game log, **overwritten each launch** |
 | `C:\Users\Arcade\Zomboid\server-console.txt` | the local dedicated server's log |
 
-Target is **build 42.20.4**: single player, hosted co-op **and dedicated
-servers**, for anyone who subscribes on the Workshop.
+Target is **build 42.21.0**: the installed game (its `console.txt`), and
+the build the Workshop's reports of October 2026 came from. This file said
+42.20.4 until 0.7.5; every bytecode listing from 0.7.5 on was read on
+42.21.0. Single player, hosted co-op **and dedicated servers**, for anyone
+who subscribes on the Workshop.
 
 ---
 
@@ -55,11 +58,12 @@ media/lua/shared/SEW/SEW_Net.lua           client -> server commands and replies
 media/lua/shared/SEW/SEW_Sewer.lua         read-only questions: which shaft, which cover, am I below
 media/lua/shared/SEW/SEW_Actions.lua       SEWClimb, the timed action: down a cover, up a ladder (global, shared)
 media/lua/shared/SEW/SEW_Rats.lua          the ROUS: an animal definition of ours, copied from vanilla's rat
-media/lua/server/SEW/SEW_Nest.lua          rats on first build, the leash, the ROUS (spawn, chase, bite), the nest's walls that open
+media/lua/server/SEW/SEW_Nest.lua          rats on first build, the leash, the ROUS (spawn, chase, bite, being hit), the nest's walls that open
 media/lua/server/SEW/SEW_Gas.lua           sewer gas: the haze and placards, who is in it, the dose, the mask
 media/lua/server/SEW/SEW_Keys.lua          the county's maintenance keys: in its rooms, on its dead, the grilles' latch
 media/lua/server/SEW/SEW_Mine.lua          digging and blasting: the records a pick or a bomb changes, and the refusals
 media/lua/server/SEW/SEW_Rooms.lua         a server only: no square of ours keeps a room (the softlock)
+media/lua/server/SEW/SEW_Fire.lua          fire does not cross the street's floor: one that came through it is put out
 media/lua/server/SEW/SEW_Maps.lua          annotated maps to the temple and the nest: made, and handed out four ways
 media/lua/shared/StashDescriptions/SewarsStashDesc.lua   what is drawn on them (vanilla's stash descriptions, no building)
 media/lua/client/SEW/SEW_MapSheets.lua     the sheet of the game's map each one shows (LootMaps.Init)
@@ -73,12 +77,13 @@ media/lua/server/SEW/Data/SEW_Town_*.lua   GENERATED: every town's squares, by c
 media/lua/client/SEW/SEW_Client.lua        the menus, the move, the vault switch, lamps, ambience, the dev build's start
 media/lua/client/SEW/SEW_Map.lua           the sewer map: panel, fog, markers, the K key
 media/lua/client/SEW/SEW_Street.lua        the street and the sewer do not hear each other: a zombie going to, or after, a player across the street's floor is stopped
+media/lua/client/SEW/SEW_Weather.lua       no snow below: the outdoors flag off the squares of ours round the player (not a door's)
 media/lua/client/SEW/SEW_StoryUI.lua       the Read menu on plans and journals, and the journal's page
 media/lua/shared/Translate/EN/*.json       ContextMenu, Tooltip, IG_UI, Sandbox, ItemName -- one file per category
 media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 72 tiles
 media/scripts/sewars_items.txt             our items: the sewer plan, the journal, the maintenance key
 media/scripts/sewars_sounds.txt, sound/SEW_*.wav   the sounds (wavs generated)
-media/sandbox-options.txt                  zombie density, their outfits, shelter supplies, rats, sewer gas, digging, the street's hearing
+media/sandbox-options.txt                  zombie density, their outfits, shelter supplies, rats, sewer gas, digging, the street's hearing, EXIT stencils
 
 tools/dev.py              THE ENTRY POINT: build, check, mutate, deploy, run, log, package
 tools/gen_sewers.py       the map -> the tunnels (Data/ and SEW_Index.lua), and plans in design/art/plans/
@@ -1208,6 +1213,222 @@ What generalises: **"dedicated servers" on the box means a dedicated server
 was started.** And when a crash is in the engine's own update, look for the
 field it read, and make our squares boring in that field.
 
+### An event's argument is whatever the engine had to hand
+
+**Found by a player (0.7.4): an error box, five times, `attempted index:
+getItems of non-table: zombie.inventory.ItemPickerJava$ItemPickerContainer`,
+from `SEW_Maps.lua:100`.** `OnFillContainer` is `(room, type, container)`
+in eight of its ten call sites. In the other two the third argument is a
+loot *definition*:
+
+```
+ItemPickerJava.doRollItemInternal        1207-1222  ("Container", item type, itemPickerContainer.bags)
+               rollContainerItemInternal  954-969   the same
+```
+
+-- a bag whose loot table names bags of its own. The class is not exposed to
+Lua, so any method on it is "index of non-table". `U.try` caught every one,
+and it did not matter: **an error Lua catches is still an error to the game**
+(the red box counts it; under `-debug` it halts: *Kahlua is not Lua 5.4*).
+So a caught error is not a guard. Ask what the thing is first
+(`instanceof(container, "ItemContainer")`), and find every trigger of an
+event before trusting its arguments: `javadis.py <class> ""`, grep the
+event's name, read what is pushed before each `triggerEvent`.
+
+### Fire spreads through a floor
+
+**Found by a player (0.7.4): "you light the sewers on fire if you burn
+corpses on the streets above".**
+
+```
+IsoFire.Spread 84-611        one of 13 squares at random: 8 round it, (x, y, z + 1), and four at
+                             z - 1: (x - 1, y - 1), (x - 1, y), (x, y - 1), (x, y). No floor is asked
+IsoFire.CanAddFire           the square holds something, no water, not burnt out or burning, and not
+                             `unflamable` -- a flag read off the sprites on it (vanilla's, down here)
+IsoFire.<init> 339           triggerEvent("OnNewFire", this): made, and not yet on its square
+IsoFireManager.StartFire     new IsoFire, a packet from a server, Add, then square.getObjects().add
+IsoGridSquare.stopFire       RemoveAllOn(square), burntOut set; the global stopFire(square) is the
+                             server's: the same, and a StopFire packet (ISPutOutFire uses both)
+```
+
+Under a vanilla street there is no square for a fire to land on; under ours
+there is. No property stops it (our floors and walls are vanilla's tiles)
+and nothing stops the roll, so `SEW_Fire.lua` puts out, a tick after it is
+made, a fire that *came through the street's floor*: on a square of ours
+with fire among the four over it and none beside it, or on the street over
+a burning square of ours with none beside it. The engine does not say where
+a fire came from; that is read from where it is, and a fire lit below with
+the street alight straight overhead and nothing else burning near it is put
+out too. Known, and rare enough. **Unplayed.** What generalises: **anything
+the engine does "to the squares round this one" reaches the level below
+now that there is one** -- explosions were read for 0.7; sound was 0.7.1;
+fire was a player's.
+
+### Snow lies on a flag, and the flag is read by half the engine
+
+**Found by two players (0.7.4): "pls fix snow underground".** The open line
+in ROADMAP 0.3.3 (*weather below*), answered by winter:
+
+```
+FBORenderSnow.RenderSnow 156-212    snow on a square with: room == null, the `exterior` flag,
+                gridSquareIsSnow     solidfloor, no water. No level, no roof
+FBORenderCell.renderOneLevel 1683   called for every level of every chunk
+Weather.<init>                      "Snow" is newDebugOnlyOption: BooleanDebugOption.getValue returns
+                                    the default outside -debug. Not a switch
+IsoGridSquare.RecalcProperties      exterior unless roomId != -1 or haveRoof; again on every change
+  463-531                           to the square or its neighbours, and at load
+IsoCell.checkHaveRoof               z 31 down to 0. IsoChunk.loadInWorldStreamerThread 212-297: roofs
+                                    everything under a rain-blocking tile at z >= 1 only
+```
+
+So `SEW_Weather.lua` takes the flag off on the client
+(`getProperties():unset(IsoFlagType.exterior)`, then
+`invalidateRenderChunkLevel(FBORenderChunk.DIRTY_REDRAW)`), round a player
+in the sewer, a row of squares a tick, and again whenever the engine has
+put it back. **Not on a server, and not everywhere**, because of who else
+reads the flag (`jgrep` found 44 classes):
+
+```
+IsoDoor.Thump 61-107                  a zombie that can open doors opens a LOCKED one only from a square
+ToggleDoorActual 297-301              that is not exterior, and a zombie is never asked for the key:
+                                      -> both squares of every door keep the flag (W.byDoor)
+IsoGridSquare.testVisionAdjacent      looking up from a non-exterior square to an exterior one is
+  1019-1074                           blocked -- except from z -1 to z 0, which is let through
+IsoGridSquare.haveElectricity         no power on an exterior square when the sandbox forbids outdoor
+                                      generators: a generator below now powers the tunnel
+IsoPuddlesGeometry, RainManager       puddles and splashes go with the snow
+calculateWallAlphaAndCircleStencil*   the wall cutaway reads it. Unread beyond that: look in game
+IsoFire.Spread 673-697                a spread fire gets more energy on a non-exterior square
+```
+
+**Unplayed, and the cutaway is the thing to look at**: 0.3.2's two play-tests
+were spent on how walls and their pictures cut away. If it looks wrong,
+`C.Weather.indoors = false` is the whole fix undone. What generalises: **a
+flag in a square's properties is a cache, not a fact; Lua can change it,
+the engine will change it back, and everything else reads it too.** List
+the readers before writing it.
+
+### A climb is asked for until it is answered
+
+**Found by a player on a server (0.7.4): "you won't be able to get back up
+to the streets in a Multiplayer setup. I got trapped in the sewers until I
+teleported myself out." The cause is not found.** Read, and ruled out:
+
+```
+NetTimedActionPacket.processServer   accepted unless the Lua class's new() fails; no look at the player
+NetTimedAction.parse 72-203          rebuilt by global name from the arguments, in new()'s order
+ActionManager.update 36-76           perform() when the time is up -> complete(); Reject if it is false
+Action.setTimeData                   duration from getDuration() x 20 ms
+```
+
+-- nothing there knows up from down. What differs is ours: the walk to the
+ladder (`luautils.walkAdj`, which needs vanilla's path finder to find a way
+across squares it was never told about), the server's copy of the player's
+level (`S.below` in `Server.grant`), and the client's wait for a street
+square it already has. Any of the three failing was **silent**: no note, no
+log, a menu entry that did nothing. So, without knowing which:
+
+- **No walk for a player at the ladder.** Within `C.Reach` of the shaft's
+  square or the ladder's, the action is queued and nothing is walked
+  (`Client.approach`). From further off the walk is tried, and a walk that
+  finds no way says so (*No way to it from here. Stand right at it*).
+- **Silence is not an answer.** `SEWClimb:perform` on a client starts a
+  wait (`Client.expect`; not when the answer is already in, which is the
+  usual order). After `C.ClimbAskAgain` ticks the client sends `climb`, a
+  plain command to the same `Server.grant`. After `C.ClimbGiveUp` more, a
+  climb **out** is made anyway: a player below, at a ladder, onto a street
+  square this machine has. Never a climb down: the tunnel is the server's
+  to build. *A client moves only its own character, after asking* -- it
+  asked twice.
+- **A refusal is an answer**, obeyed, and it carries where the server had
+  the player (`refused: level (the server has you at x,y,z)` in the
+  client's `console.txt`, the same in the server's). That line is what the
+  next report needs.
+- The same climb arriving twice (the action, then the command) is answered
+  once, and only for a player who has since made it (`repeated`).
+
+`tests/sim.lua` grew `SIM.walkFails` and `SIM.dropActions` for it. What
+generalises: **a request with no answer needs a clock, and a failure with
+no message is a second bug.** And the standing one: *"dedicated servers" on
+the box means a dedicated server was started.* It still has not been.
+
+### What is walked by hand on the server is hit on the server
+
+**A player (0.7.4): "the R.O.U.S encounter seems broken ... can you even
+swing at them?" -- and the author: true.** Read first, to find a refusal,
+and there is none:
+
+```
+CombatManager.calcValidTarget 25-422      any IsoGameCharacter with a square, not dead, isShootable,
+                                          within 0.5 of a level (melee), in front, in reach, in sight
+calculateHitListWeapon 148-227            melee: standing and not aiming at the floor, or prone and
+                                          aiming at it (IsoMovingObject.isStanding = not onFloor)
+processBallisticsTargets 30-41            an animal needs no ballistics target; 432-455 lets it by
+IsoAnimal.hitConsequences 0-32            health -= damage x AnimalData.getHealthLoss(0.025)
+AnimalData.getHealthLoss                  healthLossMultiplier x (1.5 - resistance) / 0.025, or the
+                                          bare multiplier when the animal has no resistance gene
+```
+
+So in single player the engine can hit one, and in 0.5's play-test it did.
+**And the first play-test of 0.7.5 said what was really wrong (the author,
+2026-10-06: "basically unbeatable and I am not sure I am hitting them at
+all").** The log had 42 hits in two minutes, nearly all the engine's:
+
+```
+a ROUS was hit ... with Crowbar for 0.277; health 1
+a ROUS was hit ... with Crowbar for 0.584; health 0.9943      <- the 0.277 took 0.0057
+a ROUS was hit ... with Crowbar for 0.691; health 0.9859      <- the 0.584 took 0.0085
+a ROUS was hit ... with Crowbar for 0.100; health 0.7956      <- and a tired, bitten arm does 0.1
+```
+
+The engine lands the hit and takes a hundredth of it: a ROUS is copied from
+a rat with no resistance gene, so the loss is the bare `healthLossMultiplier`
+(0.008, "a guess" since 0.5), not the forty times that this section first
+worked out from the same bytecode. And the server's own hit stood aside for
+every one of them. **A number worked out from bytecode is a guess until a
+log line says it**; the hit logger had said so since 0.5 and nobody read the
+health column. So the loss is ours whoever lands the hit (`N.hurt`): in
+`OnWeaponHitCharacter`, which comes before the engine takes its sliver, and
+in the server's own judgement.
+
+**And the second play-test, ten minutes later: "still fully broken and
+unplayable."** The first fix scaled the engine's damage, and the log showed
+what the engine hands an animal: 0.02 to 0.28 for a fresh crowbar, 0.1 for
+a tired one. Twelve weapon hits in twenty seconds, 0.16 off each, spread
+over three of them, and not one dead; as many swings again were
+`BareHands` -- the game shoves by itself at what is too close to swing at
+-- and did nothing; and four of them each bit every 120 ticks, a bite every
+half second. Three rules now, none of them the engine's numbers:
+
+- **A fight has a count.** Every weapon hit takes a third of one
+  (`C.Rous.hits`), a bullet half (`shotHits`), whatever the damage.
+- **A shove is worth something.** Bare hands hurt nothing, throw it back a
+  square if the way is open, and stop it for `C.Rous.shove` ticks. A
+  weapon's hit stops it for `stagger`.
+- **It does not bite the instant it arrives** (`windup`), and each bites
+  every 300 ticks, not 120; 5 off the limb, a cut one time in five.
+
+What generalises: **scaling a number the engine gives is trusting that
+number.** Read it in the log first. And tune a fight from its tempo -- hits
+landed a second against bites taken a second -- which the log has, not from
+one side's damage. Nothing for a zombie's swipe.
+
+The second thing it cannot be relied on for is *where*: the engine picks targets on the
+attacker's machine, from where that machine has the animal, and a ROUS is
+moved by `setX` / `setY` on the server every tick (*A mod cannot add an
+action group*). Whether a client draws it there is unproven. So being hit
+went the way of the chase and the bite (`SEW_Nest.swing`): the server hears
+the swing (`OnWeaponSwingHitPoint`, fired before the engine's own hits in
+the same call, bci 85; or a client's `swing` command), and a few ticks
+later judges it from its own positions -- the weapon in the server's copy
+of the hand, the nearest ROUS in reach (a bullet's line), in front, every
+edge between open -- unless `OnWeaponHitCharacter` says the engine landed
+it meanwhile. Health comes off as vanilla's slaughter takes it
+(`ISKillAnimal`: `setHealth`, then `killed(player)`), the two calls of the
+path that vanilla Lua makes itself. **Unplayed**; if both land, a swing
+counts twice on a server (the engine's hit arriving after ours), which
+errs the right way for this report.
+
 ### One mutation run at a time, and nothing staged while one runs
 
 **Done wrong releasing 0.7.3.** `tests/mutate.py` edits the source in place
@@ -1315,15 +1536,18 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | Check | Catches |
 |---|---|
 | `tools/luacheck.py` | Lua syntax, generated data included |
-| `tests/test_assets.py` (167 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
+| `tests/test_assets.py` (178 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
 | `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (394 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled, no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 220 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so) |
+| `tests/test_flow.py` (456 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled; and 0.7.5's: a loot event with no container, fire through the street's floor put out both ways and a fire of the tunnel's own left to burn, the outdoors flag off the sewer's squares and kept on a door's, a swing and a shot at a ROUS judged by the server (reach, facing, walls, the engine's own hit), a climb with no walk, asked again by command, made anyway when out and unanswered, refused with where the server had the player, EXIT stencils by the sandbox; no WARN, no unknown sprite or text key |
+| `tests/mutate.py` (`dev.py mutate`) | 292 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so; `0.7.5` the 72 newest) |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
 does not fit, `instanceItem` knows only real ids, outfits must be in both
-lists, `sendServerCommand` is inert in single player, a client's timed action
+lists, a square's `exterior` flag is worked out again whenever something is
+put on it, a fire announces itself before it is on its square, a walk can
+find no way (`SIM.walkFails`) and an action can fail to reach the server
+(`SIM.dropActions`), `sendServerCommand` is inert in single player, a client's timed action
 reaches the server only by class name and `new`'s parameter names, and the
 server's objects reach a client only if it has the chunk. What it cannot tell
 you: lighting, rendering, pathfinding, saving -- the game's own.
@@ -1344,6 +1568,13 @@ Debug console (single player, or an admin's server log):
 | `SEW_Gas(town)` / `SEW_GoGas(n)` | a town's stretches of gas, and your poison / into the middle of the n-th |
 | `SEW_Gates(town)` / `SEW_GoGate(n)` / `SEW_Key(town)` | a town's locked gates and key / beside the n-th gate / the town's key in your hands |
 | `SEW_Hatches(town)` / `SEW_GoHatch(n, town)` | list a town's hatches and whether each is open / beside the n-th hatch |
+
+None of that needs typing: the dev build's right-click menu, *Sewers (dev)*,
+has a stop for each place and, since 0.7.5, three for the weather and the
+fight: *Give me a pistol and bullets*, *Light the street here* (a few
+squares of street over the tunnel, by vanilla's own `IsoFireManager.StartFire`)
+and *Make it snow* (holds `IsoCell.setSnowTarget(100)` until chosen again;
+dev build only -- nothing in vanilla Lua calls it).
 
 ### On a dedicated server
 
@@ -1388,9 +1619,27 @@ gets verified.
 
 ## Current state
 
-Version **0.7.4**, build revision **6**, layout from `tools/gen_sewers.py`.
+Version **0.7.5**, build revision **6**, layout from `tools/gen_sewers.py`.
 **Workshop:** item **3810188405**, public since 0.3.1 (2026-09-29);
-`WORKSHOP_ID` is set in `tools/package_workshop.py`. **0.7.4 is staged** (`package --install`, 2026-10-03, compared file by file
+`WORKSHOP_ID` is set in `tools/package_workshop.py`.
+
+**0.7.5 is built, passes every static test and all 292 mutations (one run,
+alone), is deployed as SewarsDev and is staged for the uploader
+(`package --install`, 2026-10-06, compared file by file with the source).
+The author uploads it. Played once, for the ROUS only**: they
+could not be killed, the log said why, and what a hit takes is ours now
+(*What is walked by hand on the server is hit on the server*); played again
+and still unwinnable, and retuned from that log (three hits kill, a shove
+throws one back, slower bites); **played a third time: "playable now ...
+balanced well, keep it as is"** -- do not retune `C.Rous` without being
+asked. Only a kill is said (*ROUS killed*), at the author's word. The rest
+of 0.7.5 is unplayed. Six
+fixes from ten Workshop comments (ROADMAP 0.7.5): the loot event's error,
+fire through the street's floor, snow below, hits on the ROUS, the climb
+out on a server, and a sandbox option for the EXIT stencils. The bytecode
+was read on **42.21.0**, the build the reports came from. Three of the six
+change what the engine does to the world and want the author's eyes before
+they go up -- the 0.7.5 checklist below. **0.7.4 was staged** (`package --install`, 2026-10-03, compared file by file
 with the source): the street and the sewer out of earshot both ways, and a
 chase dropped at the cover -- *unplayed*. **0.7.3 is on the Workshop**
 (uploaded 2026-10-03 08:05): the server softlock (no room on a
@@ -1440,6 +1689,35 @@ writings by which the temple and the nest each lead to the other.
 broken through, the rock beside one, the nest's earth where the first run
 leaves it), nothing a save holds moved. The dev build now starts a new
 character in the field by the temple's trapdoor.
+
+**The 0.7.5 checklist** (every step a click, in the dev build's
+right-click menu, *Sewers (dev)*; a **new world** with Sewers [DEV]):
+
+1. **The ROUS.** *Give me a pistol and bullets* (the crowbar is in the kit).
+   *Go to the nest's false wall*, pull the bricks away, walk in. Swing the
+   crowbar at one in front of you: the third hit puts it down (*ROUS
+   killed*, the only thing said). A shove (space) throws one back and it
+   stands off for a couple of seconds.
+   Each bites about every five seconds, and not the moment it reaches you.
+   `console.txt` has a line a hit, `health 0.67 -> 0.33`. Too hard or too
+   easy: `C.Rous.hits`, `biteEvery`, `shove` in `SEW_Config.lua`. Load the pistol and shoot
+   one: the same. Swing with your back to one: nothing.
+2. **Fire.** Stand on a street over a tunnel (any manhole cover), *Light the
+   street here*: flames a few squares off. Give it a minute, then climb down
+   the cover: nothing burning below. Up again; below, throw nothing -- the
+   fire of the tunnel's own is a molotov's, if you have one.
+3. **Snow.** *Make it snow*: the street goes white. Climb down a cover: for
+   a second the floor near you may be white, then it is not, and stays not
+   as you walk. Look at the walls near you: they should cut away exactly as
+   they did. By a shelter's door, two squares may stay white. *Make it
+   snow* again turns it off.
+4. **Climbing.** At any ladder below, standing right at it: *Climb out*. It
+   should be as quick as before. From ten squares off: you walk, then climb.
+5. **EXIT stencils.** In the sandbox, Sewers page: *EXIT stencils*. A new
+   world with None has none by its ladders.
+6. **A server** (`sewtest`, below): down a cover and out again; into the
+   nest and hit one. Anything a ladder refuses is in the client's
+   `console.txt`: `[SEW] refused: ... (the server has you at ...)`.
 
 **The temple's checklist** (every step a click: the dev build's right-click
 menu, *Sewers (dev)*; a **new world** with Sewers [DEV] is cleanest, an old

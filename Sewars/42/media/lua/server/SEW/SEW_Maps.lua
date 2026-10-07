@@ -97,6 +97,13 @@ end
 --- now and then, one of ours. Returns how many were.
 function M.onFill(roomName, containerType, container)
     if not container or not M.allowed() then return 0 end
+    -- Not always a container: for a bag whose loot table names bags of its
+    -- own, the engine fires this event with the loot *definition* in its
+    -- place (ItemPickerJava.doRollItemInternal 1207-1222 and
+    -- rollContainerItemInternal 954-969: an ItemPickerContainer, a class Lua
+    -- cannot index at all). Found by a player, 0.7.4: an error box for every
+    -- such bag the game filled.
+    if not instanceof(container, "ItemContainer") then return 0 end
     local items = U.try("fill.items", function() return container:getItems() end)
     local n = items and items:size() or 0
     local made = 0

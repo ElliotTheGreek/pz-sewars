@@ -37,5 +37,10 @@
     "Sandbox_Sewars.StreetHears": "The street hears the sewer",
     "Sandbox_Sewars.StreetHears_tooltip": "Whether zombies on one side of the street's surface come to a player on the other. No: footsteps, digging and gunfire in the sewer draw nobody on the street, a player on the street draws nobody in the sewer, and a zombie that was chasing you gives up when you climb down or out; the dead on your own level hear and see you as well as ever. Yes: the game's own rule, where a floor stops no sound, and running under a street brings its dead to stand over you.",
     "Sandbox_Sewars.StreetHears_option1": "No",
-    "Sandbox_Sewars.StreetHears_option2": "Yes"
+    "Sandbox_Sewars.StreetHears_option2": "Yes",
+    "Sandbox_Sewars.ExitSigns": "EXIT stencils",
+    "Sandbox_Sewars.ExitSigns_tooltip": "The EXIT stencils and arrows painted on the tunnel walls near the ladders. None: find your own way out (the sewer map still shows every ladder you have used). Few: about one in three. By every ladder: all of them. Only tunnels not yet opened up are affected.",
+    "Sandbox_Sewars.ExitSigns_option1": "None",
+    "Sandbox_Sewars.ExitSigns_option2": "Few",
+    "Sandbox_Sewars.ExitSigns_option3": "By every ladder"
 }

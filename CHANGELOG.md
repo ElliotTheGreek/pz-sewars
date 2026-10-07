@@ -8,6 +8,40 @@ below ground moves; new parts appear as you walk into them.
 
 ---
 
+## 0.7.5 (6 October 2026)
+
+**Fixed, from your comments (thank you)**
+
+- An error box about `getItems` popped up while the game was filling bags
+  with loot. The mod was looking for maps in something that was not a
+  container. It no longer looks there.
+- Burning corpses on a street set the sewer under it alight: the game
+  spreads fire to the level below as if there were no road in between. A
+  fire that comes down through the street is now put out at once, and so is
+  one that comes up out of the tunnel. A fire you light down there yourself
+  (a molotov, a campfire) burns as before.
+- Snow lay on the tunnel floors in winter. The game took the sewer for open
+  ground. It no longer does, and rain puddles go the same way. One thing to
+  know: the two squares either side of a door below ground can still show
+  it. That is on purpose, so that a locked door keeps the dead out.
+- The rodents of unusual size could not be hit reliably. A swing or a shot
+  at one now lands whenever it is in reach, in front of you, and there is no
+  wall between, and three hits kill one (two bullets). A shove hurts nothing
+  but throws one back and stops it for a couple of seconds. They also bite less often, and not the instant
+  they reach you.
+- Multiplayer: a player could be left below with a ladder that would not
+  take them up. Climbing out no longer needs the game to find a path to the
+  ladder first: stand at it and it works. If the server does not answer the
+  climb, the game asks it again, and if it still hears nothing it takes you
+  up anyway. If a ladder ever refuses you, the reason is now written in
+  your console.txt; please post that line.
+
+**New**
+
+- Sandbox option, EXIT stencils: none, few, or by every ladder (as before).
+  For tunnels you have not opened up yet; the ones already found keep
+  theirs. The sewer map still shows every ladder you have used.
+
 ## 0.7.4 (3 October 2026)
 
 **Fixed, from your comments (thank you)**

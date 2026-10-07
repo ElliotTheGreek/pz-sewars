@@ -390,12 +390,13 @@ def lair_test(L, p):
     hits = L.execute("""
         local before = #SIM.log
         local z = SIM.newZombie(0, 0, 0, "Hobbo")
-        local weapon = { getType = function() return "Crowbar" end }
+        local weapon = SIM.newWeapon("Crowbar", 0.6, 1.15, 1.25, false)
         SIM.fire("OnWeaponHitCharacter", SIM.players[1], z, weapon, 1)
         SIM.fire("OnWeaponHitCharacter", SIM.players[1], SIM.players[1], weapon, 1)
         local rous
         for _, a in ipairs(SIM.animals) do if a.kind == "rous" then rous = a break end end
         SIM.fire("OnWeaponHitCharacter", SIM.players[1], rous, weapon, 1)
+        rous.health = 1
         local warn, logged = 0, 0
         for i = before + 1, #SIM.log do
             if SIM.log[i]:find("WARN") then warn = warn + 1 end
@@ -405,6 +406,166 @@ def lair_test(L, p):
     """)
     check(hits[0] == 0 and hits[1] == 1,
           "a hit on a zombie or a player is let be; a hit on a ROUS is logged (%d WARN, %d logged)" % tuple(hits))
+
+    # Hitting them is the server's to judge (0.7.5, players: "can you even
+    # swing at them?"): a swing is heard, and a few ticks later lands on the
+    # nearest one in reach, in front, with no wall between -- unless the
+    # engine landed it first.
+    swings = L.execute("""
+        local cx, cy, vx, vy, gx, gy = ...
+        local C, N, p = SEW.Config, SEW.Nest, SIM.players[1]
+        local all, a, out, last = {}, nil, nil, nil
+        for _, r in ipairs(SIM.animals) do if r.kind == "rous" then all[#all + 1] = r end end
+        a = all[1]
+        -- Only the one: the rest are out of it while this is asked.
+        for i = 2, #all do all[i].dead = true end
+        out = {}
+        local function stand(px, py, ax, ay, hp)
+            for _, q in ipairs({ { px, py }, { ax, ay } }) do
+                local sq = SIM.squares[math.floor(q[1]) .. "," .. math.floor(q[2]) .. ",-1"]
+                if not (sq and SEW.Util.floorOf(sq)) then out.noFloor = true end
+            end
+            p.x, p.y = px, py
+            a:setX(ax); a:setY(ay)
+            a.health, a.dead, a.killer = hp or 1, false, nil
+            last = { px, py, ax, ay, hp }
+        end
+        local function swing(fx, fy, engine)
+            p.fx, p.fy = fx, fy
+            SIM.tickN(C.Rous.swingEvery + 1)
+            -- Where they were stood, not where the chase has since walked it.
+            stand(last[1], last[2], last[3], last[4], last[5])
+            SIM.fire("OnWeaponSwingHitPoint", p, p.primary)
+            if engine then SIM.fire("OnWeaponHitCharacter", p, a, p.primary, 1) end
+            local at = a:getHealth()
+            SIM.tickN(C.Rous.swingDelay + 2)
+            return a:getHealth(), at
+        end
+        local bar = SIM.newWeapon("Crowbar", 1, 1, 1.3, false)
+        local gun = SIM.newWeapon("Pistol", 1, 1, 12, true)
+        local notes = #SIM.notes
+        p.primary = bar
+        stand(cx + 0.5, cy + 0.5, cx + 1.5, cy + 0.5)
+        out.hit, out.atOnce = swing(1, 0)
+        out.told = #SIM.notes - notes
+        stand(cx + 0.5, cy + 0.5, cx + 1.5, cy + 0.5)
+        out.behind = swing(-1, 0)
+        stand(cx + 0.5, cy + 0.5, cx + 1.5, cy + 0.5)
+        out.engine = swing(1, 0, true)
+        -- The engine's hits, each alone: a weapon's, a tired arm's, bare hands,
+        -- a zombie's -- and the last of its health.
+        local function struck(by, w, dmg, hp)
+            a.health, a.dead, a.killer = hp or 1, false, nil
+            SIM.fire("OnWeaponHitCharacter", by, a, w, dmg)
+            return a:getHealth()
+        end
+        out.eHit = struck(p, bar, 1)
+        out.eTired = struck(p, bar, 0.02)
+        out.eShot = struck(p, gun, 0.02)
+        out.eZombie = struck(SIM.newZombie(0, 0, 0, "Hobbo"), bar, 1)
+        out.eLast, out.eKilled = struck(p, bar, 1, 0.2), a.dead
+        -- Three of the engine's hits and it has nothing left, however weak each.
+        a.health = 1
+        for _ = 1, C.Rous.hits do SIM.fire("OnWeaponHitCharacter", p, a, bar, 0.02) end
+        out.eThree = a:getHealth()
+        SIM.tickN(C.Rous.stagger + C.Rous.windup + 2)
+        -- A shove: no harm, thrown back a square, and nothing bitten for a while.
+        stand(cx + 0.5, cy + 0.5, cx + 1.5, cy + 0.5)
+        local notes = #SIM.notes
+        p.wounds = {}
+        SIM.fire("OnWeaponHitCharacter", p, a, { getType = function() return "BareHands" end }, 0.3)
+        out.shoveHp, out.shoveAt = a:getHealth(), a.x - (cx + 1.5)
+        out.shoveTold = #SIM.notes - notes
+        local x0 = a.x
+        SIM.tickN(C.Rous.shove - 5)
+        out.shoveStill, out.shoveBites = a.x == x0, #p.wounds
+        -- Not through a wall: shoved at the gnawed wall, it stays this side of it.
+        SIM.tickN(C.Rous.windup + 40)
+        stand(gx + (gx - vx) + 0.5, gy + (gy - vy) + 0.5, gx + 0.5, gy + 0.5)
+        SIM.fire("OnWeaponHitCharacter", p, a, { getType = function() return "BareHands" end }, 0.3)
+        out.shoveWall = math.floor(a.x) == gx and math.floor(a.y) == gy
+        -- A weapon's hit stops it too: one about to bite does not.
+        SIM.tickN(C.Rous.shove + C.Rous.windup + 40)
+        stand(cx + 0.5, cy + 0.5, cx + 1.5, cy + 0.5)
+        local h = N.mark(a, p)
+        h.stun, h.bite, h.close = nil, 0, true
+        p.wounds = {}
+        SIM.fire("OnWeaponHitCharacter", p, a, bar, 0.1)
+        SIM.tickN(C.Rous.stagger - 5)
+        out.hitStops = #p.wounds
+        -- And one that has just reached somebody does not bite that instant.
+        SIM.tickN(C.Rous.windup + 40)
+        stand(cx + 0.5, cy + 0.5, cx + 1.5, cy + 0.5)
+        N.hunting[a] = nil
+        p.wounds = {}
+        SIM.tickN(C.Rous.windup - 10)
+        out.early = #p.wounds
+        SIM.tickN(C.Rous.every + 30)
+        out.late = #p.wounds
+        stand(cx + 0.5, cy + 0.5, cx + 1.5, cy + 0.5)
+        p.primary = nil
+        out.bare = swing(1, 0)
+        p.primary = bar
+        -- From the street over the nest: the floor is between them.
+        stand(cx + 0.5, cy + 0.5, cx + 1.5, cy + 0.5)
+        p.z = 0
+        out.above = swing(1, 0)
+        p.z = -1
+        -- Three squares off: seen by the look round, and out of a crowbar's reach.
+        stand(cx - 0.5, cy + 0.5, cx + 2.5, cy + 0.5)
+        out.far = swing(1, 0)
+        p.primary = gun
+        stand(cx - 1.5, cy + 0.5, cx + 2.5, cy + 0.5)
+        out.shot = swing(1, 0)
+        stand(cx - 1.5, cy + 0.5, cx + 2.5, cy + 0.5)
+        out.shotAway = swing(-1, 0)
+        stand(cx - 1.5, cy + 0.5, cx + 1.5, cy + 2.5)
+        out.shotWide = swing(1, 0)
+        -- Through the gnawed wall, which is still shut: nothing.
+        stand(vx + 0.5, vy + 0.5, gx + 0.5, gy + 0.5)
+        out.wall = swing(gx - vx, gy - vy)
+        -- And to the death: vanilla's own way of it.
+        p.primary = bar
+        stand(cx + 0.5, cy + 0.5, cx + 1.5, cy + 0.5, 0.3)
+        notes = #SIM.notes
+        swing(1, 0)
+        out.dead, out.killer = a.dead, a.killer == p
+        out.killTold = SIM.notes[#SIM.notes] == "ROUS killed" and #SIM.notes == notes + 1
+        a.health, a.dead, a.killer = 1, false, nil
+        for i = 2, #all do all[i].dead = false end
+        p.primary = nil
+        return out
+    """, cx, cy, vx, vy, gx, gy)
+    check(swings.noFloor is None, "(every square stood on in this is the nest's floor)")
+    third = 1 - (1 / C.Rous.hits + 0.001)
+    check(abs(swings.hit - third) < 1e-6 and swings.atOnce == 1 and swings.told == 0,
+          "a swing at a ROUS lands a few ticks later, and nothing is said of a hit (health %.2f)" % swings.hit)
+    check(swings.behind == 1 and swings.far == 1 and swings.bare == 1 and swings.above == 1,
+          "not one behind them, not one out of reach, not with empty hands, not from the street above (%s, %s, %s, %s)"
+          % (swings.behind, swings.far, swings.bare, swings.above))
+    check(abs(swings.engine - third) < 1e-6,
+          "a swing the engine landed itself takes the same off, once (%s)" % swings.engine)
+    check(abs(swings.eHit - third) < 1e-6 and abs(swings.eTired - third) < 1e-6 and swings.eThree == 0,
+          "every weapon hit takes a third, a tired arm's too: three and it is done (%.2f, %.2f, %s)"
+          % (swings.eHit, swings.eTired, swings.eThree))
+    check(abs(swings.eShot - (0.5 - 0.001)) < 1e-6, "a bullet takes half (%.2f)" % swings.eShot)
+    check(swings.eZombie == 1, "a zombie's swipe does nothing")
+    check(swings.shoveHp == 1 and abs(swings.shoveAt - C.Rous.shovePush) < 1e-6 and swings.shoveTold == 0,
+          "a shove hurts nothing and throws it back a square, without a word (%.2f)" % swings.shoveAt)
+    check(swings.shoveStill is True and swings.shoveBites == 0,
+          "and for a couple of seconds it neither moves nor bites (%d bites)" % swings.shoveBites)
+    check(swings.shoveWall is True, "it is not thrown through a wall")
+    check(swings.hitStops == 0, "a weapon's hit stops one that was about to bite (%d bites)" % swings.hitStops)
+    check(swings.early == 0 and swings.late >= 1,
+          "one that has just reached a player does not bite at once, and then does (%d, %d)"
+          % (swings.early, swings.late))
+    check(swings.eLast == 0 and swings.eKilled is False,
+          "its last health goes in the engine's hit, and the engine does the killing there, not us twice")
+    check(abs(swings.shot - (0.5 - 0.001)) < 1e-6 and swings.shotAway == 1 and swings.shotWide == 1,
+          "a bullet hits one on its line (%.2f); not fired the other way, not wide of it" % swings.shot)
+    check(swings.wall == 1, "nothing hits one through a wall (%s)" % swings.wall)
+    check(swings.dead is True and swings.killer is True, "and health run out kills it, as the game's slaughter does")
+    check(swings.killTold is True, "and that is what is said: ROUS killed, once")
     # And right behind it, a step away: no bite through brick.
     p.x, p.y = vx + 0.5, vy + 0.5
     p.wounds = L.table()
@@ -490,7 +651,7 @@ def dev_menu_test(L, p):
         return
     sub = top[0].subMenu
     names = [n for n, _ in options(sub)]
-    check(len(names) == 12, "with its twelve stops (%s)" % names)
+    check(len(names) == 15, "with its fifteen stops (%s)" % names)
 
     # As the game does it: nothing is loaded where a trip lands until the
     # player is there (found in play: every trip was rescued to a ladder).
@@ -562,6 +723,46 @@ def dev_menu_test(L, p):
     pick("dig")
     check(p.inv.containsTypeRecurse(p.inv, "PickAxe") and p.inv.containsTypeRecurse(p.inv, "PipeBomb"),
           "Give me a pickaxe and pipe bombs does")
+    pick("gun")
+    check(p.inv.containsTypeRecurse(p.inv, "Pistol") and p.inv.containsTypeRecurse(p.inv, "Bullets9mmBox"),
+          "Give me a pistol and bullets does")
+    # Fire and snow, a click each: on a street with a tunnel under it.
+    fx, fy = pick_shafts(L)[0][0], pick_shafts(L)[0][1]
+    street(L, fx, fy, 6)
+    SEW.Dev = True
+    was = (p.x, p.y, p.z)
+    p.x, p.y, p.z = fx + 0.5, fy + 0.5, 0
+    lit = L.execute("""
+        local x, y = ...
+        SEW.Client.devGo(SIM.players[1], "fire")
+        local n, near, bare = 0, 0, 0
+        for dx = -6, 6 do for dy = -6, 6 do
+            local s = SIM.squares[(x + dx) .. "," .. (y + dy) .. ",0"]
+            if s and s.flags.burning then
+                n = n + 1
+                if math.abs(dx) + math.abs(dy) < 3 then near = near + 1 end
+                local under = SIM.squares[(x + dx) .. "," .. (y + dy) .. ",-1"]
+                if not (under and SEW.Sewer.ours(under)) then bare = bare + 1 end
+                s.flags.burning = nil
+            end
+        end end
+        return n, near, bare
+    """, fx, fy)
+    check(1 <= lit[0] <= 6 and lit[1] == 0 and lit[2] == 0,
+          "Light the street here: a few squares over the tunnel, none at the player's feet (%d, %d, %d)" % tuple(lit))
+    sim.snow = None
+    pick("snow")
+    on = sim.snow
+    sim.snow = None
+    pick("snow")
+    check(on == 100 and sim.snow is None, "Make it snow holds the snow on the ground; again, and it lets go")
+    SEW.Dev = None
+    SEW.Client.devSnow = True
+    sim.tickN(3)
+    check(sim.snow is None, "and outside the dev build nothing touches the weather")
+    SEW.Client.devSnow = False
+    SEW.Dev = True
+    p.x, p.y, p.z = was
     pick("maps")
     held = L.execute("""
         local n = {}
@@ -1481,6 +1682,23 @@ def maps_test(L, p):
           % (fill[1],))
     check(fill[4] == 0 and fill[5] == 0 and fill[6] in ours,
           "not when the dice say no, not with the sandbox's annotated maps off; and on the game's own event")
+    # The engine fires the same event with a loot definition in the
+    # container's place (a bag with bags in its table): an object Lua cannot
+    # index. A player's error box, 0.7.4.
+    odd = L.execute("""
+        local before = #SIM.log
+        local def = setmetatable({}, { __index = function(_, k)
+            -- (The sim's instanceof reads these two; the game's is Java.)
+            if k == "class" or k == "isPlayerObject" then return nil end
+            error("attempted index: " .. tostring(k) .. " of non-table: ItemPickerJava$ItemPickerContainer")
+        end })
+        SIM.fire("OnFillContainer", "Container", "Bag_Schoolbag", def)
+        local n = SEW.Maps.onFill("Container", "Bag_Schoolbag", def)
+        local warn = 0
+        for i = before + 1, #SIM.log do if SIM.log[i]:find("WARN") then warn = warn + 1 end end
+        return n, warn
+    """)
+    check(odd[0] == 0 and odd[1] == 0, "a loot event with no container in it is let be (%d made, %d WARN)" % tuple(odd))
 
     # On the dead below ground, never above; in a crate as it is stocked.
     dead = L.execute("""
@@ -2236,6 +2454,236 @@ def street_test(L, p):
     heard = [s for s in lua_list(sim.sounds)[n0:] if s in ours]
     check(len(heard) == 5, "and in the sewer they are (%d of 5)" % len(heard))
     sim.tickN(C.Street.every)
+
+
+def fire_test(L, x, y):
+    """Fire does not cross the street's floor (SEW_Fire; a player's report,
+    0.7.4). x, y: a square of ours with the street over it."""
+    out = L.execute("""
+        local x, y = ...
+        local function sq(dx, dy, z) return SIM.squares[(x + dx) .. "," .. (y + dy) .. "," .. z] end
+        local function clear()
+            for dx = -3, 3 do for dy = -3, 3 do for z = -1, 0 do
+                local s = sq(dx, dy, z)
+                if s then s.flags.burning = nil end
+            end end end
+        end
+        local function lit(dx, dy, z) return sq(dx, dy, z).flags.burning == true end
+        -- A square of ours beside this one.
+        local bx, by
+        for dx = -1, 1 do for dy = -1, 1 do
+            local s = sq(dx, dy, -1)
+            if not bx and (dx ~= 0 or dy ~= 0) and s and SEW.Sewer.ours(s) then bx, by = dx, dy end
+        end end
+        local out = { beside = bx ~= nil }
+        -- Down: from straight over it, and from the far corner of the four.
+        clear(); SIM.startFire(x, y, 0); SIM.tickN(2)
+        out.street = lit(0, 0, 0)
+        SIM.startFire(x, y, -1)
+        out.notInTheEvent = lit(0, 0, -1)
+        SIM.tickN(2)
+        out.down = not lit(0, 0, -1) and lit(0, 0, 0)
+        clear(); SIM.startFire(x + 1, y + 1, 0); SIM.tickN(2); SIM.startFire(x, y, -1); SIM.tickN(2)
+        out.corner = not lit(0, 0, -1)
+        -- A fire lit in the tunnel is the tunnel's.
+        clear(); SIM.startFire(x, y, -1); SIM.tickN(2)
+        out.own = lit(0, 0, -1)
+        -- And one with its own flames beside it (a molotov), whatever burns overhead.
+        clear(); SIM.startFire(x, y, 0); SIM.tickN(2)
+        SIM.startFire(x + bx, y + by, -1); SIM.startFire(x, y, -1); SIM.tickN(2)
+        out.molotov = lit(0, 0, -1) and lit(bx, by, -1)
+        -- A campfire.
+        clear(); SIM.startFire(x, y, 0); SIM.tickN(2); SIM.startFire(x, y, -1, true); SIM.tickN(2)
+        out.campfire = lit(0, 0, -1)
+        -- Up: onto the street over a burning tunnel; not one with the street alight beside it.
+        clear(); SIM.startFire(x, y, -1); SIM.tickN(2); SIM.startFire(x, y, 0); SIM.tickN(2)
+        out.up = not lit(0, 0, 0) and lit(0, 0, -1)
+        clear(); SIM.startFire(x, y, -1); SIM.tickN(2)
+        SIM.startFire(x + 1, y, 0); SIM.startFire(x, y, 0); SIM.tickN(2)
+        out.upBeside = lit(0, 0, 0)
+        -- Somebody's basement under a burning house is theirs.
+        local fx = 3
+        while sq(fx, 0, -1) do fx = fx + 1 end
+        local cellar = getCell():getOrCreateGridSquare(x + fx, y, -1)
+        cellar.objects:add(IsoObject.new(cellar, "floors_interior_tilesandwood_01_24", ""))
+        local house = getCell():getOrCreateGridSquare(x + fx, y, 0)
+        if #house.objects._t == 0 then house.objects:add(IsoObject.new(house, "floors_exterior_street_01_0", "")) end
+        SIM.startFire(x + fx, y, 0); SIM.tickN(2); SIM.startFire(x + fx, y, -1); SIM.tickN(2)
+        out.cellar = cellar.flags.burning == true
+        cellar.flags.burning, house.flags.burning = nil, nil
+        clear()
+        return out
+    """, x, y)
+    check(out.beside is True and out.street is True, "a fire on the street over a tunnel burns as it did")
+    check(out.notInTheEvent is True and out.down is True,
+          "one that comes down through the street's floor is put out, on the tick after it is made")
+    check(out.corner is True, "from any of the four squares that spread down onto it")
+    check(out.own is True and out.molotov is True and out.campfire is True,
+          "a fire lit in the tunnel burns: alone, with its own flames beside it, a campfire")
+    check(out.up is True and out.upBeside is True,
+          "one that comes up out of the tunnel is put out; a street already alight is not")
+    check(out.cellar is True, "and a basement that is not ours burns with its house")
+
+
+def weather_test(L, p, x, y):
+    """No snow below (SEW_Weather; two players' reports, 0.7.4): the exterior
+    flag comes off the squares of ours round a player in the sewer -- and
+    stays on both squares of a door. x, y: a square of ours to stand on."""
+    g = L.globals()
+    sim, C = g.SIM, g.SEW.Config
+    cycle = 2 * C.Weather.reach + 3
+    p.x, p.y, p.z = x + 0.5, y + 0.5, -1
+    count = """
+        local x, y = ...
+        local ours, flagged = 0, 0
+        for dx = -8, 8 do for dy = -8, 8 do
+            local s = SIM.squares[(x + dx) .. "," .. (y + dy) .. ",-1"]
+            if s and SEW.Sewer.ours(s) then
+                ours = ours + 1
+                if s.flags.exterior then flagged = flagged + 1 end
+            end
+        end end
+        return ours, flagged
+    """
+    L.execute("for _, s in pairs(SIM.squares) do SIM.recalc(s) end")
+    before = L.execute(count, x, y)
+    # The engine's own answer first, or the rest proves nothing.
+    check(before[0] > 20 and before[1] == before[0],
+          "to the engine every square of the sewer is outdoors: snow lies on it (%d of %d)" % (before[1], before[0]))
+    redraws = sim.redraws
+    sim.tickN(cycle)
+    after = L.execute(count, x, y)
+    check(after[1] == 0 and sim.redraws > redraws,
+          "round a player in the sewer the flag comes off, and the chunk is drawn again (%d left)" % after[1])
+    street = L.execute("local s = SIM.squares['%d,%d,0']; return s ~= nil and s.flags.exterior == true" % (x, y))
+    check(street is True, "the street over it keeps its snow")
+    doors = L.execute("""
+        local x, y, cycle = ...
+        local C, S = SEW.Config, SEW.Sewer
+        local function sq(px, py) return SIM.squares[px .. "," .. py .. ",-1"] end
+        local function ours(px, py) local s = sq(px, py); return s ~= nil and S.ours(s) end
+        -- A square of ours with ours on all four sides.
+        local d
+        for dx = -8, 8 do for dy = -8, 8 do
+            local px, py = x + dx, y + dy
+            if not d and ours(px, py) and ours(px, py - 1) and ours(px - 1, py) and ours(px + 1, py)
+                    and ours(px, py + 1) and #sq(px, py).specials._t == 0 then d = { px, py } end
+        end end
+        if not d then return nil end
+        local here, north, west, east = sq(d[1], d[2]), sq(d[1], d[2] - 1), sq(d[1] - 1, d[2]), sq(d[1] + 1, d[2])
+        local function flag() for _, s in ipairs({ here, north, west, east }) do SIM.recalc(s) end end
+        local out = {}
+        local door = IsoDoor.new(getCell(), here, C.Sprites.door.N, true)
+        here.objects:add(door); here.specials:add(door)
+        flag(); SIM.tickN(cycle)
+        out.n = here.flags.exterior == true and north.flags.exterior == true
+        out.nOthers = west.flags.exterior == nil and east.flags.exterior == nil
+        door.north = false
+        flag(); SIM.tickN(cycle)
+        out.w = here.flags.exterior == true and west.flags.exterior == true and north.flags.exterior == nil
+        here.objects:remove(door); here.specials:remove(door)
+        flag(); SIM.tickN(cycle)
+        out.gone = here.flags.exterior == nil and west.flags.exterior == nil
+        -- Something built beside it: the engine works the flag out again, and it comes off again.
+        east:transmitAddObjectToSquare(IsoObject.new(east, C.Sprites.puddle, ""), -1)
+        out.back = east.flags.exterior == true
+        SIM.tickN(cycle)
+        out.again = east.flags.exterior == nil
+        return out
+    """, x, y, cycle)
+    check(doors is not None and doors.n is True and doors.nOthers is True and doors.w is True,
+          "both squares of a door stay outdoors, north edge and west: a locked one holds against the dead")
+    check(doors is not None and doors.gone is True, "the door gone, they are indoors like the rest")
+    check(doors is not None and doors.back is True and doors.again is True,
+          "a flag the engine puts back comes off again on the next pass")
+    other = L.execute("""
+        local x, y, cycle = ...
+        local fx = 3
+        while SIM.squares[(x + fx) .. "," .. y .. ",-1"] do fx = fx + 1 end
+        local cellar = getCell():getOrCreateGridSquare(x + fx, y, -1)
+        cellar.objects:add(IsoObject.new(cellar, "floors_interior_tilesandwood_01_24", ""))
+        SIM.tickN(cycle)
+        local theirs = cellar.flags.exterior == true
+        -- Up on the street nothing is looked at; and with the switch off.
+        for _, s in pairs(SIM.squares) do SIM.recalc(s) end
+        local p = SIM.players[1]
+        p.z = 0
+        local up = SEW.Weather.tick(p)
+        p.z = -1
+        SEW.Config.Weather.indoors = false
+        local off = SEW.Weather.tick(p)
+        SEW.Config.Weather.indoors = true
+        return theirs, up, off
+    """, x, y, cycle)
+    check(other[0] is True and other[1] == 0 and other[2] == 0,
+          "a square that is not ours is left as it was; nothing from the street; nothing with the switch off")
+    sim.tickN(cycle)
+
+
+def climb_test(L, p, mx, my, lx, ly):
+    """A climb that does not depend on the walk to it (0.7.5: a player was
+    trapped below on a server). mx, my the cover; lx, ly its ladder's square."""
+    g = L.globals()
+    sim = g.SIM
+    L.execute("SEW.Build.around(%d, %d, 2)" % (mx, my))
+    sim.walkFails = True
+    p.x, p.y, p.z = lx + 0.5, ly + 0.5, -1
+    sim.queue = L.table()
+    choose(menu(L, 0, lx, ly), TEXT["ContextMenu_SEW_Exit"])
+    sim.runActions()
+    sim.tickN(12)
+    check(abs(p.z) < 1e-6 and int(p.x) == mx and int(p.y) == my,
+          "at the ladder, the climb out needs no walk and no path (%.1f,%.1f,%.1f)" % (p.x, p.y, p.z))
+    p.x, p.y, p.z = lx + 6.5, ly + 6.5, -1
+    notes = len(lua_list(sim.notes))
+    choose(menu(L, 0, lx, ly), TEXT["ContextMenu_SEW_Exit"])
+    said = lua_list(sim.notes)[notes:]
+    check(len(lua_list(sim.queue)) == 0 and TEXT["IGUI_SEW_Closer"] in said,
+          "from across the tunnel with no way found, nothing is queued and the player is told (%s)" % said)
+    sim.walkFails = None
+    choose(menu(L, 0, lx, ly), TEXT["ContextMenu_SEW_Exit"])
+    check(len(lua_list(sim.queue)) == 1, "with a way found, the walk and the climb as before")
+    sim.queue = L.table()
+    p.x, p.y, p.z = mx + 0.5, my + 0.5, 0
+    sim.tickN(12)
+
+
+def exit_signs_test(L, mx, my):
+    """Sandbox, EXIT stencils (asked by a player, 0.7.4): none, few, or all."""
+    out = L.execute("""
+        local mx, my = ...
+        local B, C = SEW.Build, SEW.Config
+        local function painted(v)
+            SandboxVars.Sewars.ExitSigns = v
+            local n = 0
+            for i = 1, 300 do if B.exitSign(10000 + i, 9000 + 7 * i) then n = n + 1 end end
+            return n
+        end
+        local none, few, all, unset = painted(1), painted(2), painted(3), painted(nil)
+        -- And through the builder: a square whose record has the stencil.
+        local function free()
+            for dy = 30, 70 do for dx = -60, 60 do
+                local x, y = mx + dx, my + dy
+                if SIM.loaded[math.floor(x / 8) .. "," .. math.floor(y / 8)] and not SIM.squares[x .. "," .. y .. ",-1"] then
+                    return x, y
+                end
+            end end
+        end
+        local function build(v)
+            SandboxVars.Sewars.ExitSigns = v
+            local x, y = free()
+            if not x then return nil end
+            B.square(x, y, (x % 8) .. (y % 8) .. "tc..e", true, false)
+            return B.hasPicture(SIM.squares[x .. "," .. y .. ",-1"], C.Sprites.exit.N)
+        end
+        local on, off = build(3), build(1)
+        SandboxVars.Sewars.ExitSigns = nil
+        return none, few, all, unset, on, off
+    """, mx, my)
+    check(out[0] == 0 and out[2] == 300 and out[3] == 300 and 60 <= out[1] <= 140,
+          "EXIT stencils by the sandbox: none, about one in three (%d of 300), all; all in a save from before it"
+          % out[1])
+    check(out[4] is True and out[5] is False, "and the builder paints one, or with None does not (%s, %s)" % (out[4], out[5]))
 
 
 def single_player():
@@ -3240,6 +3688,19 @@ def single_player():
     street_test(L, p)
     rooms_test(L, p, False)
     sim.players = L.table(p)
+    street(L, mx, my, 6)
+    L.execute("SEW.Build.around(%d, %d, 2)" % (mx, my))
+    # The tests above leave a rescue waiting for a floor in a chunk the sim
+    # never loaded (a hop of theirs onto bare rock). Its patience would run
+    # out in the ticks below and log a WARN that is none of this: answered.
+    p.x, p.y, p.z = mx + 0.5, my + 0.5, 0
+    L.execute("SEW.Net.clientHandlers.go({ x = %d, y = %d, z = 0, mode = 'hold' })" % (mx, my))
+    sim.tickN(3)
+    fire_test(L, mx, my)
+    weather_test(L, p, mx, my)
+    climb_test(L, p, mx, my, lx, ly)
+    exit_signs_test(L, mx, my)
+    sim.players = L.table(p)
 
     unknown = [k for k in sim.unknownSprites.keys()]
     check(not unknown, "every sprite placed exists in the game (%s)" % unknown[:5])
@@ -3512,8 +3973,213 @@ def multiplayer():
 
     rooms_test(Ls, ps, True)
 
+    # --- 0.7.5: a climb is asked for until it is answered ---------------------------------
+    C = gc.SEW.Config
+    # What the tests above asked of the server directly and never delivered.
+    gs.SIM.outbox, gc.SIM.outbox = Ls.table(), Lc.table()
+    pc.x, pc.y, pc.z = mx + 0.5, my + 1.5, 0
+    ps.x, ps.y, ps.z = pc.x, pc.y, pc.z
+    gs.SIM.tickN(C.ClimbRepeat + 1)
+    gc.SIM.tickN(5)
+
+    def go_down():
+        pc.x, pc.y, pc.z = mx + 0.5, my + 1.5, 0
+        choose(menu(Lc, 0, mx, my), TEXT["ContextMenu_SEW_Enter"])
+        pump()
+        pump()
+        return abs(pc.z + 1) < 1e-6
+
+    def asked_by_command():
+        return len([l for l in lua_list(gs.SIM.log) if "by command" in l])
+
+    def sent(cmd):
+        return [m for m in lua_list(gc.SIM.outbox) if m[1] == "clientCommand" and m[4] == cmd]
+
+    # Answered as it should be: nothing is asked twice.
+    check(go_down(), "the client is below again")
+    gc.SIM.tickN(C.ClimbAskAgain + C.ClimbGiveUp + 10)
+    check(asked_by_command() == 0 and not sent("climb"), "a climb the server answers is asked once")
+
+    # The action never reaches the server's half: the client asks by command.
+    gc.SIM.dropActions = True
+    pc.x, pc.y = lx + 0.5, ly + 0.5
+    choose(menu(Lc, 0, lx, ly), TEXT["ContextMenu_SEW_Exit"])
+    pump()
+    check(abs(pc.z + 1) < 1e-6 and not sent("climb"), "an unanswered climb out: the client waits a moment first")
+    gc.SIM.tickN(C.ClimbAskAgain + 2)
+    check(len(sent("climb")) == 1, "then asks again by command")
+    pump()
+    pump()
+    check(abs(pc.z) < 1e-6 and asked_by_command() == 1,
+          "and the server, asked that way, grants it by the same checks (%.1f)" % pc.z)
+    gc.SIM.tickN(C.ClimbGiveUp + 10)
+    check(len(sent("climb")) == 0, "once answered it asks no more")
+
+    # The server answers nothing at all: a climb out is made anyway.
+    gc.SIM.dropActions = None
+    check(go_down(), "below once more")
+    gc.SIM.dropActions = True
+    pc.x, pc.y = lx + 0.5, ly + 0.5
+    choose(menu(Lc, 0, lx, ly), TEXT["ContextMenu_SEW_Exit"])
+    gc.SIM.runActions()
+    gc.SIM.tickN(C.ClimbAskAgain + 2)
+    gc.SIM.outbox = Lc.table()
+    gc.SIM.tickN(C.ClimbGiveUp - 5)
+    check(abs(pc.z + 1) < 1e-6, "with no answer to the command either, the client waits out the time")
+    gc.SIM.tickN(12)
+    check(abs(pc.z) < 1e-6 and int(pc.x) == mx and int(pc.y) == my,
+          "then climbs out anyway: nobody is left below by a server's silence (%.1f,%.1f,%.1f)" % (pc.x, pc.y, pc.z))
+    ps.x, ps.y, ps.z = pc.x, pc.y, pc.z
+
+    # A climb *down* nobody answers moves nobody: the tunnel is the server's to build.
+    pc.x, pc.y, pc.z = mx + 0.5, my + 1.5, 0
+    notes = len(lua_list(gc.SIM.notes))
+    choose(menu(Lc, 0, mx, my), TEXT["ContextMenu_SEW_Enter"])
+    gc.SIM.runActions()
+    gc.SIM.tickN(C.ClimbAskAgain + C.ClimbGiveUp + 12)
+    gc.SIM.outbox = Lc.table()
+    check(abs(pc.z) < 1e-6 and TEXT["IGUI_SEW_Unready"] in lua_list(gc.SIM.notes)[notes:],
+          "an unanswered climb down moves nobody, and says so")
+    gc.SIM.dropActions = None
+
+    # A refusal is an answer: obeyed, never climbed past.
+    check(go_down(), "below a last time")
+    pc.x, pc.y = lx + 0.5, ly + 0.5
+    choose(menu(Lc, 0, lx, ly), TEXT["ContextMenu_SEW_Exit"])
+    gc.SIM.runActions()
+    gc.SIM.outbox = Lc.table()
+    gc.SIM.fire("OnServerCommand", "Sewars", "refused", Lc.table_from({"why": "reach", "at": "0.0,0.0,-1.0"}))
+    gc.SIM.tickN(C.ClimbAskAgain + C.ClimbGiveUp + 12)
+    check(abs(pc.z + 1) < 1e-6 and not sent("climb"), "a refused climb is not asked again and not made anyway")
+    where = Ls.execute("""
+        local x, y = ...
+        local p = SIM.players[1]
+        local px, py, pz = p.x, p.y, p.z
+        p.x, p.y, p.z = x + 30.5, y + 0.5, -1
+        SIM.outbox = {}
+        SEW.Server.grant(p, x, y, "up")
+        local m = SIM.outbox[1]
+        p.x, p.y, p.z = px, py, pz
+        SIM.outbox = {}
+        return m and m[4], m and m[5].why, m and m[5].at
+    """, mx, my)
+    check(where[0] == "refused" and where[1] == "reach" and where[2] == "%.1f,%.1f,-1.0" % (mx + 30.5, my + 0.5),
+          "a refusal carries where the server has the player (%s)" % (where[2],))
+    check(any("the server has you at 0.0,0.0,-1.0" in l for l in lua_list(gc.SIM.log)),
+          "and the client's log says where the server had the player")
+
+    # The server's half ends first, so its answer is often in before the
+    # client's half ends: that climb is answered, and is not waited for.
+    early = Lc.execute("""
+        local x, y = ...
+        local p = SIM.players[1]
+        local px, py, pz = p.x, p.y, p.z
+        SEW.Net.clientHandlers.go({ x = x, y = y, z = 0, mode = "up", street = "" })
+        local same = SEW.Client.expect(x, y, "up")
+        local other = SEW.Client.expect(x, y, "down")
+        SEW.Net.clientHandlers.refused({ why = "reach" })
+        local afterNo = SEW.Client.expect(x, y, "down")
+        SIM.tickN(3)
+        p.x, p.y, p.z = px, py, pz
+        SIM.outbox = {}
+        return same, other, afterNo
+    """, mx, my)
+    check(early[0] is False and early[1] is True and early[2] is False,
+          "an answer already in is not waited for; another climb's is (%s)" % (tuple(early),))
+
+    # The same climb asked twice is answered once.
+    ps.x, ps.y, ps.z = lx + 0.5, ly + 0.5, -1
+    twice = Ls.execute("""
+        local x, y = ...
+        SIM.outbox = {}
+        local p = SIM.players[1]
+        local a = SEW.Server.grant(p, x, y, "up")
+        -- The client has made the climb by the time its command arrives.
+        p.x, p.y, p.z = x + 0.5, y + 0.5, 0
+        local before = #SIM.log
+        local b = SEW.Server.grant(p, x, y, "up")
+        local go, refused = 0, 0
+        for _, m in ipairs(SIM.outbox) do
+            if m[1] == "serverCommand" and m[4] == "go" then go = go + 1 end
+            if m[1] == "serverCommand" and m[4] == "refused" then refused = refused + 1 end
+        end
+        -- Back below, and asking again: a new climb, not a repeat.
+        p.x, p.y, p.z = x + 0.5, y + 0.5, -1
+        SIM.outbox = {}
+        local c = SEW.Server.grant(p, x, y, "up")
+        local again = 0
+        for _, m in ipairs(SIM.outbox) do if m[1] == "serverCommand" and m[4] == "go" then again = again + 1 end end
+        SIM.outbox = {}
+        return a, b, go, refused, c, again
+    """, mx, my)
+    check(twice[0] is True and twice[1] is True and twice[2] == 1 and twice[3] == 0,
+          "the action and the command both arriving move the player once, and refuse nothing (%d, %d)"
+          % (twice[2], twice[3]))
+    check(twice[4] is True and twice[5] == 1, "a player back below who asks again is answered again")
+    pc.x, pc.y, pc.z = mx + 0.5, my + 0.5, 0
+    ps.x, ps.y, ps.z = pc.x, pc.y, pc.z
+    gc.SIM.tickN(5)
+
+    # --- 0.7.5: fire, snow and the ROUS on a server ---------------------------------------
+    check(gs.SEW.Weather is None and gc.SEW.Fire is None,
+          "the snow is the client's to take off, fire the server's to put out")
+    burnt = Ls.execute("""
+        local x, y = ...
+        SIM.outbox = {}
+        SIM.startFire(x, y, 0); SIM.tickN(2); SIM.startFire(x, y, -1); SIM.tickN(2)
+        local told = 0
+        for _, m in ipairs(SIM.outbox) do if m[1] == "stopFire" then told = told + 1 end end
+        local out = SIM.squares[x .. "," .. y .. ",-1"].flags.burning == nil
+        SIM.squares[x .. "," .. y .. ",0"].flags.burning = nil
+        SIM.outbox = {}
+        return out, told
+    """, mx, my)
+    check(burnt[0] is True and burnt[1] == 1, "on a server the fire is put out and the clients are told (%s)" % (tuple(burnt),))
+    pc.x, pc.y, pc.z = mx + 0.5, my + 0.5, -1
+    Lc.execute("for _, s in pairs(SIM.squares) do SIM.recalc(s) end")
+    gc.SIM.tickN(2 * C.Weather.reach + 3)
+    snow = Lc.execute("""
+        local x, y = ...
+        local ours, flagged = 0, 0
+        for dx = -4, 4 do for dy = -4, 4 do
+            local s = SIM.squares[(x + dx) .. "," .. (y + dy) .. ",-1"]
+            if s and SEW.Sewer.ours(s) and #s.specials._t == 0 then
+                ours = ours + 1
+                if s.flags.exterior then flagged = flagged + 1 end
+            end
+        end end
+        return ours, flagged
+    """, mx, my)
+    check(snow[0] > 0 and snow[1] <= 4,
+          "a client takes the outdoors flag off what the server built (%d of %d left, by a door)" % (snow[1], snow[0]))
+    v = lua_list(gc.SIM.violations)
+    check(not v, "and edits nothing in the world doing it (%s)" % v[:3])
+    lair = gc.SEW.Index.lair
+    swung = Lc.execute("""
+        local lx, ly = ...
+        local p = SIM.players[1]
+        local x, y, z = p.x, p.y, p.z
+        SIM.outbox = {}
+        p.fx, p.fy = 0, 1
+        SIM.fire("OnWeaponSwingHitPoint", p, nil)
+        local away = #SIM.outbox
+        p.x, p.y, p.z = lx + 0.5, ly + 0.5, -1
+        SIM.fire("OnWeaponSwingHitPoint", p, nil)
+        local m = SIM.outbox[1]
+        p.x, p.y, p.z = x, y, z
+        SIM.outbox = {}
+        return away, m and m[4], m and m[5].fx, m and m[5].fy
+    """, lair.x, lair.y)
+    check(swung[0] == 0 and swung[1] == "swing" and swung[2] == 0 and swung[3] == 1,
+          "a client's swing near the nest is sent to the server with the way it faced; elsewhere nothing is")
+    check(gs.SEW.Net.serverHandlers.swing is not None and gs.SEW.Net.serverHandlers.climb is not None,
+          "and the server has a handler for it, and for a climb asked by command")
+    pc.x, pc.y, pc.z = mx + 0.5, my + 0.5, 0
+    ps.x, ps.y, ps.z = pc.x, pc.y, pc.z
+
+    quiet = ("has not answered", "never answered")
     check(not warns(Ls), "no WARN on the server (%s)" % warns(Ls)[:3])
-    check(not warns(Lc), "no WARN on the client (%s)" % warns(Lc)[:3])
+    check(not warns(Lc, allowed=quiet), "no WARN on the client (%s)" % warns(Lc, allowed=quiet)[:3])
     check(not list(gc.SIM.unknownText.keys()), "every text key the client used exists")
 
 

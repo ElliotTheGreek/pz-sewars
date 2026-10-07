@@ -2,8 +2,11 @@
 
 A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
-> Status: **0.7.4**: the street and the sewer out of earshot of each other both ways,
-> on top of 0.7.3: a fix for servers that stopped when a player went below, the name
+> Status: **0.7.5**: fixes from the Workshop's comments (fire coming down through
+> the street, snow in the tunnels, the rodents of unusual size hard to hit, a ladder
+> that would not be climbed on a server, an error box from the loot), and a sandbox
+> option for the EXIT stencils, on top of 0.7.4: the street and the sewer out of
+> earshot of each other both ways, on top of 0.7.3: a fix for servers that stopped when a player went below, the name
 > spelled right, and 0.7.2's digging and blasting, annotated maps, a street that no
 > longer hears the sewer, and fixes from the Workshop's comments (bunkers and
 > basements left alone and left quiet, the right-click read where it was made),
@@ -54,7 +57,7 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   house. Not every house: one the world gave a basement has none.
 - **Rats.** The game's own rats live in the tunnels now: you will hear them
   and see them run. They can be trapped, and eaten if it comes to that.
-- Somewhere in the world there is a rat hole where you can take the bricks apart and enter to find many aggressive ROUS's and a hidden cache.
+- Somewhere in the world there is a rat hole where you can take the bricks apart and enter to find many aggressive ROUS's and a hidden cache. Bring a weapon: three hits of anything you can swing put one down, two bullets, and a shove throws one back.
 - It's possible there are hidden cult members who worship the ROUS's somewhere else in the map
 - **Annotated maps.** Somebody marked both places on a map before you did.
   They turn up where maps turn up.
@@ -91,6 +94,8 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   in the sewer draws nobody on the street above. Yes: the game's own rule,
   where a floor stops no sound and running under a street brings its dead to
   stand over you.
+- **EXIT stencils**: none, few, or by every ladder (the default). The
+  stencilled EXIT and its arrow on the tunnel walls near a ladder.
 
 Each applies to tunnels and shelters not yet found.
 
@@ -113,11 +118,29 @@ mod's build) is left alone.
   their furniture, and a cover the mod adds can turn up under something built
   on the road. Both are only pictures on the floor.
 - Taking the mod out of a save is the risky direction: what it built below
-  ground loses its pictures. Be up on the street before you remove it.
+  ground loses its pictures. Be up on the street before you remove it. The
+  street itself is not changed by the mod (a cover it added is one picture on
+  the road, and goes with it), so a world above ground carries on as it was;
+  a base you built in the tunnels is what you would lose the look of.
+
+## Other mods
+
+- **Digging and basement mods** (Excavation and the like): not tested
+  together, and built not to collide. This mod's digging works only on the
+  sewers' own level and on what the sewers are made of; a square that holds
+  anything another mod put underground is left alone, by the builder and by
+  the pick, the same as a basement. The two do different jobs: this one
+  widens the sewers, theirs digs your own cellar from your own floor.
+- **Climbing and ladder mods**: the sewer's ladders are pictures on a wall
+  with the mod's own *Climb out* on them, not the game's stairs, so another
+  mod's climbing does not work on them, and lifting the cover away would not
+  change that.
+- **Weather and ambience mods**: below ground answers as indoors to every
+  mod that asks the game whether a place is outside.
 
 ## Requirements
 
-Build 42 (target **42.20.4**). Single player, hosted co-op and dedicated
+Build 42 (target **42.21.0**). Single player, hosted co-op and dedicated
 servers.
 
 ## In numbers
