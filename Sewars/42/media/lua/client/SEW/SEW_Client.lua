@@ -347,6 +347,13 @@ function Client.devGo(p, what)
         Client.devSnow = not Client.devSnow
         U.note(p, getText(Client.devSnow and "IGUI_SEW_DevSnowOn" or "IGUI_SEW_DevSnowOff"), 200, 190, 150)
         return true
+    elseif what == "wind" then
+        -- A freezing gale, held (Client.devGale): for the wind that must
+        -- not reach the tunnels (SEW_Wind). Again: off.
+        Client.devWind = not Client.devWind
+        Client.devGale(Client.devWind)
+        U.note(p, getText(Client.devWind and "IGUI_SEW_DevWindOn" or "IGUI_SEW_DevWindOff"), 200, 190, 150)
+        return true
     elseif what == "maps" then
         -- Both annotated maps, in hand: read them from the inventory.
         if not SEW.Maps then return false end
@@ -405,11 +412,28 @@ function Client.devWeather()
     end) == true
 end
 
+--- The dev build's gale: the climate's temperature and wind held by its
+--- admin values (ISAdmPanelClimate's sliders: getClimateFloat, setEnableAdmin,
+--- setAdminValue), -10 C and a full wind. An admin panel's calls, so the dev
+--- build's alone, in single player.
+function Client.devGale(on)
+    if not SEW.Dev or isClient() then return false end
+    return U.try("dev.wind", function()
+        local clim = getClimateManager()
+        for id, v in pairs({ [4] = -10, [6] = 1 }) do
+            local f = clim:getClimateFloat(id)
+            f:setEnableAdmin(on)
+            if on then f:setAdminValue(v) end
+        end
+        return true
+    end) == true
+end
+
 function Client.devMenu(playerObj, context)
     local top = context:addOption(getText("ContextMenu_SEW_Dev"), nil, nil)
     local sub = context:getNew(context)
     context:addSubMenu(top, sub)
-    for _, what in ipairs({ "dig", "gun", "fire", "snow", "maps", "temple", "breach", "trapdoor", "nest", "warren",
+    for _, what in ipairs({ "dig", "gun", "fire", "snow", "wind", "maps", "temple", "breach", "trapdoor", "nest", "warren",
                             "outfall", "gas", "poison", "gate", "key" }) do
         sub:addOption(getText("ContextMenu_SEW_Dev_" .. what), playerObj, Client.devGo, what)
     end
@@ -419,7 +443,7 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
     local playerObj = getSpecificPlayer(playerIndex)
     if not playerObj or playerObj:getVehicle() then return end
     if SEW.Dev and not isClient() and not test then U.try("devMenu", Client.devMenu, playerObj, context) end
-    -- The map, anywhere below ground (and on its key, SEW_Map).
+    -- The map, anywhere below ground. Here and nowhere else: it has no key (0.7.6).
     if S.below(playerObj) and SEW.Map and not test then
         context:addOption(getText("ContextMenu_SEW_Map"), playerObj, SEW.Map.toggle)
     end
@@ -762,8 +786,27 @@ function Client.light(p)
     end
 end
 
+-- The sewer's own sounds are the player's to switch on (0.7.6: the Workshop
+-- found them too much). A tick box in Options -> Mods, Build 42's own mod
+-- options, off until ticked; a sound is this machine's and nobody else's, so
+-- it is no sandbox option.
+Client.soundOption = nil
+U.try("ambience.option", function()
+    if not (PZAPI and PZAPI.ModOptions) then return end
+    local opts = PZAPI.ModOptions:create("Sewars", getText("IGUI_SEW_ModName"))
+    Client.soundOption = opts:addTickBox("sewerAmbience", getText("IGUI_SEW_Ambience"), false,
+                                         getText("IGUI_SEW_AmbienceTip"))
+    PZAPI.ModOptions:load()
+end)
+
+function Client.ambienceOn()
+    local o = Client.soundOption
+    return o ~= nil and U.try("ambience.value", function() return o:getValue() end) == true
+end
+
 local nextSound = 0
 function Client.ambience(p, now)
+    if not Client.ambienceOn() then return end
     -- In the sewer, not in a basement at its level (found by a player: drips,
     -- rats and groans in every cellar).
     if not S.inSewer(p) then return end

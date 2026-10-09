@@ -34,5 +34,6 @@
     "ContextMenu_SEW_Dev_dig": "Give me a pickaxe and pipe bombs",
     "ContextMenu_SEW_Dev_gun": "Give me a pistol and bullets",
     "ContextMenu_SEW_Dev_fire": "Light the street here",
-    "ContextMenu_SEW_Dev_snow": "Make it snow (again: stop)"
+    "ContextMenu_SEW_Dev_snow": "Make it snow (again: stop)",
+    "ContextMenu_SEW_Dev_wind": "Make it freeze and blow (again: stop)"
 }

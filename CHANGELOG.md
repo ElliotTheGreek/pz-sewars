@@ -8,6 +8,24 @@ below ground moves; new parts appear as you walk into them.
 
 ---
 
+## 0.7.6 (9 October 2026)
+
+**Changed, from your comments (thank you)**
+
+- The sounds in the pipes (the drip, the scuttling in the wall, the groan)
+  are off. If you liked them, tick **Sounds in the pipes** under Options ->
+  Mods -> Sewers, and they come back far less often: one every few minutes,
+  not every twenty seconds.
+- The sewer map has no key any more. K was other mods' key too. Right-click
+  anywhere below ground and choose **Sewer map**, as before. If you had
+  bound it to another key, that binding is gone as well.
+- No wind chill in the sewers. The game took a tunnel for open ground and
+  chilled you with the street's wind. Below ground you now get the still
+  air's temperature: as cold as the day is, and no colder. It does not warm
+  you. Works with mods that make the weather colder, as long as they use
+  the game's own temperature. A room you walled off and roofed yourself is
+  the game's to judge, as it always was.
+
 ## 0.7.5 (6 October 2026)
 
 **Fixed, from your comments (thank you)**

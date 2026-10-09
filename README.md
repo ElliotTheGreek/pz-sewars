@@ -2,7 +2,9 @@
 
 A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
-> Status: **0.7.5**: fixes from the Workshop's comments (fire coming down through
+> Status: **0.7.6**: no wind chill below ground, the sounds in the pipes off unless
+> you tick them, and the map on the right-click menu only (no K), on top of
+> 0.7.5: fixes from the Workshop's comments (fire coming down through
 > the street, snow in the tunnels, the rodents of unusual size hard to hit, a ladder
 > that would not be climbed on a server, an error box from the loot), and a sandbox
 > option for the EXIT stencils, on top of 0.7.4: the street and the sewer out of
@@ -32,7 +34,10 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 - **Vast, dark and scary.** Brick vaults and concrete tunnels, sludge
   channels, pipes, puddles, graffiti from whoever came before. The only
   daylight is what falls through the holes in the covers. The dead are down
-  here too, and you will hear things in the pipes.
+  here too. (Tick *Sounds in the pipes* under Options -> Mods -> Sewers and
+  now and then you will hear things in the pipes as well. Off by default.)
+- **Out of the wind.** Below ground the wind does not reach you: no wind
+  chill, only the day's own cold. Nothing down there warms you.
 - **Out of earshot.** The dead on the street do not come to the noise you
   make under it; the ones in the tunnels with you do. (The game lets sound
   through a floor. A sandbox option puts that back.)
@@ -44,9 +49,9 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   a tunnel opens the rock for two squares round it. A few things never give:
   doors, the wall a ladder hangs on, anybody's basement. `DIGGING.md` is the
   whole of it: tools, bombs, what will not give, the messages.
-- **A map you fill in yourself.** Press **K** below ground (rebindable in
-  Options -> Mods; not while driving): the sewer map
-  starts black and fills in as you walk. Municipal sewer plans reveal whole
+- **A map you fill in yourself.** Right-click anywhere below ground and
+  choose **Sewer map**: it starts black and fills in as you walk. (It has no
+  key: every key is some other mod's.) Municipal sewer plans reveal whole
   sheets of a town; shelter journals point you to the next place worth finding.
 - **Broken walls and dug caves.** Somebody knocked holes through the tunnel
   walls and kept digging: winding dirt passages that end in a hideout, a
@@ -99,6 +104,9 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
 Each applies to tunnels and shelters not yet found.
 
+One more is each player's own, under Options -> Mods -> Sewers: **Sounds in
+the pipes**, off unless ticked.
+
 ## Can I add it to an existing save or server?
 
 Yes. Nothing is built ahead of time: the sewers are built a stretch at a time
@@ -137,6 +145,10 @@ mod's build) is left alone.
   change that.
 - **Weather and ambience mods**: below ground answers as indoors to every
   mod that asks the game whether a place is outside.
+- **Cold and temperature mods**: below ground has no wind chill, for the
+  game's own body temperature and for any mod that makes the game's weather
+  colder. A mod that works out a chill of its own from the wind speed is
+  that mod's; most ask whether you are outside first, and below you are not.
 
 ## Requirements
 

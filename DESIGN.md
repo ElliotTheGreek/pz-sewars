@@ -79,8 +79,11 @@ squares round this one" with no look at the floor between. Each was found
 by a player and each is answered in its own file, never by changing what a
 tunnel is: sound (`SEW_Street`: a level is three squares of distance), a
 zombie's chase (the same), fire (`SEW_Fire`: it spreads to the level
-below), and the weather (`SEW_Weather`: a square with no room and no roof
-is open ground, so snow lies on it). The decision stands: **a tunnel is not
+below), the weather (`SEW_Weather`: a square with no room and no roof
+is open ground, so snow lies on it), and the wind (`SEW_Wind`, 0.7.6: the
+same open ground is chilled by the street's wind; each player below gets the
+still air's temperature on their own square, and nobody is warmed). The
+decision stands: **a tunnel is not
 a room and gets no roof** (a room with no building stops a server, 0.7.3),
 and what leaks is put right where it lands. The next one will be found the
 same way; DEV_GUIDE keeps the list.
@@ -298,6 +301,23 @@ where no player is standing*, *Tag every object you place*):
   it. In the warren, three point back: at the temple's trapdoor, and at each
   breach where the cult broke into a sewer. Found either way round, one
   place leads to the other.
+
+### The sounds in the pipes (0.7.6)
+
+- A drip, a scuttle in the wall, a groan from far off, on the listener's
+  machine only, in the sewer and nowhere else at its level.
+- **Decided 2026-10-09, after the Workshop: off unless asked for, and
+  rare.** A tick box in Options -> Mods -> Sewers (each player's own: a
+  sound is nobody else's business, so not the sandbox), unticked as
+  shipped; ticked, one every two to six minutes (`C.AmbienceTicks`), where
+  it was one every twelve to thirty seconds.
+
+### The sewer map has no key (0.7.6)
+
+- **Decided 2026-10-09**: the map opens from the right-click menu below
+  ground and from nothing else. It was on N (vanilla's engine key), then K
+  (the one letter vanilla leaves free, and so every other mod's first
+  choice too). A menu entry collides with nobody.
 
 ## 7. Shelters
 

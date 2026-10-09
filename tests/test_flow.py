@@ -651,7 +651,7 @@ def dev_menu_test(L, p):
         return
     sub = top[0].subMenu
     names = [n for n, _ in options(sub)]
-    check(len(names) == 15, "with its fifteen stops (%s)" % names)
+    check(len(names) == 16, "with its sixteen stops (%s)" % names)
 
     # As the game does it: nothing is loaded where a trip lands until the
     # player is there (found in play: every trip was rescued to a ladder).
@@ -762,6 +762,12 @@ def dev_menu_test(L, p):
     check(sim.snow is None, "and outside the dev build nothing touches the weather")
     SEW.Client.devSnow = False
     SEW.Dev = True
+    pick("wind")
+    adm = sim.climate.admin
+    on = adm[4].on is True and adm[4].value == -10 and adm[6].on is True and adm[6].value == 1
+    pick("wind")
+    check(on and adm[4].on is False and adm[6].on is False,
+          "Make it freeze and blow holds ten below and a gale; again, and it lets go")
     p.x, p.y, p.z = was
     pick("maps")
     held = L.execute("""
@@ -2442,6 +2448,21 @@ def street_test(L, p):
     # long overdue each time it is asked (the client asks every 30 ticks):
     p.x, p.y, p.z = bx + 0.5, by + 0.5, -1
     ours = set(lua_list(C.Ambience))
+    # And to whoever asked for them (0.7.6: the Workshop did not like them).
+    # Off as the mod ships, whatever an older ModOptions.ini holds.
+    opt = SEW.Client.soundOption
+    check(opt is not None and opt.getValue(opt) is False and SEW.Client.ambienceOn() is False,
+          "the sewer's sounds are a tick box in the mod's options, and it is not ticked")
+    page = sorted(L.globals().PZAPI.ModOptions.Dict.Sewars.dict.keys())
+    check(page == ["sewerAmbience"], "and that is the whole of the mod's options page (%s)" % page)
+    p.x, p.y, p.z = x + 0.5, y + 0.5, -1
+    n0 = len(lua_list(sim.sounds))
+    for i in range(1, 6):
+        SEW.Client.ambience(p, 1000000 * i)
+    heard = [s for s in lua_list(sim.sounds)[n0:] if s in ours]
+    check(not heard, "unticked, the sewer is quiet (%s)" % heard[:2])
+    opt.value = True
+    p.x, p.y, p.z = bx + 0.5, by + 0.5, -1
     n0 = len(lua_list(sim.sounds))
     for i in range(1, 6):
         SEW.Client.ambience(p, 10000000 * i)
@@ -2453,6 +2474,16 @@ def street_test(L, p):
         SEW.Client.ambience(p, 10000000 * i)
     heard = [s for s in lua_list(sim.sounds)[n0:] if s in ours]
     check(len(heard) == 5, "and in the sewer they are (%d of 5)" % len(heard))
+    # Now and then, not all the time: an hour below at sixty ticks a second,
+    # asked every thirty ticks as the client asks.
+    n0 = len(lua_list(sim.sounds))
+    L.execute("""
+        local p = SIM.players[1]
+        for now = 200000000, 200000000 + 216000, 30 do SEW.Client.ambience(p, now) end
+    """)
+    hour = len([s for s in lua_list(sim.sounds)[n0:] if s in ours])
+    check(8 <= hour <= 31, "ticked, one every two to six minutes: %d in an hour" % hour)
+    opt.value = False
     sim.tickN(C.Street.every)
 
 
@@ -2618,6 +2649,112 @@ def weather_test(L, p, x, y):
     check(other[0] is True and other[1] == 0 and other[2] == 0,
           "a square that is not ours is left as it was; nothing from the street; nothing with the switch off")
     sim.tickN(cycle)
+
+
+def wind_test(L, p, x, y):
+    """No wind below (SEW_Wind; a player's ask, 0.7.5): a player in the sewer
+    has the still air's temperature on their own square, by a heat source,
+    and nobody is warmed by it. x, y: a square of ours with the street over."""
+    g = L.globals()
+    sim, C, W = g.SIM, g.SEW.Config, g.SEW.Wind
+    every = C.Wind.every
+    clim = g.getClimateManager()
+
+    def feel(wind):
+        return clim.getAirTemperatureForCharacter(clim, p, wind)
+
+    def sources():
+        return [(h.x, h.y, h.z, h.radius, h.temperature) for h in lua_list(sim.heat)]
+
+    sim.climate.temperature, sim.climate.windKph = -5.5, 40
+    p.x, p.y, p.z = x + 0.5, y + 0.5, 0
+    sim.tickN(every)
+    street = feel(True)
+    check(street < -12 and feel(False) == -5.5 and not sources(),
+          "on the street the wind chills, and the mod does nothing about it (%.1f)" % street)
+    # The engine's own answer first, or the rest proves nothing.
+    p.z = -1
+    check(feel(True) == street, "to the engine the sewer is as windy as the street over it")
+    sim.tickN(every)
+    check(sources() == [(x, y, -1, 1, 9)], "a player in the sewer has a heat source on their own square (%s)" % sources())
+    check(feel(True) == -6, "and no wind: the still air, rounded down (%.2f)" % feel(True))
+    check(feel(False) == -5.5, "it warms nobody: without the wind the air is what it was (%.2f)" % feel(False))
+    nb = L.execute("""
+        local x, y = ...
+        for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+            local s = SIM.squares[(x + d[1]) .. "," .. (y + d[2]) .. ",-1"]
+            if s and SEW.Sewer.ours(s) then return x + d[1], y + d[2] end
+        end
+    """, x, y)
+    check(nb is not None, "a square of ours beside it")
+    nx, ny = nb
+    p.x, p.y = nx + 0.5, ny + 0.5
+    check(feel(True) == street, "one square, and no other: a step away the wind is the street's until it follows")
+    sim.tickN(every)
+    check(sources() == [(nx, ny, -1, 1, 9)] and feel(True) == -6, "it follows the player, and there is still one (%s)" % sources())
+    sim.climate.temperature = -10.2
+    sim.tickN(every)
+    check(sources() == [(nx, ny, -1, 1, 4)] and feel(True) == -11 and feel(False) == -10.2,
+          "and keeps in step with the air (%s)" % sources())
+    sim.climate.temperature, sim.climate.windKph = 20, 80
+    sim.tickN(every)
+    check(not sources(), "on a day too warm for the sums to hold, nothing")
+    sim.climate.temperature, sim.climate.windKph = -5.5, 40
+    sim.tickN(every)
+    check(len(sources()) == 1, "cold again, it is back")
+    p.vehicle = True
+    sim.tickN(every)
+    in_car = sources()
+    p.vehicle = None
+    sq = sim.squares["%d,%d,-1" % (nx, ny)]
+    was = sq.room, sq.roomId
+    sq.room, sq.roomId = L.eval("{}"), 7
+    sim.tickN(every)
+    in_room = sources()
+    sq.room, sq.roomId = was
+    C.Wind.shelter = False
+    sim.tickN(every)
+    off = sources()
+    C.Wind.shelter = True
+    sim.tickN(every)
+    check(not in_car and not in_room and not off and len(sources()) == 1,
+          "none in a car, none in a room (the engine's own sums), none with the switch off")
+    cellar = L.execute("""
+        local x, y = ...
+        local fx = 3
+        while SIM.squares[(x + fx) .. "," .. y .. ",-1"] do fx = fx + 1 end
+        local cellar = getCell():getOrCreateGridSquare(x + fx, y, -1)
+        cellar.objects:add(IsoObject.new(cellar, "floors_interior_tilesandwood_01_24", ""))
+        return x + fx
+    """, x, y)
+    p.x, p.y = cellar + 0.5, y + 0.5
+    sim.tickN(every)
+    check(not sources(), "none at the sewer's level on a square that is not ours")
+    p.x, p.y = nx + 0.5, ny + 0.5
+    sim.tickN(every)
+    gone = L.execute("""
+        local ps = SIM.players
+        local had = #SIM.heat
+        SIM.players = {}
+        SEW.Wind.pass()
+        local left = #SIM.heat
+        SIM.players = ps
+        return had, left
+    """)
+    check(tuple(gone) == (1, 0), "a player who has left keeps none")
+    role = sim.role
+    sim.role = "server"
+    L.execute("SEW.Wind.pass()")
+    served = sources()
+    sim.role = role
+    check(served == [(nx, ny, -1, 1, 9)], "a server does the same for the players it has (%s)" % served)
+    p.z = 0
+    sim.tickN(every)
+    check(not sources() and feel(True) == street, "up the ladder, the wind again, and nothing left behind")
+    check(W.broken is False, "and the engine refused none of it")
+    sim.climate.temperature, sim.climate.windKph = 20, 0
+    p.x, p.y, p.z = x + 0.5, y + 0.5, -1
+    sim.tickN(every)
 
 
 def climb_test(L, p, mx, my, lx, ly):
@@ -2886,21 +3023,13 @@ def single_player():
         check(win2 is not None and win2.width == 480 and win2.x == x0 + 30, "it reopens where it was left, the size it was")
         win2.closeButton.click(win2.closeButton)
         check(SEW.Map.window is None and not sim.ui[win2], "and the X closes it")
-    # The key: K, not vanilla's Start/Stop Engine (N) -- even for a player
-    # whose ModOptions.ini saved 0.3.1's N -- and never at the wheel.
+    # No key (0.7.6): K was other mods' key too. The right-click menu above
+    # is the way to it; a 0.7.5 player's saved binding is a line nobody reads.
     KB = L.globals().Keyboard
-    check(SEW.Map.keyOption is not None and SEW.Map.keyOption.getValue(SEW.Map.keyOption) == KB.KEY_K,
-          "the map's key is K, whatever 0.3.1 saved")
-    sim.fire("OnKeyPressed", KB.KEY_N)
-    check(SEW.Map.window is None, "N (the engine) does not open the map")
-    sim.fire("OnKeyPressed", KB.KEY_K)
-    check(SEW.Map.window is not None, "K opens it")
-    sim.fire("OnKeyPressed", KB.KEY_K)
-    check(SEW.Map.window is None, "and K closes it")
-    p.vehicle = True
-    sim.fire("OnKeyPressed", KB.KEY_K)
-    check(SEW.Map.window is None, "not in a car")
-    p.vehicle = None
+    check(SEW.Map.keyOption is None, "the map has no key of its own")
+    for k in (KB.KEY_K, KB.KEY_N):
+        sim.fire("OnKeyPressed", k)
+        check(SEW.Map.window is None, "key %d does not open the map" % k)
     tunk = [k for k in sim.unknownText.keys()]
     check(not tunk, "every text the map uses exists (%s)" % tunk[:3])
 
@@ -3698,6 +3827,7 @@ def single_player():
     sim.tickN(3)
     fire_test(L, mx, my)
     weather_test(L, p, mx, my)
+    wind_test(L, p, mx, my)
     climb_test(L, p, mx, my, lx, ly)
     exit_signs_test(L, mx, my)
     sim.players = L.table(p)

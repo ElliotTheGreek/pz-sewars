@@ -9,7 +9,7 @@ SEW = SEW or {}
 SEW.Config = SEW.Config or {}
 local C = SEW.Config
 
-C.Version = "0.7.5"
+C.Version = "0.7.6"
 C.ModPrefix = "[SEW]"
 C.Debug = false
 
@@ -100,6 +100,16 @@ C.ExitSignsFew = 3
 -- it can see: `reach` squares each way round its player, `rows` rows of that
 -- window a tick. `indoors = false` turns the whole thing off.
 C.Weather = { indoors = true, reach = 30, rows = 1 }
+
+-- No wind in the sewer (0.7.6; SEW_Wind.lua). The engine chills with the wind
+-- anybody on a square with no room, and lets one thing overrule it: a heat
+-- source. Each player in the sewer has one on their own square (radius 1: that
+-- square and no other), at the still air's temperature, looked at every
+-- `every` ticks. `lift` is what the engine takes off a heat source in cold
+-- open air (IsoCell.getHeatSourceHighestTemperature: 30 below, at most 15),
+-- and above `warmest` degrees it stops being 15, so nothing is done: nobody
+-- freezes in a wind at 15 C. `shelter = false` turns the whole thing off.
+C.Wind = { shelter = true, every = 10, warmest = 15, lift = 15 }
 
 -- Sprites. Vanilla's are checked against tools/_catalog/tiles.json by
 -- tests/test_assets.py; ours are sewars_01, drawn by tools/gen_sewer_art.py.
@@ -477,8 +487,10 @@ C.PryTicks = { wall = 160, gate = 220 }
 C.PryTicksTool = { wall = 90, gate = 120 }
 C.PryTools = { "Base.Crowbar", "Base.Sledgehammer", "Base.Sledgehammer2" }
 
--- Ambience: one sound every so many ticks while below, give or take.
-C.AmbienceTicks = { 700, 1900 }
+-- Ambience: one sound every so many ticks while below, give or take. Off
+-- unless the player ticks it in Options -> Mods (0.7.6: the Workshop did not
+-- like it), and then one every two to six minutes, not every twenty seconds.
+C.AmbienceTicks = { 7200, 21600 }
 C.Ambience = { "SEW_Drip", "SEW_Drip", "SEW_Drip", "AnimalRatScuttleWall", "SEW_Groan" }
 
 return C

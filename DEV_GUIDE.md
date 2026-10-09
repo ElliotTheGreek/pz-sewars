@@ -68,14 +68,15 @@ media/lua/server/SEW/SEW_Maps.lua          annotated maps to the temple and the 
 media/lua/shared/StashDescriptions/SewarsStashDesc.lua   what is drawn on them (vanilla's stash descriptions, no building)
 media/lua/client/SEW/SEW_MapSheets.lua     the sheet of the game's map each one shows (LootMaps.Init)
 media/lua/shared/SEW/SEW_Compat.lua        below ground is indoors: isOutside wrapped for every Lua caller, other mods included
+media/lua/shared/SEW/SEW_Wind.lua          no wind below: a heat source on each player's own square, at the still air's temperature
 media/lua/shared/SEW/SEW_Index.lua         GENERATED: towns, shafts, shelters, caves, journals, plans, the nest -- small, every process
 media/lua/server/SEW/SEW_Build.lua         raising a chunk of tunnel: floors, walls, doors, ladders, dressing, shelters, the dead
 media/lua/server/SEW/SEW_Server.lua        the authority: granting climbs, building round players below, rescues, console
 media/lua/server/SEW/SEW_Discovery.lua     what each player has found below, per username: the map's memory
 media/lua/server/SEW/SEW_Story.lua         reading plans and journals: reveals and marks, on the server
 media/lua/server/SEW/Data/SEW_Town_*.lua   GENERATED: every town's squares, by chunk -- 5 MB, server only
-media/lua/client/SEW/SEW_Client.lua        the menus, the move, the vault switch, lamps, ambience, the dev build's start
-media/lua/client/SEW/SEW_Map.lua           the sewer map: panel, fog, markers, the K key
+media/lua/client/SEW/SEW_Client.lua        the menus, the move, the vault switch, lamps, ambience and its tick box, the dev build's start
+media/lua/client/SEW/SEW_Map.lua           the sewer map: panel, fog, markers (no key: the right-click menu)
 media/lua/client/SEW/SEW_Street.lua        the street and the sewer do not hear each other: a zombie going to, or after, a player across the street's floor is stopped
 media/lua/client/SEW/SEW_Weather.lua       no snow below: the outdoors flag off the squares of ours round the player (not a door's)
 media/lua/client/SEW/SEW_StoryUI.lua       the Read menu on plans and journals, and the journal's page
@@ -640,6 +641,14 @@ player accepts the options screen, so changing the default does nothing for
 anyone who has: the option's **id** changed (`sewerMap` -> `sewerMapKey`),
 and `load()` keeps the old line unread. `tests/sim.lua` loads ModOptions.ini
 the same way, starting from a 0.3.1 player's file.
+
+**And the one free letter is every mod's first choice (0.7.6).** K collided
+with other mods the way N had with vanilla, and the author took the key out:
+the map is on the right-click menu below ground and nowhere else. **Do not
+give it a key again without being asked.** What the mod's options page holds
+now is one tick box, the sounds in the pipes (`sewerAmbience`, off as
+shipped); a tick box is saved and loaded as `tickbox|Sewars|<id>|true`, and
+the sim reads it so.
 
 ### A mod cannot add an action group, and an animal without one stands still
 
@@ -1308,6 +1317,53 @@ flag in a square's properties is a cache, not a fact; Lua can change it,
 the engine will change it back, and everything else reads it too.** List
 the readers before writing it.
 
+### The wind blows wherever there is no room, and only a heat source says otherwise
+
+**Asked by a player (on 0.7.5): "could you make it so the sewers protect
+from windchill? Playing with some cold mods".** The third of the engine's
+"no room, so open ground" rules to reach the tunnels, after `isOutside` and
+the snow, and the first with no Lua anywhere in it:
+
+```
+ClimateManager.getAirTemperatureForSquare(square, vehicle, wind)
+  6-22      square.isInARoom(), or a vehicle -> the indoor sums (toward 22 C), never the wind
+  245-258   else, when asked with the wind: Temperature.WindchillCelsiusKph(air, getWindspeedKph())
+  260-295   then, room or not: IsoCell.getHeatSourceHighestTemperature(that, x, y, z); the higher wins
+IsoGridSquare.isInARoom              getRoom() ~= null, or its IsoWorldRegion.isPlayerRoom()
+Thermoregulator.update 0-29          asks twice a pass: without the wind (air), and with it (airAndWind)
+Temperature.getWindChillAmountForPlayer   the moodle: air minus the answer with the wind, 0 in a room
+BodyDamage.Update 21-62              returns at once on a client: the server simulates the body
+IsoCell.getHeatSourceHighestTemperature   per source at that level:
+  87-180    off = air - 30, kept to -15..5 (-7..7 when the SOURCE's square is in a room)
+  182-211   t = lerp(1 - distance / radius, air, source + off)
+  213-286   taken when higher than what is had, distance under the radius, line of sight clear
+IsoCell.updateHeatSources            not on a server; elsewhere drops a source outside the loaded map
+IsoHeatSource                        five ints, setters for radius and temperature only
+```
+
+A room is the engine's answer and we cannot have one (*A square of ours
+keeps no room on a server*). So `SEW_Wind.lua` uses the other: a heat source
+on each sewer player's own square, **radius 1** (distance 0 is the only one
+under 1: that square and nobody else's), holding `floor(air) + 15`. In air
+at or under 15 C the engine takes exactly 15 off again, so the answer with
+the wind is the still air rounded down, and the answer without it is
+unchanged, because a source only ever wins by being higher. **It warms
+nobody**, and above 15 C (`C.Wind.warmest`) the 15 becomes `air - 30` and
+the two questions stop agreeing, so nothing is done. It runs in every
+process: a server for the body, a client for its own moodle.
+
+`IsoHeatSource` is in `LuaManager$Exposer` and `addHeatSource` /
+`removeHeatSource` are public on `IsoCell`, **but no vanilla Lua calls any
+of them in this build** (campfires are Java now; `season.lua` only reads
+`getHeatSourceTemperature`, in a commented-out block). *The jar is not the
+API*: the second check is missing, and said so. The first call the engine
+refuses sets `Wd.broken` and logs `[SEW] WARN (wind)`, once. **Unplayed.**
+Also unread: what `LosUtil.lineClear` says of a square to itself (taken to
+be clear, as every campfire's own square must be).
+
+Not done on purpose: a tunnel is not made milder than the street the way a
+basement is. That was not asked.
+
 ### A climb is asked for until it is answered
 
 **Found by a player on a server (0.7.4): "you won't be able to get back up
@@ -1538,8 +1594,8 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | `tools/luacheck.py` | Lua syntax, generated data included |
 | `tests/test_assets.py` (178 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
 | `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (456 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled; and 0.7.5's: a loot event with no container, fire through the street's floor put out both ways and a fire of the tunnel's own left to burn, the outdoors flag off the sewer's squares and kept on a door's, a swing and a shot at a ROUS judged by the server (reach, facing, walls, the engine's own hit), a climb with no walk, asked again by command, made anyway when out and unanswered, refused with where the server had the player, EXIT stencils by the sandbox; no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 292 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so; `0.7.5` the 72 newest) |
+| `tests/test_flow.py` (456 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled; and 0.7.5's: a loot event with no container, fire through the street's floor put out both ways and a fire of the tunnel's own left to burn, the outdoors flag off the sewer's squares and kept on a door's, a swing and a shot at a ROUS judged by the server (reach, facing, walls, the engine's own hit), a climb with no walk, asked again by command, made anyway when out and unanswered, refused with where the server had the player, EXIT stencils by the sandbox; and 0.7.6's: the sounds unticked and quiet, ticked and rare, no key for the map, the wind's chill below as the engine has it and then as we leave it (one square, following, in step with the air, none in a car, a room, a cellar or on a warm day, none left behind); no WARN, no unknown sprite or text key |
+| `tests/mutate.py` (`dev.py mutate`) | 306 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so; `0.7.5` the 72 before, `0.7.6` the 17 newest) |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -1574,7 +1630,10 @@ has a stop for each place and, since 0.7.5, three for the weather and the
 fight: *Give me a pistol and bullets*, *Light the street here* (a few
 squares of street over the tunnel, by vanilla's own `IsoFireManager.StartFire`)
 and *Make it snow* (holds `IsoCell.setSnowTarget(100)` until chosen again;
-dev build only -- nothing in vanilla Lua calls it).
+dev build only -- nothing in vanilla Lua calls it). 0.7.6 added *Make it
+freeze and blow*: the climate's temperature and wind held at -10 C and full
+by their admin values (`ISAdmPanelClimate`'s own calls: an admin panel's, so
+the dev build's alone), until chosen again.
 
 ### On a dedicated server
 
@@ -1619,9 +1678,33 @@ gets verified.
 
 ## Current state
 
-Version **0.7.5**, build revision **6**, layout from `tools/gen_sewers.py`.
+Version **0.7.6**, build revision **6**, layout from `tools/gen_sewers.py`.
 **Workshop:** item **3810188405**, public since 0.3.1 (2026-09-29);
 `WORKSHOP_ID` is set in `tools/package_workshop.py`.
+
+**0.7.6 is built, passes every static test and all 306 mutations (one run,
+alone), is deployed as SewarsDev and is staged for the uploader
+(`package --install`, 2026-10-09, compared file by file with the source).
+The author uploads it. Not played.**
+Three changes from the Workshop and the author (ROADMAP 0.7.6): the sounds
+in the pipes off unless ticked in Options -> Mods and rare when on; the
+map's key gone (the right-click menu only); no wind chill in the sewer
+(*The wind blows wherever there is no room*). The third calls
+`IsoHeatSource.new`, which no vanilla Lua does: the checklist below is its
+proof. Nothing in a save changes; the build revision is the same.
+
+**The 0.7.6 checklist** (every step a click; any world with Sewers [DEV]):
+
+1. **Quiet.** Down a cover and walk for ten minutes: no drip, no scuttle,
+   no groan. Escape, Options, Mods, Sewers: one tick box, *Sounds in the
+   pipes*, unticked, and no key binding. Tick it, accept, go back below:
+   one sound every few minutes.
+2. **No key.** Below ground press K: nothing. Right-click: *Sewer map*.
+3. **The wind.** On a street, right-click, *Sewers (dev)*, *Make it freeze
+   and blow*: within a few seconds the wind chill moodle shows. Climb down
+   a cover: it goes within a second or two and stays gone as you walk and
+   run. Climb out: it is back. *Make it freeze and blow* again lets the
+   weather go. Afterwards `python tools/dev.py log`: no `WARN (wind)`.
 
 **0.7.5 is built, passes every static test and all 292 mutations (one run,
 alone), is deployed as SewarsDev and is staged for the uploader

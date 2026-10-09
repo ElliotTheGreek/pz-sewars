@@ -432,6 +432,7 @@ function SquareMT:getRoom()
     if self.roomId == -1 then return nil end
     return self.room
 end
+function SquareMT:isInARoom() return self:getRoom() ~= nil end
 function SquareMT:setRoomID(id)
     if type(id) ~= "number" then error("setRoomID(" .. tostring(id) .. ")") end
     self.roomId = id
@@ -509,6 +510,87 @@ function cell:removeLamppost(l)
     if l == nil then error("removeLamppost(nil)") end
     SIM.lamps[l] = nil
 end
+-- Heat sources and the air (SEW_Wind), as 42.21.0 has them. A source holds
+-- whole numbers and has no setter for where it is; the cell's list is this
+-- machine's own.
+SIM.heat = {}
+IsoHeatSource = {}
+IsoHeatSource.__index = IsoHeatSource
+function IsoHeatSource.new(x, y, z, radius, temperature)
+    for _, v in ipairs({ x, y, z, radius, temperature }) do
+        if type(v) ~= "number" or v ~= math.floor(v) then error("IsoHeatSource.new: not an int: " .. tostring(v)) end
+    end
+    return setmetatable({ x = x, y = y, z = z, radius = radius, temperature = temperature }, IsoHeatSource)
+end
+function IsoHeatSource:getX() return self.x end
+function IsoHeatSource:getY() return self.y end
+function IsoHeatSource:getZ() return self.z end
+function IsoHeatSource:getRadius() return self.radius end
+function IsoHeatSource:getTemperature() return self.temperature end
+function IsoHeatSource:setTemperature(v)
+    if type(v) ~= "number" or v ~= math.floor(v) then error("setTemperature(" .. tostring(v) .. ")") end
+    self.temperature = v
+end
+function cell:addHeatSource(h)
+    if getmetatable(h) ~= IsoHeatSource then error("addHeatSource(" .. tostring(h) .. ")") end
+    for _, o in ipairs(SIM.heat) do if o == h then return end end
+    SIM.heat[#SIM.heat + 1] = h
+end
+function cell:removeHeatSource(h)
+    if getmetatable(h) ~= IsoHeatSource then error("removeHeatSource(" .. tostring(h) .. ")") end
+    for i, o in ipairs(SIM.heat) do if o == h then table.remove(SIM.heat, i) return end end
+end
+-- IsoCell.getHeatSourceHighestTemperature: a source at that level, 30 under
+-- the air (kept to -15..5 in the open, -7..7 in a room) added to what it
+-- holds, faded by distance over radius; the highest, when nearer than the
+-- radius. (Sight between the two is asked too; the tests stand on the square.)
+function cell:getHeatSourceHighestTemperature(air, x, y, z)
+    local best = air
+    for _, h in ipairs(SIM.heat) do
+        if h.z == z then
+            local d2 = (x - h.x) ^ 2 + (y - h.y) ^ 2
+            local sq = SIM.squares[h.x .. "," .. h.y .. "," .. h.z]
+            local off = 0
+            if sq then
+                local lo, hi = -15, 5
+                if sq:isInARoom() then lo, hi = -7, 7 end
+                off = math.max(lo, math.min(hi, air - 30))
+            end
+            local t = air + (1 - math.sqrt(d2) / h.radius) * (h.temperature + off - air)
+            if t > best and d2 < h.radius * h.radius then best = t end
+        end
+    end
+    return best
+end
+-- ClimateManager: the air, the wind, and what a character feels of them.
+SIM.climate = { temperature = 20, windKph = 0, admin = {} }
+local climate = {}
+function climate:getTemperature() return SIM.climate.temperature end
+function climate:getWindspeedKph() return SIM.climate.windKph end
+function climate:getClimateFloat(id)
+    if id ~= 4 and id ~= 6 then error("getClimateFloat(" .. tostring(id) .. ")") end
+    local a = SIM.climate.admin
+    a[id] = a[id] or {}
+    local f = a[id]
+    return {
+        setEnableAdmin = function(_, on) if type(on) ~= "boolean" then error("setEnableAdmin") end f.on = on end,
+        setAdminValue = function(_, v) if type(v) ~= "number" then error("setAdminValue") end f.value = v end,
+    }
+end
+-- getAirTemperatureForSquare(square, vehicle, wind): in a room or a car the
+-- indoor sums (here: the air as it is, no wind); else the wind chill when
+-- asked for; then the heat sources.
+function climate:getAirTemperatureForCharacter(p, wind)
+    local air = SIM.climate.temperature
+    local sq = p:getCurrentSquare()
+    if not sq then return air end
+    if not (sq:isInARoom() or p:getVehicle()) and wind then
+        local v = SIM.climate.windKph ^ 0.16
+        air = math.min(air, 13.12 + 0.6215 * air - 11.37 * v + 0.3965 * air * v)
+    end
+    return cell:getHeatSourceHighestTemperature(air, sq.x, sq.y, sq.z)
+end
+function getClimateManager() return climate end
 function getCell() return cell end
 
 ---------------------------------------------------------------------------
@@ -1014,17 +1096,25 @@ UIFont = { Small = "Small", Medium = "Medium", Large = "Large" }
 Keyboard = { KEY_N = 49, KEY_M = 50, KEY_K = 37 }
 Joypad = { AButton = 0, BButton = 1, XButton = 2, YButton = 3, LBumper = 4, RBumper = 5 }
 JoypadState = { players = {} }
--- PZAPI.ModOptions: key binds only, loaded the way vanilla's
+-- PZAPI.ModOptions: key binds and tick boxes, loaded the way vanilla's
 -- client/PZAPI/ModOptions.lua loads ModOptions.ini -- a line whose mod and
 -- option id are both known sets the key; any other line is kept, unread.
 -- The file as a 0.3.1 player left it: the map on N, under the old id.
-SIM.modOptionsIni = { "keybind|Sewars|sewerMap|49" }
+-- And as a 0.7.5 player left it: the map on K, an option the mod no longer has.
+SIM.modOptionsIni = { "keybind|Sewars|sewerMap|49", "keybind|Sewars|sewerMapKey|37" }
 PZAPI = { ModOptions = { Dict = {} } }
 function PZAPI.ModOptions:create(id, name)
     local o = { id = id, name = name, dict = {} }
     function o:addKeyBind(oid, oname, key, tip)
         local opt = { type = "keybind", id = oid, name = oname, key = key, tooltip = tip }
         function opt:getValue() return self.key end
+        self.dict[oid] = opt
+        return opt
+    end
+    function o:addTickBox(oid, oname, value, tip)
+        if type(value) ~= "boolean" then error("addTickBox: value " .. tostring(value)) end
+        local opt = { type = "tickbox", id = oid, name = oname, value = value, tooltip = tip }
+        function opt:getValue() return self.value end
         self.dict[oid] = opt
         return opt
     end
@@ -1036,6 +1126,7 @@ function PZAPI.ModOptions:load()
         local t, mod, oid, v = line:match("^([^|]*)|([^|]*)|([^|]*)|(.*)$")
         local o = self.Dict[mod] and self.Dict[mod].dict[oid]
         if o and t == "keybind" and tonumber(v) then o.key = tonumber(v) end
+        if o and t == "tickbox" and (v == "true" or v == "false") then o.value = v == "true" end
     end
 end
 function getTimestampMs() return SIM.tick * 16 end
