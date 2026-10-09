@@ -276,7 +276,10 @@ end
 --- One dev stop: "gas", "gate", "key", "outfall", "poison", "temple" (the
 --- passage short of the temple's south gate), "breach" (where the cult broke
 --- into a sewer, each in turn), "trapdoor" (the field over the temple's
---- postern), "nest" (the false wall under Louisville) or "warren" (its first den).
+--- postern), "nest" (the false wall under Louisville), "warren" (its first
+--- den), "cave" (the cover over a cave) or "hatch" (the house by the nest).
+--- Nobody is moved without choosing one: a new character stays where the
+--- game put it.
 function Client.devGo(p, what)
     if not SEW.Dev or isClient() then return false end
     local T = SEW.Index.temple
@@ -387,10 +390,31 @@ function Client.devGo(p, what)
         U.note(p, getText("IGUI_SEW_DevKey"), 200, 190, 150)
         return true
     elseif what == "outfall" then
+        -- On the bank: the grate goes into it within a few seconds (SEW_Build.cover).
         local o = Client.devOutfall()
         if not o then return false end
         U.teleport(p, o.x, o.y, 0)
         Client.vault(p)
+        U.note(p, getText("IGUI_SEW_DevOutfall"), 200, 190, 150)
+        return true
+    elseif what == "cave" then
+        -- The street, not the tunnel: the cover is a climb and a short walk
+        -- from the cave's breach.
+        local v = Client.devCave()
+        if not v then return false end
+        U.teleport(p, v.sx, v.sy, 0)
+        Client.vault(p)
+        U.note(p, getText("IGUI_SEW_DevCave"), 200, 190, 150)
+        return true
+    elseif what == "hatch" then
+        -- The floor beside the hatch in the house nearest the nest. The house
+        -- is looked at when a player on the street comes near, and the trapdoor
+        -- goes into its floor if nothing is under it (SEW_Build.hatch).
+        local h = Client.devLairHatch()
+        if not h then return false end
+        U.teleport(p, h.x, h.y, 0)
+        Client.vault(p)
+        U.note(p, getText("IGUI_SEW_DevLair"), 200, 190, 150)
         return true
     elseif what == "poison" then
         local v = U.try("poison", function() return p:getStats():get(CharacterStat.POISON) end) or 0
@@ -434,7 +458,7 @@ function Client.devMenu(playerObj, context)
     local sub = context:getNew(context)
     context:addSubMenu(top, sub)
     for _, what in ipairs({ "dig", "gun", "fire", "snow", "wind", "maps", "temple", "breach", "trapdoor", "nest", "warren",
-                            "outfall", "gas", "poison", "gate", "key" }) do
+                            "hatch", "cave", "outfall", "gas", "poison", "gate", "key" }) do
         sub:addOption(getText("ContextMenu_SEW_Dev_" .. what), playerObj, Client.devGo, what)
     end
 end
@@ -862,10 +886,8 @@ function Client.devKit(p)
           given, table.concat(C.DevKit, ", "))
     return true
 end
---- The dev build's start: a new character is put on the street at the cover
---- nearest a cave's breach (C.DevStartTown), a climb and a short walk from
---- it. The street, not the tunnel: below, the floor would not exist yet
---- until the server built it round somebody standing there.
+--- The dev menu's cave: the one in C.DevStartTown whose breach is nearest
+--- its cover, a climb and a short walk from it.
 function Client.devCave()
     local best, bd = nil, nil
     for _, v in ipairs(SEW.Index and SEW.Index.caves or {}) do
@@ -877,8 +899,7 @@ function Client.devCave()
     return best
 end
 
---- The dev build's start by an outfall: the first of C.DevStartTown's, by
---- position, or nil.
+--- The dev menu's outfall: the first of C.DevStartTown's, by position, or nil.
 function Client.devOutfall()
     local best = nil
     for _, s in pairs(SEW.Index and SEW.Index.shafts or {}) do
@@ -889,7 +910,7 @@ function Client.devOutfall()
     return best
 end
 
---- The dev build's start by the nest: the hatch nearest it (the generator
+--- The dev menu's hatch by the nest: the one nearest it (the generator
 --- picked it by walking the tunnels), or nil in a build with no nest.
 function Client.devLairHatch()
     local L = SEW.Index and SEW.Index.lair
@@ -897,67 +918,10 @@ function Client.devLairHatch()
     return S.shaftAt(L.hx, L.hy)
 end
 
-local devStartAt = nil       -- the tick a new dev character is moved, once
-function Client.devStart(p, now)
-    if not SEW.Dev or isClient() or not p then devStartAt = nil return false end
-    local md = U.try("devStart.md", function() return p:getModData() end)
-    if not md or md.SEWDevStart then devStartAt = nil return false end
-    if not devStartAt then devStartAt = now + 30 return false end
-    if now < devStartAt then return false end
-    devStartAt = nil
-    md.SEWDevStart = true
-    -- In the field over the temple: the trapdoor to its postern goes into the
-    -- ground a square north within a few seconds (SEW_Build.cover).
-    local T = C.DevStart == "temple" and SEW.Index and SEW.Index.temple
-    if T then
-        U.teleport(p, T.tx, T.ty + 1, 0)
-        U.log("dev build: started in the field over the temple, by its trapdoor %d,%d", T.tx, T.ty)
-        U.note(p, getText("IGUI_SEW_DevTemple"), 200, 190, 150)
-        return true
-    end
-    -- On the bank by a storm-drain outfall: the grate goes into the bank
-    -- within a few seconds (SEW_Build.cover).
-    local o = C.DevStart == "outfall" and Client.devOutfall()
-    if o then
-        U.teleport(p, o.x, o.y, 0)
-        U.log("dev build: started on the bank by the outfall %d,%d (%s)", o.x, o.y, o.town)
-        U.note(p, getText("IGUI_SEW_DevOutfall"), 200, 190, 150)
-        return true
-    end
-    -- By the rats' nest: on the floor beside the hatch in the house nearest
-    -- it. The house is looked at when a player on the street comes near, and
-    -- the trapdoor goes into its floor if nothing is under it (SEW_Build.hatch).
-    local h = C.DevStart == "lair" and Client.devLairHatch()
-    if h then
-        U.teleport(p, h.x, h.y, 0)
-        U.log("dev build: started by the hatch %d,%d (%s); the nest's false wall is at %d,%d below",
-              h.x, h.y, tostring(h.hatch), SEW.Index.lair.tx, SEW.Index.lair.ty)
-        U.note(p, getText("IGUI_SEW_DevLair"), 200, 190, 150)
-        return true
-    end
-    local v = Client.devCave()
-    if not v then
-        U.log("WARN dev build: no cave in %s to start at", tostring(C.DevStartTown))
-        return false
-    end
-    U.teleport(p, v.sx, v.sy, 0)
-    U.log("dev build: started at the cover %d,%d; the cave's breach is at %d,%d below", v.sx, v.sy, v.bx, v.by)
-    U.note(p, getText("IGUI_SEW_DevCave"), 200, 190, 150)
-    return true
-end
-
---- Only a character that has just been made: one that has lived an hour is
---- somebody's game, and is left where it stands.
-local function isNew(p)
-    local h = U.try("hours", function() return p:getHoursSurvived() end)
-    return h ~= nil and h < 0.5
-end
-
-local devStartPlayer = nil
+-- The kit, and nothing else: a new dev character stays where the game put
+-- it. Every place it used to be started at is a stop on the dev menu.
 Events.OnCreatePlayer.Add(function(_, p)
     U.try("devKit", Client.devKit, p)
-    -- The dev flag and single player are devStart's to check, once, not here too.
-    if isNew(p) then devStartPlayer = p end
 end)
 
 --- Debug console: the caves of a town, and a hop to the street over one.
@@ -1009,11 +973,6 @@ Events.OnTick.Add(function()
     U.try("unanswered", Client.unanswered, p)
     if Client.devTravel then U.try("devArrive", Client.devArrive, p) end
     if Client.devSnow then Client.devWeather() end
-    if devStartPlayer then
-        if devStartPlayer == p then U.try("devStart", Client.devStart, p, tick) end
-        -- Done once no start is waiting for its tick: moved, or refused.
-        if devStartPlayer ~= p or not devStartAt then devStartPlayer = nil end
-    end
     if tick % 10 == 0 then
         U.try("vault", Client.vault, p)
         U.try("floor", Client.checkFloor, p, tick)

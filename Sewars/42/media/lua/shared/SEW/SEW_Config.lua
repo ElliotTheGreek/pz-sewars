@@ -423,13 +423,9 @@ C.DevKit = { "Base.HandTorch", "Base.Battery", "Base.Battery", "Base.Crowbar" }
 C.DevKitGas = { "Base.Hat_GasMask", "Base.GasmaskFilter" }
 -- 0.7.5's shooting at the ROUS: the dev menu's pistol, magazine and rounds.
 C.DevKitGun = { "Base.Pistol", "Base.9mmClip", "Base.Bullets9mmBox" }
--- And where a new dev character starts (SEW_Client devStart): "outfall", on
--- the bank by the first storm-drain outfall of C.DevStartTown; "lair", in the
--- house whose hatch is nearest the rats' nest under Louisville; "cave", on
--- the cover nearest a cave in C.DevStartTown. SEW_GoCave(n), SEW_GoHatch(n),
--- SEW_GoLair(), SEW_GoGas(n) and SEW_GoGate(n) in the console hop to any.
--- "temple": in the field over the temple, by the trapdoor to its postern.
-C.DevStart = "temple"
+-- The town the dev menu's stops are in (SEW_Client devGo): its outfall, its
+-- cave, its gas and its gates. A new dev character is moved nowhere: every
+-- place is a stop on the right-click menu, "Sewers (dev)".
 C.DevStartTown = "muldraugh"
 
 -- The temple (0.6; DESIGN.md 7d): what its dead wear -- vanilla's own outfit,

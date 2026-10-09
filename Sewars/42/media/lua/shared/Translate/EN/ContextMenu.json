@@ -12,6 +12,8 @@
     "ContextMenu_SEW_OutfallUp": "Climb out onto the bank",
     "ContextMenu_SEW_Dev": "Sewers (dev)",
     "ContextMenu_SEW_Dev_outfall": "Go to the outfall",
+    "ContextMenu_SEW_Dev_cave": "Go to the cover over a cave",
+    "ContextMenu_SEW_Dev_hatch": "Go to the hatch by the rats' nest",
     "ContextMenu_SEW_Dev_gas": "Go into sewer gas (next)",
     "ContextMenu_SEW_Dev_poison": "How poisoned am I?",
     "ContextMenu_SEW_Dev_gate": "Go to a locked gate (next)",

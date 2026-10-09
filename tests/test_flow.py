@@ -651,7 +651,7 @@ def dev_menu_test(L, p):
         return
     sub = top[0].subMenu
     names = [n for n, _ in options(sub)]
-    check(len(names) == 16, "with its sixteen stops (%s)" % names)
+    check(len(names) == 18, "with its eighteen stops (%s)" % names)
 
     # As the game does it: nothing is loaded where a trip lands until the
     # player is there (found in play: every trip was rescued to a ladder).
@@ -703,6 +703,14 @@ def dev_menu_test(L, p):
     pick("outfall")
     o = L.execute("local o = SEW.Client.devOutfall(); return o.x, o.y")
     check(p.z == 0 and int(p.x) == o[0] and int(p.y) == o[1], "Go to the outfall puts you on its bank")
+    # The two places a new character used to be started at, and is not now.
+    pick("cave")
+    v = L.execute("local v = SEW.Client.devCave(); return v.sx, v.sy")
+    check(p.z == 0 and int(p.x) == v[0] and int(p.y) == v[1],
+          "Go to the cover over a cave puts you on it (%.1f,%.1f,%.1f)" % (p.x, p.y, p.z))
+    pick("hatch")
+    check(p.z == 0 and int(p.x) == SEW.Index.lair.hx and int(p.y) == SEW.Index.lair.hy,
+          "Go to the hatch by the rats' nest puts you beside it (%.1f,%.1f,%.1f)" % (p.x, p.y, p.z))
     # The temple: into the passage a short walk from its south gate (never the
     # hall itself: the cult's dead are not put down beside a player), to where
     # it broke into a sewer, and to the field over its trapdoor.
@@ -3754,14 +3762,13 @@ def single_player():
     q.z = 0
     sim.players = L.table(p)
 
-    # The dev build starts a new character on the cover over that cave; one
-    # that has lived is left where it stands, and without the flag nobody moves.
+    # The dev build moves nobody at the start: a new character gets the kit
+    # and stays where the game put it. The places are on its menu (dev_menu_test).
     hx, hy = SEW.Index.lair.hx, SEW.Index.lair.hy
     check(SEW.Index.shafts["%d,%d" % (hx, hy)] is not None and SEW.Index.shafts["%d,%d" % (hx, hy)].hatch is not None,
-          "the nest names a hatch to start by (%d,%d)" % (hx, hy))
+          "the nest names a hatch for the dev menu to go to (%d,%d)" % (hx, hy))
     fo = L.execute("local o = SEW.Client.devOutfall(); return o and o.x, o and o.y")
-    check(fo is not None and fo[0] is not None, "Muldraugh has an outfall for the dev build to start by")
-    started = SEW.Config.DevStart
+    check(fo is not None and fo[0] is not None, "Muldraugh has an outfall for the dev menu to go to")
     gas_kit = L.execute("""
         local p = SIM.newPlayer("kit", 0, 0, 0)
         SEW.Dev = true
@@ -3773,26 +3780,19 @@ def single_player():
         return n
     """)
     check(gas_kit == 1, "the dev kit has a gas mask, once (%d)" % gas_kit)
-    for hours, dev, moved_wanted, what, start, tx_, ty_ in (
-            (0, False, False, "without the dev flag, a new character stays put", "lair", hx, hy),
-            (0, True, True, "the dev build puts a new character by the hatch nearest the rats' nest", "lair", hx, hy),
-            (0, True, True, "or, set to caves, on the cover over a cave", "cave", sx, sy),
-            (0, True, True, "or, set to outfalls, on the bank by an outfall's grate", "outfall", fo[0], fo[1]),
-            (0, True, True, "or, set to the temple, in the field by its trapdoor", "temple",
-             SEW.Index.temple.tx, SEW.Index.temple.ty + 1),
-            (40, True, False, "and leaves a character that has lived where it stands", "lair", hx, hy)):
-        SEW.Config.DevStart = start
-        sx, sy = tx_, ty_
+    for hours, dev, what in (
+            (0, False, "without the dev flag, a new character stays put"),
+            (0, True, "the dev build leaves a new character where the game put it"),
+            (40, True, "and one that has lived")):
         q = sim.newPlayer("dev", mx + 3.5, my + 0.5, 0)
         q.hours = hours
         sim.players = L.table(q)
         SEW.Dev = True if dev else None
         sim.fire("OnCreatePlayer", 0, q)
         sim.tickN(60)
-        moved = abs(q.x - (sx + 0.5)) < 1e-6 and abs(q.y - (sy + 0.5)) < 1e-6 and q.z == 0
-        check(moved == moved_wanted, "%s (%.1f,%.1f)" % (what, q.x, q.y))
+        stayed = abs(q.x - (mx + 3.5)) < 1e-6 and abs(q.y - (my + 0.5)) < 1e-6 and q.z == 0
+        check(stayed, "%s (%.1f,%.1f,%.1f)" % (what, q.x, q.y, q.z))
     SEW.Dev = None
-    SEW.Config.DevStart = started
     sim.players = L.table(p)
 
     lair_test(L, p)
