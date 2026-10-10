@@ -97,6 +97,8 @@ function Server.grant(player, x, y, mode)
     if shaft.made and B.cover(shaft) ~= "placed" then return refuse(player, "shut") end
 
     if mode == "down" then
+        -- The labyrinth's way out is a way out: its hatch has no handle on top.
+        if shaft.exit then return refuse(player, "sealed") end
         if S.below(player) then return refuse(player, "level") end
         if not S.within(player, x, y, C.Reach + 1.0) then return refuse(player, "reach") end
         local done, left = B.around(x, y, C.EntryRadiusChunks)

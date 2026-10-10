@@ -21,6 +21,10 @@ generator) and asserts, per town:
     walked to from the street covers of two different towns by the passages
     the cult dug and from the trapdoor in the field over it, and by no other
     way; its pictures on walls, its lights and its dead on its floors;
+  * the labyrinth (tools/gen_labyrinth.py): one in the world, far from
+    everything, all of it walked to from its trapdoor, its heart behind one
+    door at the end of a long way, its way out a shaft marked up-only, and
+    its walls drawn on the players' map as they stand;
   * the records are well formed.
 """
 import glob
@@ -38,12 +42,13 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import gen_sewers  # noqa: E402
 
 FAILS = []
-REC = re.compile(r'^[0-7][0-7][.tksgwrmnvphaq][.cbdejoqxyzOQ][.cbdejoqxyzOQ][.LlPQ][.peabcdefghijklnouvxyz]$')
-FLOORS = "tksgmnvphaq"  # stood on (m: a cave's earth; n: the rats' nest and its run; v: their hoard;
+REC = re.compile(r'^[0-7][0-7][.tksgwrmnvphaqyu][.cbdejoqxyzOQ][.cbdejoqxyzOQ][.LlPQ][.peabcdefghijklnouvxyz]$')
+FLOORS = "tksgmnvphaqyu"  # stood on (m: a cave's earth; n: the rats' nest and its run; v: their hoard;
                         # p: a passage the cult dug; h a q: the temple's stone, carpet and boards)
 OPEN = ".djoqxyzOQ"   # edges walked through: none, a door frame (a locked grille: with its key), a breach,
                       # the nest's walls once opened, the cult's breaches
 TEMPLE = "phaq"
+LABYRINTH = "yu"      # the labyrinth's flagstones, and its heart's
 
 
 def check(cond, what):
@@ -86,6 +91,7 @@ def read_index():
         sh["made"] = ",made=true" in line
         sh["outfall"] = ",outfall=true" in line
         sh["trapdoor"] = ",trapdoor=true" in line
+        sh["exit"] = ",exit=true" in line
         shafts.append(sh)
     shelters = [dict(zip(("town", "kind", "x", "y", "w", "h"), (m[0], m[1]) + tuple(int(v) for v in m[2:])))
                 for m in re.findall(r'H\[#H\+1\]=\{town="(\w+)",kind="(\w+)",x=(\d+),y=(\d+),w=(\d+),h=(\d+)\}', s)]
@@ -268,7 +274,7 @@ def temple_checks(T, world, shafts, shelters, pictures, dead):
     check(len(own) >= 1500 and len(dug) >= 100, "the temple: %d squares of floor, %d squares of passage"
           % (len(own), len(dug)))
     idol = (T["x"], T["y"])
-    trap = [s for s in shafts if s.get("trapdoor")]
+    trap = [s for s in shafts if s.get("trapdoor") and s["town"] == T["town"]]
     check(len(trap) == 1 and (trap[0]["x"], trap[0]["y"]) == (T["tx"], T["ty"]) and trap[0]["town"] == T["town"]
           and world.get((T["tx"], T["ty"]), "  .")[2] == "g",
           "one trapdoor, the temple's, over a ladder at %d,%d" % (T["tx"], T["ty"]))
@@ -346,6 +352,178 @@ def temple_checks(T, world, shafts, shelters, pictures, dead):
           % (len(cult), astray[:3]))
 
 
+def read_labyrinth():
+    """The labyrinth's entry in the index, or None."""
+    s = open(os.path.join(LUA, "shared", "SEW", "SEW_Index.lua"), encoding="utf-8").read()
+    m = re.search(r'I\.labyrinth=\{town="(\w+)",([^{]*)lights=\{([\d,]*)\}\}', s)
+    if not m:
+        return None
+    Lb = {k: int(v) for k, v in re.findall(r'(\w+)=(\d+)', m[2])}
+    Lb["town"] = m[1]
+    v = [int(n) for n in m[3].split(",") if n]
+    Lb["lights"] = list(zip(v[0::2], v[1::2]))
+    return Lb
+
+
+def steps(sq, start):
+    """{square: squares walked to it from `start`}, by the walker's own rules."""
+    dist = {start: 0}
+    q = deque([start])
+    while q:
+        p = q.popleft()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            n = (p[0] + dx, p[1] + dy)
+            if n not in dist and step_open(sq, p, n):
+                dist[n] = dist[p] + 1
+                q.append(n)
+    return dist
+
+
+def labyrinth_checks(Lb, world, shafts, shelters, dead):
+    """The labyrinth (tools/gen_labyrinth.py, DESIGN.md 7g)."""
+    import gen_labyrinth as GL
+    check(Lb is not None, "the index has the labyrinth")
+    if not Lb:
+        return
+    tid = Lb["town"]
+    path = os.path.join(LUA, "server", "SEW", "Data", "SEW_Town_%s.lua" % tid)
+    sq, _furn, _bad = read_town(path)
+    x0, y0, n = Lb["x0"], Lb["y0"], Lb["size"]
+    floor = [p for p, r in sq.items() if r[2] in LABYRINTH + "g"]
+    inside = all(x0 <= x < x0 + n and y0 <= y < y0 + n for x, y in floor)
+    check(len(floor) == n * n and inside and n >= 200,
+          "the labyrinth: %d squares of floor, a square %d a side, every one of them stood on" % (len(floor), n))
+    # Its two shafts: the trapdoor in, and the way out -- marked up-only.
+    mine = [s for s in shafts if s["town"] == tid]
+    entry = [s for s in mine if not s["exit"]]
+    out = [s for s in mine if s["exit"]]
+    check(len(mine) == 2 and len(entry) == 1 and len(out) == 1
+          and (entry[0]["x"], entry[0]["y"]) == (Lb["tx"], Lb["ty"]) and (out[0]["x"], out[0]["y"]) == (Lb["ex"], Lb["ey"])
+          and all(s["made"] and s["trapdoor"] for s in mine)
+          and sum(1 for s in shafts if s["exit"]) == 1,
+          "two shafts: the trapdoor in at %d,%d, and one way out at %d,%d, the only shaft in the world marked up-only"
+          % (Lb["tx"], Lb["ty"], Lb["ex"], Lb["ey"]))
+    # Far from everything: no town's square, nothing built, no road, no water.
+    C = GL.LAB_CLEAR
+    near = [p for p in world if p not in sq and x0 - C <= p[0] < x0 + n + C and y0 - C <= p[1] < y0 + n + C]
+    road, keep = gen_sewers.region(x0 - C, y0 - C, x0 + n + C, y0 + n + C)
+    keep = keep | gen_sewers.room_mask(x0 - C, y0 - C, x0 + n + C, y0 + n + C)
+    water, ground = gen_sewers.water_region(x0 - C, y0 - C, x0 + n + C, y0 + n + C)
+    check(not near and not road.any() and not keep.any() and not water.any(),
+          "nothing within %d squares of it: no sewer (%d), no road (%d), nothing built (%d), no water (%d)"
+          % (C, len(near), int(road.sum()), int(keep.sum()), int(water.sum())))
+    ex, ey = Lb["ex"] - (x0 - C), Lb["ey"] - (y0 - C)
+    check(bool(ground[Lb["ty"] - (y0 - C), Lb["tx"] - (x0 - C)]) and bool(ground[ey - 2:ey + 3, ex - 2:ex + 3].all()),
+          "open ground over the trapdoor, and under the whole of the blockhouse")
+    # All of it from the trapdoor; the heart behind one door, a long way in.
+    walked = steps(sq, (Lb["tx"], Lb["ty"]))
+    lost = [p for p in floor if p not in walked]
+    door = (Lb["dx"], Lb["dy"])
+    check(not lost and door in walked and walked[door] >= 3000,
+          "from the trapdoor every square is walked to (%d not), and the heart's door is %d squares in"
+          % (len(lost), walked.get(door, -1)))
+    # The index counts it in corridor widths; a walker cuts the corners of a corridor two squares wide.
+    check(walked.get(door, 0) <= Lb["n"] <= 1.25 * walked.get(door, 0),
+          "and the index's count of it, in corridor widths, is that and a little more (%d)" % Lb["n"])
+    heart = [p for p, r in sq.items() if r[2] == "u"]
+    hdoors = [(p, col) for p, r in sq.items() for col in (3, 4) if r[col] == "d"
+              and "u" in (r[2], sq.get((p[0], p[1] - 1) if col == 3 else (p[0] - 1, p[1]), "  .")[2])]
+    shut = dict(sq)
+    for p, col in hdoors:
+        r = shut[p]
+        shut[p] = r[:col] + "b" + r[col + 1:]
+    leak = [p for p in walk(shut, [(Lb["tx"], Lb["ty"])]) if sq[p][2] == "u"]
+    check(len(heart) >= 200 and len(hdoors) == 1 and not leak and (Lb["ex"], Lb["ey"]) not in walk(shut, [(Lb["tx"], Lb["ty"])]),
+          "the heart (%d squares) has one door; with it shut, nothing of the heart is walked to, nor the way out"
+          % len(heart))
+    hx, hy = Lb["x"], Lb["y"]
+    check(sq.get((hx, hy), "  .")[2] == "u" and max(abs(hx - Lb["ex"]), abs(hy - Lb["ey"])) <= 12,
+          "the way out's ladder is in the heart")
+    # No short cut: the straight line is a fraction of the walk.
+    crow = abs(door[0] - Lb["tx"]) + abs(door[1] - Lb["ty"])
+    check(walked[door] >= 8 * crow, "the way is %d squares where a straight line would be %d" % (walked[door], crow))
+    # Its rooms: a gate, a heart, the rests, each rest behind one door.
+    rooms = [h for h in shelters if h["town"] == tid]
+    kinds = sorted(h["kind"] for h in rooms)
+    rests = [h for h in rooms if h["kind"] == "labyrinth_rest"]
+    one = True
+    for h in rests:
+        doors = 0
+        for x in range(h["x"], h["x"] + h["w"] + 1):
+            for y in range(h["y"], h["y"] + h["h"] + 1):
+                r = sq.get((x, y))
+                if not r:
+                    continue
+                if r[3] == "d" and h["x"] <= x < h["x"] + h["w"] and y in (h["y"], h["y"] + h["h"]):
+                    doors += 1
+                if r[4] == "d" and h["y"] <= y < h["y"] + h["h"] and x in (h["x"], h["x"] + h["w"]):
+                    doors += 1
+        one &= doors == 1
+    check(kinds.count("labyrinth_gate") == 1 and kinds.count("labyrinth_heart") == 1 and len(rests) >= 12 and one,
+          "a gate, a heart and %d rests, each rest behind one steel door" % len(rests))
+    # What is in it.
+    furn = read_table(path, "f")
+    where = {(x, y) for x, y, _n, _r in furn}
+    caches = [f for f in furn if '"labyrinth"' in f[3]]
+    rest_crates = [f for f in furn if '"labyrinthRest"' in f[3]]
+    hoard = [f for f in furn if '"hoard' in f[3] and sq.get((f[0], f[1]), "  .")[2] == "u"]
+    off = [f for f in furn if sq.get((f[0], f[1]), "  .")[2] not in LABYRINTH]
+    check(len(caches) >= 300 and len(rest_crates) == len(rests) and len(hoard) >= 14 and not off,
+          "%d caches down its dead ends, a crate in every rest, %d pieces of the reward in the heart, all on its floor"
+          % (len(caches), len(hoard)))
+    # A door opens onto floor somebody can stand on, both sides.
+    blocked = [(p, col) for p, r in sq.items() for col in (3, 4) if r[col] == "d"
+               and (p in where or ((p[0], p[1] - 1) if col == 3 else (p[0] - 1, p[1])) in where)]
+    check(not blocked, "no door opens onto furniture (%s)" % blocked[:3])
+    mine_dead = [(x, y) for t, x, y, _o in dead if t == tid]
+
+    def in_room(p):
+        return any(h["x"] <= p[0] < h["x"] + h["w"] and h["y"] <= p[1] < h["y"] + h["h"] for h in rooms)
+    astray = [p for p in mine_dead if sq.get(p, "  .")[2] != "y" or p in where or in_room(p)]
+    close = [p for p in mine_dead if walked.get(p, 0) < 2 * GL.DEAD_CLEAR - 2]
+    check(len(mine_dead) >= 600 and not astray and not close,
+          "%d dead in its corridors: none in a room or on a crate (%d), none on the first stretch from the gate (%d)"
+          % (len(mine_dead), len(astray), len(close)))
+    dark = [p for p in Lb["lights"] if p not in where]
+    check(len(Lb["lights"]) >= 20 and not dark, "%d lights, each a candle or a brazier of its own" % len(Lb["lights"]))
+    # The players' map draws its walls (under the fog, lifted chunk by chunk):
+    # a pixel a square, a wall inking the square that holds it. Read back from
+    # the sheet: every square with a brick wall on its north or west edge is
+    # ink, a cell's far corner never is, and the way to the heart is open --
+    # walked on the picture alone, from the gate's pixel to the heart's door.
+    from PIL import Image
+    tiles = sorted(glob.glob(os.path.join(ROOT, "Sewars", "42", "media", "ui", "sewermap", "%s_*.png" % tid)))
+    tx0, ty0 = min(p[0] for p in sq), min(p[1] for p in sq)
+    sheet = {}
+    for t in tiles:
+        i, j = (int(v) for v in os.path.basename(t)[:-4].split("_")[-2:])
+        im = np.asarray(Image.open(t).convert("RGBA"))
+        for y in range(256):
+            for x in range(256):
+                sheet[(tx0 + i * 256 + x, ty0 + j * 256 + y)] = tuple(int(v) for v in im[y, x])
+    INK = (58, 46, 34, 255)
+    DOOR = (176, 98, 40, 255)
+    walled = [p for p, r in sq.items() if r[2] in LABYRINTH + "g" and "b" in (r[3], r[4]) and "d" not in (r[3], r[4])]
+    doors = [p for p, r in sq.items() if "d" in (r[3], r[4])]
+    unlinked = [p for p in walled if sheet.get(p) != INK]
+    clear = [(x0 + cx * 2 + 1, y0 + cy * 2 + 1) for cx in range(n // 2) for cy in range(n // 2)]
+    inked = [p for p in clear if sheet.get(p) == INK]
+    check(len(tiles) >= 4 and len(walled) > 20000 and not unlinked and not inked
+          and len(doors) >= 17 and all(sheet.get(q) == DOOR for q in doors),
+          "the sewer map's sheet draws its walls: %d squares with a wall are ink (%d not), no cell's open corner is (%d); every door is marked"
+          % (len(walled), len(unlinked), len(inked)))
+    seen, todo = {(Lb["tx"] + 1, Lb["ty"] + 1)}, deque([(Lb["tx"] + 1, Lb["ty"] + 1)])
+    while todo:
+        p = todo.popleft()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            q = (p[0] + dx, p[1] + dy)
+            if q not in seen and x0 <= q[0] < x0 + n and y0 <= q[1] < y0 + n and sheet.get(q) not in (INK, DOOR):
+                seen.add(q)
+                todo.append(q)
+    check((door[0] + 1, door[1] + 1) in seen and (hx, hy) not in seen,
+          "and the picture alone can be followed from the gate to the heart's door, which it shows shut")
+
+
 def main():
     shafts, shelters = read_index()
     check(len(shafts) > 400, "the index lists the shafts (%d)" % len(shafts))
@@ -380,7 +558,7 @@ def main():
         total_stranded += len(stranded)
         # The temple's rooms are named on the map like shelters, and are not: a
         # hall has as many doors as it needs. They are checked with the temple.
-        rooms = [h for h in shelters if h["town"] == tid and not h["kind"].startswith("temple_")]
+        rooms = [h for h in shelters if h["town"] == tid and not h["kind"].startswith(("temple_", "labyrinth_"))]
         one_door = True
         for h in rooms:
             doors = 0
@@ -390,7 +568,7 @@ def main():
                     if r and ("d" in (r[3], r[4]) or "j" in (r[3], r[4])):
                         doors += (r[3] in "dj") + (r[4] in "dj")
             one_door &= doors == 1
-        on_floor = all(sq.get((x, y), "  .")[2] in "smvn" + TEMPLE for x, y, _ in furniture)
+        on_floor = all(sq.get((x, y), "  .")[2] in "smvn" + TEMPLE + LABYRINTH for x, y, _ in furniture)
 
         # Near misses: a 1-wide tunnel that ends, walled, within a few squares of
         # other tunnel straight ahead -- a street that stopped at the edge of the
@@ -433,7 +611,7 @@ def main():
         # game, and opens the hatch only if no random basement is there).
         hatches = [s for s in mine if "hatch" in s]
         declared = {p for s in hatches for p in s["under"]}
-        under = [p for p, r in sq.items() if r[2] in "tksgwmnv" + TEMPLE and keep[p[1] - mny, p[0] - mnx]
+        under = [p for p, r in sq.items() if r[2] in "tksgwmnv" + TEMPLE + LABYRINTH and keep[p[1] - mny, p[0] - mnx]
                  and p not in declared]
         check(not under, "%s: no tunnel square under a building or a basement but a hatch's own (%d, e.g. %s)"
               % (tid, len(under), under[:3]))
@@ -662,6 +840,7 @@ def main():
               % (tid, len(gate_edges), county_doors, town_keys.get(tid, "none"), len(key_spots)))
         n_gates += len(gate_edges)
     temple_checks(temple, world, shafts, shelters, pictures_all, dead_all)
+    labyrinth_checks(read_labyrinth(), world, shafts, shelters, dead_all)
     check(n_gas == len(gas_index) and n_gas >= 50,
           "every stretch of gas in the index is in its town's data (%d of %d)" % (n_gas, len(gas_index)))
     check(n_gates == len(gates_index) and n_gates >= 30 and len(town_keys) >= 10

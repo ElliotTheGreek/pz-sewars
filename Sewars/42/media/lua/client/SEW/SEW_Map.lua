@@ -87,6 +87,10 @@ Net.onClient("found", function(args)
         if h and h.kind == "temple_hall" then
             U.note(U.try("player", getPlayer), getText("IGUI_SEW_TempleHall"), 230, 150, 90)
         end
+        -- And so is the labyrinth's heart, for whoever gets that far.
+        if h and h.kind == "labyrinth_heart" then
+            U.note(U.try("player", getPlayer), getText("IGUI_SEW_LabyrinthHeart"), 230, 190, 110)
+        end
     end
     M.version = M.version + 1
 end)

@@ -36,6 +36,15 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   daylight is what falls through the holes in the covers. The dead are down
   here too. (Tick *Sounds in the pipes* under Options -> Mods -> Sewers and
   now and then you will hear things in the pipes as well. Off by default.)
+- **The labyrinth.** *(Coming in 0.8.)* Somewhere in the deep woods west of
+  Muldraugh, a trapdoor under the weeds. Under it, a brick maze 256 squares a
+  side, with no light and one way through. Your sewer map draws its walls
+  only where you have walked. Whoever went in before is
+  still in there. In its dead ends, what they carried: torches, water, tins.
+  Here and there a room with a door that shuts, to rest in. At the heart of
+  it, a reward worth the walk, and a ladder that comes up inside a brick hut
+  in the woods. The hut's hatch opens from below only: it is the way out,
+  never a way in. Nothing in the labyrinth can be dug or blasted through.
 - **Out of the wind.** Below ground the wind does not reach you: no wind
   chill, only the day's own cold. Nothing down there warms you.
 - **Out of earshot.** The dead on the street do not come to the noise you

@@ -3,7 +3,7 @@
 -- loaded everywhere: the client lights the shafts and names the street, the
 -- server knows which manhole leads where. The squares are server-only (Data/).
 SEW = SEW or {}
-local I = { rev = "5949ecc1b7ab", towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil, gas = {}, gates = {}, temple = nil, warren = nil }
+local I = { rev = "26e94013de74", towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil, gas = {}, gates = {}, temple = nil, warren = nil, labyrinth = nil }
 SEW.Index = I
 local S, H, J, P, V, G, K = I.shafts, I.shelters, I.journals, I.plans, I.caves, I.gas, I.gates
 J[#J+1]={town="west_point",x=12055,y=6896,kind="squat",text="squat_2",street="Main St",dir="south"}
@@ -2320,8 +2320,30 @@ H[#H+1]={town="temple",kind="temple_stores",x=11541,y=8574,w=15,h=7}
 H[#H+1]={town="temple",kind="temple_postern",x=11541,y=8582,w=7,h=5}
 H[#H+1]={town="temple",kind="temple_pit",x=11549,y=8582,w=7,h=5}
 H[#H+1]={town="temple",kind="temple_narthex",x=11523,y=8588,w=15,h=7}
+I.towns["labyrinth"] = { name = "the deep woods", x0 = 8922, y0 = 10322, x1 = 9178, y1 = 10578, tw = 2, th = 2, chunks = 1089 }
+H[#H+1]={town="labyrinth",kind="labyrinth_gate",x=8922,y=10322,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_heart",x=9042,y=10442,w=16,h=16}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=8946,y=10346,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9024,y=10356,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9084,y=10348,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9144,y=10358,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=8952,y=10414,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9012,y=10424,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9090,y=10416,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9150,y=10426,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=8958,y=10482,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9018,y=10474,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9078,y=10484,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9138,y=10476,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=8946,y=10550,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9024,y=10542,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9084,y=10552,w=4,h=4}
+H[#H+1]={town="labyrinth",kind="labyrinth_rest",x=9144,y=10544,w=4,h=4}
 I.lair={town="louisville_3",tx=13349,ty=2266,ex=13348,ey=2266,x=13302,y=2275,gx=13296,gy=2275,vx=13295,vy=2275,hx=13297,hy=2255,cx=13317,cy=2242,hoard={13291,2272,5,7},rous={13304,2272,13300,2279,13301,2275,13300,2271}}
 I.warren={town="louisville_3",dens={13294,2289,5,13311,2286,5,13316,2301,5,13328,2294,4},lights={13311,2283,13308,2284,13324,2294}}
 S["11544,8582"]={town="temple",x=11544,y=8582,lx=11544,ly=8582,edge="N",street="",made=true,trapdoor=true}
 I.temple={town="temple",x=11530,y=8554,hx=11537,hy=8608,tx=11544,ty=8582,lights={11505,8552,11507,8545,11507,8554,11511,8545,11512,8566,11514,8582,11516,8574,11517,8545,11517,8554,11521,8545,11521,8560,11521,8568,11521,8576,11521,8584,11523,8545,11523,8554,11523,8591,11524,8558,11524,8566,11524,8574,11524,8582,11524,8589,11527,8554,11528,8545,11528,8556,11530,8547,11531,8556,11532,8547,11533,8554,11534,8545,11536,8562,11536,8570,11536,8578,11536,8589,11537,8554,11541,8545,11541,8586,11543,8554,11545,8547,11545,8549,11547,8569,11548,8566,11548,8574,11549,8569,11550,8582,11553,8554,11555,8586,11557,8335,11546,8380,11544,8406,11523,8497,11518,8520,11593,8748,11584,8729,11579,8706,11575,8682,11537,8608},breaches={{town="west_point_2",tx=11558,ty=8329,ex=11558,ey=8330,gx=11514,gy=8544,n=258},{town="muldraugh_2",tx=11593,ty=8755,ex=11593,ey=8754,gx=11530,gy=8595,n=222}}}
+S["8922,10322"]={town="labyrinth",x=8922,y=10322,lx=8922,ly=10322,edge="N",street="",made=true,trapdoor=true}
+S["9051,10442"]={town="labyrinth",x=9051,y=10442,lx=9051,ly=10442,edge="N",street="",made=true,trapdoor=true,exit=true}
+I.labyrinth={town="labyrinth",x=9050,y=10450,tx=8922,ty=10322,ex=9051,ey=10442,dx=9058,dy=10450,x0=8922,y0=10322,size=256,n=4252,lights={8946,10348,8946,10552,8952,10416,8958,10484,9012,10426,9018,10476,9024,10358,9024,10544,9044,10444,9044,10455,9048,10448,9048,10450,9049,10452,9050,10452,9051,10448,9051,10450,9055,10444,9055,10455,9078,10486,9084,10350,9084,10554,9090,10418,9138,10478,9144,10360,9144,10546,9150,10428}}
 return I

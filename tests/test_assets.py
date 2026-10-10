@@ -157,6 +157,7 @@ def main():
     # the idol and the brazier block their squares and nothing else of ours
     # does; its crates and shelves hold things.
     import gen_temple
+    import gen_labyrinth
     placed = set()
     for v in list(gen_temple.V.values()) + list(gen_temple.OURS.values()):
         placed |= set(v.values()) if isinstance(v, dict) else set(v) if isinstance(v, list) else {v}
@@ -169,7 +170,7 @@ def main():
     except SystemExit as e:
         drawn = str(e)
     check(drawn is True, "and has a picture in the packs (%s)" % drawn)
-    for name in ("floorTemple", "floorCarpet", "floorBoards"):
+    for name in ("floorTemple", "floorCarpet", "floorBoards", "floorLabyrinth", "floorHeart"):
         m = re.search(r'%s\s*=\s*"([^"]+)"' % name, config)
         check(m and "solidfloor" in tiles.get(m.group(1), {}), "%s is a solid floor" % name)
     names = {n: "sewars_01_%d" % i for i, (n, _k, _p) in enumerate(TILES_DEF)}
@@ -190,6 +191,23 @@ def main():
           "only the sludge, the idol and the brazier block a square (%s)" % blockers)
     check(all("container" in tiles[gen_temple.V[k]] for k in ("crate_metal", "crate_wood", "shelves")),
           "the temple's crates and shelves are containers")
+    # The labyrinth (tools/gen_labyrinth.py, DESIGN.md 7g): every sprite it
+    # places exists and has a picture, its crates and shelves hold things,
+    # and what it calls a tile of ours is the temple's tile of that name.
+    lab = set()
+    for v in list(gen_labyrinth.V.values()) + list(gen_labyrinth.OURS.values()):
+        lab |= set(v) if isinstance(v, list) else {v}
+    lab_missing = sorted(q for q in lab if q not in tiles and q not in our_tiles)
+    try:
+        vanilla_cells({q for q in lab if q in tiles})
+        lab_drawn = True
+    except SystemExit as e:
+        lab_drawn = str(e)
+    check(len(lab) >= 8 and not lab_missing and lab_drawn is True,
+          "every sprite the labyrinth places exists and has a picture (%d, %s, %s)" % (len(lab), lab_missing, lab_drawn))
+    check(all("container" in tiles[gen_labyrinth.V[k]] for k in ("crate_metal", "crate_wood", "shelves"))
+          and all(gen_labyrinth.OURS[k] == O[k] for k in gen_labyrinth.OURS),
+          "its crates and shelves are containers, and its brazier and candles are the art's")
     check(all(os.path.exists(os.path.join(ROOT, "design", "art", "cult", n + "_raw.png"))
               for n in ("idol", "mural", "brazier", "circle", "sigil", "candles", "torch")),
           "the image model's raws for the cult are kept (design/art/cult)")
@@ -272,7 +290,9 @@ def main():
     cult = re.search(r'C\.Temple\s*=\s*\{\s*outfit\s*=\s*"([^"]+)"', config)
     temple_dead = [gen_temple.CULTIST] + list(gen_temple.PRISONERS)
     check(cult is not None and cult.group(1) == gen_temple.CULTIST, "the config and the generator dress the cult alike")
-    outfits = ordinary + equipped + gen_dead + temple_dead
+    # The labyrinth's: everybody who went in before (tools/gen_labyrinth.py).
+    lab_dead = list(gen_labyrinth.LOST)
+    outfits = ordinary + equipped + gen_dead + temple_dead + lab_dead
     bad = sorted({o for o in outfits if o not in fem or o not in male})
     check(ordinary and equipped and not bad, "every outfit is in both of vanilla's lists (%s)" % bad)
     # What each outfit can be dressed in, by the file guid table: an ordinary
@@ -295,7 +315,7 @@ def main():
     check(not carry, "no ordinary outfit carries a bag (%s)" % carry)
     empty = sorted(o for o in equipped if not bags[o])
     check(not empty, "every equipped outfit does (%s)" % empty)
-    loose = sorted(o for o in gen_dead + temple_dead if bags[o] and o not in equipped)
+    loose = sorted(o for o in gen_dead + temple_dead + lab_dead if bags[o] and o not in equipped)
     check(not loose, "every generator outfit with a bag is one the build can undress (%s)" % loose)
 
     # Sounds, both ways.

@@ -43,8 +43,9 @@ function S.nearestShaft(x, y, range)
     local best, bestD = nil, range or 1e9
     for _, s in pairs(SEW.Index and SEW.Index.shafts or {}) do
         -- Never a hatch's: its ladder is under a house that may have a
-        -- basement instead, and its way up may be shut.
-        if not s.hatch then
+        -- basement instead, and its way up may be shut. Never the
+        -- labyrinth's way out: its foot is in the heart, which is earned.
+        if not s.hatch and not s.exit then
             local d = U.dist(x, y, s.x, s.y)
             if d < bestD then best, bestD = s, d end
         end
@@ -152,6 +153,17 @@ function S.inSewer(player)
     if not S.below(player) then return false end
     local sq = U.try("inSewer.sq", function() return player:getCurrentSquare() end)
     return sq ~= nil and S.ours(sq)
+end
+
+--- True when x, y is the labyrinth's: any of its squares, or the rock for
+--- three squares round its outer wall -- further than a bomb reaches
+--- (C.Mine.blast; DESIGN.md 7g). Nothing there gives to a pick or a
+--- bomb: a labyrinth somebody can dig straight through is a corridor.
+function S.inLabyrinth(x, y)
+    local L = SEW.Index and SEW.Index.labyrinth
+    if not L then return false end
+    x, y = math.floor(x), math.floor(y)
+    return x >= L.x0 - 3 and x <= L.x0 + L.size + 2 and y >= L.y0 - 3 and y <= L.y0 + L.size + 2
 end
 
 --- True when a character is close enough to a point to work there.

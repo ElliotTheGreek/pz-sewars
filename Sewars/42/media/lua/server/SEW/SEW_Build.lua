@@ -9,7 +9,8 @@
                  not walkable)  r rock under a wall outside  m cave (dug earth)
                  n the rats' nest and its run (dug earth)  v the rats' hoard
                  p a passage the cult dug (earth)  h the temple's stone floor
-                 a its carpet  q its boards  . none
+                 a its carpet  q its boards  y the labyrinth's flagstones
+                 u its heart's  . none
         walls    c concrete  b brick  d a door frame with its steel door
                  j a door frame with a locked grille (a county room: DESIGN.md 7, Locked gates)
                  e earth  o breach through concrete  q breach through brick
@@ -280,6 +281,9 @@ local FLOOR = {
     h = function() return C.Sprites.floorTemple end,
     a = function() return C.Sprites.floorCarpet end,
     q = function() return C.Sprites.floorBoards end,
+    -- The labyrinth (DESIGN.md 7g): its corridors, and its heart.
+    y = function() return C.Sprites.floorLabyrinth end,
+    u = function() return C.Sprites.floorHeart end,
 }
 
 -- A breach, and the wall it was broken through: o concrete, q brick; O and Q
@@ -630,7 +634,10 @@ function B.furnish(entry, seed)
         if loot and C.Loot[loot] then
             -- Seeded by the square too, or two crates of a chunk would match.
             -- The rats' hoard is always worth the fight.
+            -- And the labyrinth's caches are what gets somebody through it:
+            -- there whatever the sandbox's supplies.
             local lo, hi = unpack(loot:sub(1, 5) == "hoard" and C.HoardCount
+                                  or loot:sub(1, 9) == "labyrinth" and C.Labyrinth.cache
                                   or C.LootCount[B.option("Loot", 3, #C.LootCount)])
             local mine = U.hash(x, y, seed)
             U.fill(obj, C.Loot[loot], lo + mine % (hi - lo + 1), mine)
@@ -799,10 +806,38 @@ function B.cover(shaft)
     if not top or not U.floorOf(top) then return nil end
     -- The temple's way out is a trapdoor in a field: a house's hatch, with no house.
     local sprite = shaft.outfall and C.Sprites.outfall or shaft.trapdoor and C.Sprites.hatch or C.Sprites.cover
+    -- The labyrinth's way out comes up inside a blockhouse: that first.
+    if shaft.exit and not B.blockhouse(shaft) then return nil end
     if not U.findSprite(top, sprite) and not put(top, sprite) then return nil end
     s.covers[key] = "placed"
     U.debug("cover at %d,%d (%s) placed", shaft.x, shaft.y, shaft.town)
     return "placed"
+end
+
+--- The blockhouse over the labyrinth's way out (DESIGN.md 7g): four brick
+--- walls round the hatch, three squares a side, with a doorway in the south
+--- one and no roof. It is how the place is seen from the woods, and it is a
+--- way out only -- the hatch has no handle on top (SEW_Server.grant). At
+--- street level, so on ground the generator found open (gen_labyrinth: no
+--- tree, no rock, nothing built). True once all of it stands; false while
+--- any of its squares is not loaded yet.
+function B.blockhouse(shaft)
+    local W, x, y = C.Sprites.wall.b, shaft.x, shaft.y
+    local pieces = {
+        { -1, -1, W.NW }, { 0, -1, W.N }, { 1, -1, W.N },         -- the north wall, and the corner
+        { -1, 0, W.W }, { -1, 1, W.W },                           -- the west wall
+        { 2, -1, W.W }, { 2, 0, W.W }, { 2, 1, W.W },             -- the east wall: the next squares' west edges
+        { -1, 2, W.N }, { 0, 2, C.Sprites.doorFrame.N }, { 1, 2, W.N },   -- the south wall, and its doorway
+        { 2, 2, W.pillar },                                       -- where the south and east walls end
+    }
+    local squares = {}
+    for i, p in ipairs(pieces) do
+        local sq = U.square(x + p[1], y + p[2], 0, false)
+        if not sq or not U.floorOf(sq) then return false end
+        squares[i] = sq
+    end
+    for i, p in ipairs(pieces) do put(squares[i], p[3]) end
+    return true
 end
 
 --- True when a chunk's records hold any of a cave: its earth floor, or a
@@ -864,7 +899,7 @@ function B.chunk(key)
             if f == "t" or f == "k" or f == "m" then open[#open + 1] = { x, y } end
             -- Where the rats run: the walkway, and the cult's passages and hall --
             -- they were let go where they liked. None of the tunnels' dead there.
-            if f == "t" or f == "k" or f == "m" or f == "p" or f == "h" then runs[#runs + 1] = { x, y } end
+            if f == "t" or f == "k" or f == "m" or f == "p" or f == "h" or f == "y" then runs[#runs + 1] = { x, y } end
             if f == "n" then nest = nest + 1 end
         end
     end
@@ -895,7 +930,9 @@ function B.chunk(key)
             end
         end
         -- A shelter's own dead; the temple's are a set piece, and owed if a player is too near.
-        local piece = SEW.Index.temple ~= nil and SEW.Index.temple.town == tid
+        -- The labyrinth's too: everybody who went in before is the danger of it.
+        local piece = (SEW.Index.temple ~= nil and SEW.Index.temple.town == tid)
+            or (SEW.Index.labyrinth ~= nil and SEW.Index.labyrinth.town == tid)
         for _, z in ipairs(T.claimed[key] or {}) do
             if piece then B.setPiece(key, z) else B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5]) end
         end

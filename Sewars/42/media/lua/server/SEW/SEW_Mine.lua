@@ -26,6 +26,8 @@
       * a square that holds something not ours (a basement the game put
         there: DEV_GUIDE, *Not over anything else*);
       * a door, a locked grille, a ladder's wall, the nest's two walls;
+      * the labyrinth: its walls, its floors and the rock against it (a
+        labyrinth somebody can dig through is a corridor);
       * the hoard, from any side, while its rodents live (the gnawed wall is
         the way in, and it has its price);
       * anything a player built: only records and objects of ours are touched.
@@ -100,6 +102,7 @@ end
 --- May the wall between two squares come down? The hoard is shut from every
 --- side until the nest's own wall into it has been opened.
 local function gives(ax, ay, bx, by)
+    if S.inLabyrinth(ax, ay) or S.inLabyrinth(bx, by) then return false end
     if not SOFT[Mi.edgeCode(ax, ay, bx, by)] or ladderOn(ax, ay, bx, by) then return false end
     if (Mi.floor(ax, ay) == "v" or Mi.floor(bx, by) == "v") and not B.gateOpen("gate") then return false end
     return true
@@ -108,6 +111,7 @@ end
 --- May the rock at x, y be dug out? "ok", or why not.
 function Mi.rock(x, y)
     if Mi.isSpace(x, y) then return "space" end
+    if S.inLabyrinth(x, y) then return "hard" end
     if not U.chunkLoaded(x, y) then return "unready" end
     local sq = U.square(x, y, C.Z, true)
     if not sq then return "unready" end

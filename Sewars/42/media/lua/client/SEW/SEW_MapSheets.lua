@@ -36,7 +36,7 @@ function Sheets.init(b)
 end
 
 if LootMaps and LootMaps.Init then
-    for _, which in ipairs({ "temple", "nest" }) do
+    for _, which in ipairs({ "temple", "nest", "labyrinth" }) do
         local m = C.Maps[which]
         LootMaps.Init[m.stash] = Sheets.init(m.bounds)
     end

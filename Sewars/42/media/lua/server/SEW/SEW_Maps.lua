@@ -45,7 +45,7 @@ local B = SEW.Build
 local M = {}
 SEW.Maps = M
 
-M.WHICH = { "temple", "nest" }
+M.WHICH = { "temple", "nest", "labyrinth" }
 
 -- full type -> true, for every map item the loot may hold.
 local plain = nil

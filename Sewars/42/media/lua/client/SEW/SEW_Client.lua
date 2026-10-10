@@ -115,7 +115,10 @@ function Client.offer(playerObj, x, y)
     if not sq then
         -- A hatch in a house's floor.
         local h = S.hatchNear(x, y, C.ClickSlack)
-        if h and S.shaftAt(h:getX(), h:getY()) then return "hatch", h end
+        local hs = h and S.shaftAt(h:getX(), h:getY())
+        -- The labyrinth's way out: seen, and not opened from up here.
+        if hs and hs.exit then return "sealed", h end
+        if hs then return "hatch", h end
         return nil
     end
     local shaft = S.shaftAt(sq:getX(), sq:getY())
@@ -153,6 +156,8 @@ function Client.mineOffers(p)
     if not S.below(p) then return out end
     if SandboxVars and SandboxVars.Sewars and tonumber(SandboxVars.Sewars.Digging) == 1 then return out end
     local x, y = math.floor(p:getX()), math.floor(p:getY())
+    -- Nothing in the labyrinth gives (SEW_Mine): nothing is offered there.
+    if S.inLabyrinth(x, y) then return out end
     local here = U.square(x, y, C.Z, false)
     if not here or not U.floorOf(here) then return out end
     for _, d in ipairs(Client.DIRS) do
@@ -278,6 +283,8 @@ end
 --- into a sewer, each in turn), "trapdoor" (the field over the temple's
 --- postern), "nest" (the false wall under Louisville), "warren" (its first
 --- den), "cave" (the cover over a cave) or "hatch" (the house by the nest).
+--- "labyrinth" (the woods over its trapdoor), "heart" (the corridor at its
+--- heart's door, past all of it) or "blockhouse" (the woods by its way out).
 --- Nobody is moved without choosing one: a new character stays where the
 --- game put it.
 function Client.devGo(p, what)
@@ -293,6 +300,24 @@ function Client.devGo(p, what)
         end
         Client.devTravel = { x = x, y = y, waited = 0, note = note }
         U.teleport(p, x, y, 0)
+        Client.vault(p)
+        return true
+    elseif what == "labyrinth" or what == "blockhouse" then
+        -- The woods over it: a square south of its trapdoor, or outside the
+        -- blockhouse's doorway. Each is set in as somebody comes near.
+        local Lb = SEW.Index.labyrinth
+        if not Lb then return false end
+        if what == "labyrinth" then U.teleport(p, Lb.tx, Lb.ty + 1, 0) else U.teleport(p, Lb.ex, Lb.ey + 3, 0) end
+        Client.vault(p)
+        U.note(p, getText(what == "labyrinth" and "IGUI_SEW_DevLabyrinth" or "IGUI_SEW_DevBlockhouse"), 200, 190, 150)
+        return true
+    elseif what == "heart" then
+        -- The corridor at the heart's door: the last of the way, without the
+        -- hour of walking. Those who stand there are owed, and will come.
+        local Lb = SEW.Index.labyrinth
+        if not Lb then return false end
+        Client.devTravel = { x = Lb.dx, y = Lb.dy, waited = 0, note = getText("IGUI_SEW_DevAtHeart") }
+        U.teleport(p, Lb.dx, Lb.dy, 0)
         Client.vault(p)
         return true
     elseif what == "nest" or what == "warren" then
@@ -458,6 +483,7 @@ function Client.devMenu(playerObj, context)
     local sub = context:getNew(context)
     context:addSubMenu(top, sub)
     for _, what in ipairs({ "dig", "gun", "fire", "snow", "wind", "maps", "temple", "breach", "trapdoor", "nest", "warren",
+                            "labyrinth", "heart", "blockhouse",
                             "hatch", "cave", "outfall", "gas", "poison", "gate", "key" }) do
         sub:addOption(getText("ContextMenu_SEW_Dev_" .. what), playerObj, Client.devGo, what)
     end
@@ -493,7 +519,15 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
         local tip = ISWorldObjectContextMenu.addToolTip()
         -- In a house's floor, or (the temple's) under the weeds of a field.
         local shaft = S.shaftAt(where:getX(), where:getY())
-        tip.description = getText((shaft and shaft.trapdoor) and "Tooltip_SEW_Trap" or "Tooltip_SEW_Hatch")
+        local maze = shaft and SEW.Index.labyrinth and shaft.town == SEW.Index.labyrinth.town
+        tip.description = getText(maze and "Tooltip_SEW_Maze" or (shaft and shaft.trapdoor) and "Tooltip_SEW_Trap"
+                                  or "Tooltip_SEW_Hatch")
+        opt.toolTip = tip
+    elseif what == "sealed" then
+        local opt = context:addOption(getText("ContextMenu_SEW_HatchDown"), nil, nil)
+        opt.notAvailable = true
+        local tip = ISWorldObjectContextMenu.addToolTip()
+        tip.description = getText("Tooltip_SEW_Sealed")
         opt.toolTip = tip
     elseif what == "shut" then
         local opt = context:addOption(getText("ContextMenu_SEW_Enter"), nil, nil)
@@ -517,7 +551,8 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
             opt.toolTip = tip
         elseif where.hatch or where.trapdoor then
             local tip = ISWorldObjectContextMenu.addToolTip()
-            tip.description = getText(where.trapdoor and "Tooltip_SEW_TrapUp" or "Tooltip_SEW_HatchUp")
+            tip.description = getText(where.exit and "Tooltip_SEW_MazeOut" or where.trapdoor and "Tooltip_SEW_TrapUp"
+                                      or "Tooltip_SEW_HatchUp")
             opt.toolTip = tip
         elseif where.street and where.street ~= "" then
             local tip = ISWorldObjectContextMenu.addToolTip()
@@ -570,7 +605,7 @@ end)
 local REFUSED = { shut = "IGUI_SEW_Shut", reach = "IGUI_SEW_Reach", level = "IGUI_SEW_Level",
                   unready = "IGUI_SEW_Unready", rous = "IGUI_SEW_RousAlive", open = "IGUI_SEW_Refused",
                   solid = "IGUI_SEW_MineSolid", foreign = "IGUI_SEW_MineForeign", tool = "IGUI_SEW_MineTool",
-                  off = "IGUI_SEW_MineOff" }
+                  off = "IGUI_SEW_MineOff", hard = "IGUI_SEW_MineHard", sealed = "IGUI_SEW_Sealed" }
 Net.onClient("refused", function(args)
     awaited = nil
     refusedAt = Client.now
@@ -797,6 +832,15 @@ function Client.light(p)
         for i = 1, #Wn.lights, 2 do
             local lx, ly = Wn.lights[i], Wn.lights[i + 1]
             if math.abs(lx - px) <= r and math.abs(ly - py) <= r then lamp(lx, ly, C.CaveLight) end
+        end
+    end
+    -- The labyrinth's: a candle in each rest, the fires in its heart. The rest of it is dark.
+    local Lb = SEW.Index.labyrinth
+    if Lb and S.inLabyrinth(px, py) then
+        local lr = C.Labyrinth.lightRange
+        for i = 1, #Lb.lights, 2 do
+            local lx, ly = Lb.lights[i], Lb.lights[i + 1]
+            if math.abs(lx - px) <= lr and math.abs(ly - py) <= lr then lamp(lx, ly, C.Labyrinth.light) end
         end
     end
     -- Nearer than the rest: there are sixty of them, and the hall alone has twenty.

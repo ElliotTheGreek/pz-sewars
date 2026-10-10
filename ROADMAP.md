@@ -221,6 +221,29 @@ Six of the ten are faults or asks in the mod; the other four are questions, answ
 - [ ] **(game)** a new world with Sewers [DEV]: you start where the game puts you, with the kit. Right-click, *Sewers (dev)*: each of the four *Go to* stops above takes you there
 - [ ] Not done: making the sewer milder than the street the way the game makes a basement (`getAirTemperatureForSquare` 25-124: pulled toward 22 C). Asked for was the wind; a cave's steady air is a design decision, and the author's
 
+## 0.8 -- the labyrinth (2026-10-09)
+
+Asked for by the author; DESIGN.md 7g. Not released: the version is still 0.7.6.
+
+- [x] **The labyrinth**: one in the world, under the deep woods west of Muldraugh (trapdoor at 8922,10322), far from everything (nothing built, wet, paved or dug within 40 squares), a town of its own in 1,089 chunks no town has. 128 by 128 cells of two squares: 65,536 squares of flagstone between thin brick walls. `tools/gen_labyrinth.py`, called by `gen_sewers` after the temple; `python tools/gen_labyrinth.py out.png` runs the maze alone in ten seconds. First built 40 cells a side; the author asked for ten times that
+- [x] **One way to the heart**: about 3,700 squares of walking from the gate to the heart's door (a straight line is 264), the best of forty mazes; 1,525 dead ends, one in sixteen opened into a loop
+- [x] **Along the way**: 532 caches down its dead ends (torches, batteries, water, tins), sixteen rests behind steel doors (a bedroll, two crates, a candle), stocked whatever the sandbox's supplies (`C.Labyrinth.cache`)
+- [x] **The dead**: 1,008, a set piece (owed when a player is too near as a chunk is built), none in a room, none on the first stretch from the gate, a knot of them before the heart's door
+- [x] **The heart**: sixteen crates and shelves from the hoard's lists, braziers, angels, and a ladder out
+- [x] **The way out, and never in**: the heart's ladder comes up through a hatch inside a brick blockhouse the server builds at street level round it (`SEW_Build.blockhouse`: thirteen pieces, once). The shaft is marked `exit` in the index: greyed on the menu from above, refused by the server (`sealed`), never a rescue's ladder
+- [x] **Nothing gives**: no dig, no wall down, no blast in the labyrinth or the rock three squares round it (`S.inLabyrinth`); *Dig* is not on the menu there
+- [x] **The map is drawn by walking**: its sheet of the sewer map has its thin walls in ink and its doors marked, under the fog, which lifts one chunk (four cells a side) at a time as it is walked: what is uncovered and nothing ahead. First built as one plain square with no walls; the author asked for the walls (`gen_labyrinth` `map_ink`, `gen_sewers.map_images`). `test_layout` reads the sheet back: every walled square inked, and the picture alone followed from the gate to the heart's door
+- [x] **A third annotated map**, to it: the trapdoor, the blockhouse (*the way OUT. no way in*), the woods west of Muldraugh (`C.Maps.labyrinth`, `SewarsLabyrinthMap`); handed out with the other two
+- [x] The dev build's menu: *Go to the labyrinth's trapdoor*, *Go to the labyrinth's heart* (the last corridor, by its door), *Go to the labyrinth's way out* (twenty-one stops)
+- [x] `test_layout` (17 checks: all of it from the trapdoor, the heart behind one door and unreachable with it shut, the length of the way, far from everything, open ground over both shafts, rests, caches, the reward, the dead, the map's sheet read back); `test_flow` (the trapdoor, the gate, the cache with supplies at None, no digging three ways, the dead owed and settled, the heart, the way out, the blockhouse, the hatch refused from above, no rescue to it, the map); `test_assets`; thirteen mutations, all caught. **The full mutation run has not been repeated** (317 now)
+- [ ] **(game)** *Sewers (dev)*, *Go to the labyrinth's trapdoor*: the trapdoor is in the ground a square north; down it; brick corridors, a crate by the ladder with a torch or water in it. Walls cut away near you as in the tunnels. *Dig* is not on the menu
+- [ ] **(game)** the frame rate and the dead in the corridors as you walk: 1,008 of them are put down a chunk at a time as you come near, never all at once. Too many or too few: `DEAD_PER_CELLS` in `tools/gen_labyrinth.py`, then regenerate
+- [ ] **(game)** *Go to the labyrinth's heart*: the last corridor, the dead that stand there, the steel door, the heart lit by its braziers, sixteen containers of the good stuff. Up its ladder: you are inside a brick hut in the woods, doorway to the south
+- [ ] **(game)** *Go to the labyrinth's way out*: the hut; right-click its hatch: greyed, *no handle on this side*. **Unproven**: brick walls and a door frame put up at street level at runtime (the mod has only ever built below, and laid covers flat on the ground) -- how they draw, cut away and block, and what the door frame's opening does to a zombie's path
+- [ ] **(game)** the sewer map below: black but for where you have walked, and there the walls in ink, readable at the closer zooms; a rest's door is a brown mark
+- [ ] **(game)** *Give me the annotated maps*: three now; the third shows the woods west of Muldraugh with an X and a circle
+- [ ] Before release: the full mutation run, `layout_diff` against 0.7.6 (expected: squares added, none changed), version 0.8.0, CHANGELOG, the Workshop description
+
 ## Art (FlowDot: Gemini paints materials, the generator does geometry)
 
 - [x] Procedural pass: stencils, graffiti, grime, puddles, light pools, wall variants

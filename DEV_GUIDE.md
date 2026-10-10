@@ -70,7 +70,7 @@ media/lua/client/SEW/SEW_MapSheets.lua     the sheet of the game's map each one 
 media/lua/shared/SEW/SEW_Compat.lua        below ground is indoors: isOutside wrapped for every Lua caller, other mods included
 media/lua/shared/SEW/SEW_Wind.lua          no wind below: a heat source on each player's own square, at the still air's temperature
 media/lua/shared/SEW/SEW_Index.lua         GENERATED: towns, shafts, shelters, caves, journals, plans, the nest -- small, every process
-media/lua/server/SEW/SEW_Build.lua         raising a chunk of tunnel: floors, walls, doors, ladders, dressing, shelters, the dead
+media/lua/server/SEW/SEW_Build.lua         raising a chunk of tunnel: floors, walls, doors, ladders, dressing, shelters, the dead; the labyrinth's blockhouse
 media/lua/server/SEW/SEW_Server.lua        the authority: granting climbs, building round players below, rescues, console
 media/lua/server/SEW/SEW_Discovery.lua     what each player has found below, per username: the map's memory
 media/lua/server/SEW/SEW_Story.lua         reading plans and journals: reveals and marks, on the server
@@ -89,6 +89,7 @@ media/sandbox-options.txt                  zombie density, their outfits, shelte
 tools/dev.py              THE ENTRY POINT: build, check, mutate, deploy, run, log, package
 tools/gen_sewers.py       the map -> the tunnels (Data/ and SEW_Index.lua), and plans in design/art/plans/
 tools/gen_temple.py       the temple and the passages the cult dug to it, run last by gen_sewers (DESIGN.md 7d)
+tools/gen_labyrinth.py    the labyrinth, run after the temple (DESIGN.md 7g); alone, the maze and its plan in ten seconds
 tools/layout_diff.py      what a save built from the old layout would see move: run before shipping a layout change
 tools/gen_sewer_art.py    our tiles: drawn, projected, packed; review sheet in design/art/
 tools/gen_sewer_sounds.py the four sounds, synthesised
@@ -1485,6 +1486,34 @@ path that vanilla Lua makes itself. **Unplayed**; if both land, a swing
 counts twice on a server (the engine's hit arriving after ours), which
 errs the right way for this report.
 
+### A set piece ten times the size is the same code and a different test
+
+**New in this mod (0.8, the labyrinth).** The first labyrinth was 40 cells a
+side and its flow test built "every chunk of it" in a loop; at 128 cells the
+same loop built 183 of 1,089, because the simulation only has chunks within
+80 squares of a street the test laid. Nothing failed but the counts. A test
+that says *all of it* has to load all of it (`SIM.load`), and assert how
+many that was. Three more from the same day:
+
+- **Two guards that cover each other, again.** Digging refused the
+  labyrinth at the top of `Mi.dig`, in `Mi.rock` and in `gives`. The top one
+  hid the other two from their mutations and was taken out: rock answers
+  *hard*, a wall answers *solid*, and each has a test of its own.
+- **A margin is measured against what reaches it.** *Nothing gives* was the
+  labyrinth and one square of rock round it; a bomb reaches two, and the
+  first test of a blast at its outer wall opened three squares outside.
+  The margin is three (`S.inLabyrinth`), and the test holds it over
+  `C.Mine.blast`.
+- **The walked length is not cells times two.** The generator counts the
+  way in cells (2,126, so "4,252 squares"); a walker cuts the corners of a
+  corridor two squares wide and does it in 3,710. `test_layout` walks it.
+  Say the walked number.
+
+**Unproven in game, all of it**, and one thing more than usual: the
+blockhouse is the first thing the mod stands up at street level (brick
+walls and a door frame, `SEW_Build.blockhouse`). Everything known about how
+our walls draw, cut away and block was learned at z -1.
+
 ### One mutation run at a time, and nothing staged while one runs
 
 **Done wrong releasing 0.7.3.** `tests/mutate.py` edits the source in place
@@ -1523,7 +1552,9 @@ tool then could not match the line, which is how it was found
 Write Python and Lua with the Write/Edit tools, or a script file written by
 them. Never a heredoc for anything with a backslash in it. (0.5: twice more,
 a `\n` in a patch fed through a heredoc; both caught because the patch
-asserted its match and wrote nothing. And building gas, gates and outfalls,
+asserted its match and wrote nothing. 0.8: and again, thirteen new mutations
+written through a heredoc came out with real newlines inside their strings,
+and `mutate.py` would not compile. And building gas, gates and outfalls,
 a long quoted heredoc stopped the shell dead on its own quotes: the edit
 script went into a file written by the Write tool, and ran from there. 0.6:
 the same again, first try -- every edit script of the temple's was a file.)
@@ -1592,10 +1623,10 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | Check | Catches |
 |---|---|
 | `tools/luacheck.py` | Lua syntax, generated data included |
-| `tests/test_assets.py` (178 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
+| `tests/test_assets.py` (183 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
 | `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (476 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled; and 0.7.5's: a loot event with no container, fire through the street's floor put out both ways and a fire of the tunnel's own left to burn, the outdoors flag off the sewer's squares and kept on a door's, a swing and a shot at a ROUS judged by the server (reach, facing, walls, the engine's own hit), a climb with no walk, asked again by command, made anyway when out and unanswered, refused with where the server had the player, EXIT stencils by the sandbox; and 0.7.6's: the sounds unticked and quiet, ticked and rare, no key for the map, the wind's chill below as the engine has it and then as we leave it (one square, following, in step with the air, none in a car, a room, a cellar or on a warm day, none left behind); no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 304 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so; `0.7.5` the 72 before, `0.7.6` the 17 newest) |
+| `tests/test_flow.py` (513 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled; and 0.7.5's: a loot event with no container, fire through the street's floor put out both ways and a fire of the tunnel's own left to burn, the outdoors flag off the sewer's squares and kept on a door's, a swing and a shot at a ROUS judged by the server (reach, facing, walls, the engine's own hit), a climb with no walk, asked again by command, made anyway when out and unanswered, refused with where the server had the player, EXIT stencils by the sandbox; and 0.7.6's: the sounds unticked and quiet, ticked and rare, no key for the map, the wind's chill below as the engine has it and then as we leave it (one square, following, in step with the air, none in a car, a room, a cellar or on a warm day, none left behind); no WARN, no unknown sprite or text key |
+| `tests/mutate.py` (`dev.py mutate`) | 317 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so, `labyrinth` the 13 of 0.8; `0.7.5` the 72 before, `0.7.6` the 17 newest) |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -1633,7 +1664,8 @@ the temple's field), which was one test's convenience and every other
 test's walk back. A new character gets the kit and stays where the game put
 it; the four places it was ever started at are stops -- *Go to the temple's
 trapdoor*, *Go to the outfall*, *Go to the cover over a cave*, *Go to the
-hatch by the rats' nest* -- with the others. Since 0.7.5 there are also three for the weather and the
+hatch by the rats' nest* -- with the others. 0.8 added three for the
+labyrinth (its trapdoor, its heart, its way out). Since 0.7.5 there are also three for the weather and the
 fight: *Give me a pistol and bullets*, *Light the street here* (a few
 squares of street over the tunnel, by vanilla's own `IsoFireManager.StartFire`)
 and *Make it snow* (holds `IsoCell.setSnowTarget(100)` until chosen again;
@@ -1705,6 +1737,15 @@ and two more stops on the dev menu (*In game*, above). Every static test
 and all 304 mutations (one run, alone); deployed as SewarsDev and staged
 again (`package --install`, compared file by file with the source). That
 second staging is the one to upload.
+
+**After 0.7.6, not released: the labyrinth (0.8, DESIGN.md 7g; ROADMAP 0.8
+has its checklist).** Built, every static test passing, its thirteen
+mutations caught; the full run of 317 not repeated; deployed as SewarsDev;
+**not played**. The layout's revision changed, so a save's built chunks are
+revisited once (hull only), as after any regeneration; nothing a save
+holds moved (every other town's data is byte for byte the same). The
+staged 0.7.6 package does not have it: do not restage until 0.8 is
+meant to go up.
 
 **The 0.7.6 checklist** (every step a click; any world with Sewers [DEV]):
 

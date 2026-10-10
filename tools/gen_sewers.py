@@ -59,6 +59,7 @@ from scipy import ndimage as ndi
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pzmap  # noqa: E402
 import gen_temple  # noqa: E402
+import gen_labyrinth  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LUA = os.path.join(ROOT, "Sewars", "42", "media", "lua")
@@ -1708,6 +1709,7 @@ def key_spots(t, furniture):
 #   floor    . none  t tunnel  k vault  s shelter  g grating  w channel (sludge, not walkable)  r rock (outside, under a wall)
 #            m cave (dug earth)  n the rats' nest  v their hoard
 #            p a passage the cult dug  h the temple's stone floor  a its carpet  q its boards (gen_temple.py)
+#            y the labyrinth's flagstones  u its heart's (gen_labyrinth.py)
 #   walls    . none  c concrete  b brick  d a door frame, with its steel door  e earth (a cave's)
 #            j a door frame, with a locked grille (a county room: gate_shelters)
 #            o a breach, broken through concrete  q a breach, broken through brick (both walked through)
@@ -2316,7 +2318,7 @@ def write_index(towns, rev, journals=(), plans=()):
         "-- server knows which manhole leads where. The squares are server-only (Data/).",
         "SEW = SEW or {}",
         "local I = { rev = %s, towns = {}, shafts = {}, shelters = {}, journals = {}, plans = {}, caves = {}, lair = nil, "
-        "gas = {}, gates = {}, temple = nil, warren = nil }" % lua_str(rev),
+        "gas = {}, gates = {}, temple = nil, warren = nil, labyrinth = nil }" % lua_str(rev),
         "SEW.Index = I",
         "local S, H, J, P, V, G, K = I.shafts, I.shelters, I.journals, I.plans, I.caves, I.gas, I.gates",
     ]
@@ -2418,6 +2420,24 @@ def write_index(towns, rev, journals=(), plans=()):
                         ",".join("{town=%s,tx=%d,ty=%d,ex=%d,ey=%d,gx=%d,gy=%d,n=%d}"
                                  % (lua_str(b["town"]), b["a"][0], b["a"][1], b["e"][0], b["e"][1],
                                     b["gate"][0], b["gate"][1], b["length"]) for b in T["breaches"])))
+    # The labyrinth (gen_labyrinth.py): its two shafts -- the trapdoor in, a
+    # cover of ours to the code; and the hatch out, the same with `exit`: up
+    # it and never down (SEW_Server.grant), under a blockhouse the server
+    # builds round it (SEW_Build.blockhouse). The middle of its heart (x, y),
+    # the corridor square at the heart's door (dx, dy), the maze's own square
+    # of ground (x0, y0, size), its lights, and how long the way is.
+    for tid, name, t, ladders in towns:
+        Lb = t.get("labyrinth")
+        if not Lb:
+            continue
+        (tx, ty), (ex, ey), (hx, hy), (dx, dy), (ox, oy) = Lb["entry"], Lb["exit"], Lb["heart"], Lb["door"], Lb["origin"]
+        lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="N",street="",made=true,trapdoor=true}'
+                     % (tx, ty, lua_str(tid), tx, ty, tx, ty))
+        lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="N",street="",made=true,trapdoor=true,exit=true}'
+                     % (ex, ey, lua_str(tid), ex, ey, ex, ey))
+        lines.append("I.labyrinth={town=%s,x=%d,y=%d,tx=%d,ty=%d,ex=%d,ey=%d,dx=%d,dy=%d,x0=%d,y0=%d,size=%d,n=%d,lights={%s}}"
+                     % (lua_str(tid), hx, hy, tx, ty, ex, ey, dx, dy, ox, oy, Lb["size"], Lb["length"],
+                        ",".join("%d,%d" % q for q in Lb["lights"])))
     lines.append("return I")
     with open(INDEX, "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(lines) + "\n")
@@ -2454,6 +2474,11 @@ def map_images(tid, t):
     rgba[t["cave_id"] > 0] = (150, 118, 82, 255)                 # dug earth
     for x, y in t.get("cult", ()):                              # a passage the cult dug under this town's sheet
         rgba[y, x] = (150, 118, 82, 255)
+    # The labyrinth (gen_labyrinth.py): its walls stand on the edges of its
+    # squares, where the outline above cannot see them. Its own ink, and its doors.
+    if t.get("map_ink") is not None:
+        rgba[t["map_ink"]] = (58, 46, 34, 255)
+        rgba[t["map_door"]] = (176, 98, 40, 255)
     os.makedirs(MAPS_UI, exist_ok=True)
     tw, th = (W + MAP_TILE - 1) // MAP_TILE, (H + MAP_TILE - 1) // MAP_TILE
     for i in range(tw):
@@ -2609,6 +2634,10 @@ def main():
     # What each of the two places says of the other (ROADMAP 0.6): the
     # writings left in the dens, pointing at the temple and its breaches.
     gen_temple.cross(built, journals, temple)
+    # The labyrinth, after everything: a town of its own again, far from all
+    # of them, that touches nobody's records.
+    labyrinth = gen_labyrinth.dig(built + [temple], region, room_mask, under_map, water_region,
+                                  os.path.join(PLANS, "labyrinth_walls.png") if a.plans else None)
     # Only now is the old layout taken away: everything that can fail has not.
     # (It went first once, and a temple that would not fit left the tree with
     # no sewers at all until the next good run.)
@@ -2619,6 +2648,11 @@ def main():
     for b in built:
         finish(b)
     finish(temple)
+    finish(labyrinth)
+    Lb = labyrinth["t"]["labyrinth"]
+    print("the labyrinth: trapdoor at %d,%d, the way out at %d,%d; the way to the heart %d squares, %d dead ends, "
+          "%d caches, %d dead (maze %d)"
+          % (Lb["entry"] + Lb["exit"] + (Lb["length"], Lb["dead_ends"], Lb["caches"], Lb["dead"], Lb["seed"])))
     T = temple["t"]["temple"]
     print("the temple: idol at %d,%d, trapdoor at %d,%d; passages %s"
           % (T["idol"] + T["trap"] + (", ".join("%s %d squares from %d,%d" % (b["town"], b["length"], b["a"][0], b["a"][1])

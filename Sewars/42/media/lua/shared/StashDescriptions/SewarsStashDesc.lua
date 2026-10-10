@@ -37,6 +37,7 @@ local INK = { 0.129, 0.129, 0.129 }
 local RED = { 0.55, 0.08, 0.06 }
 
 local T, L = SEW.Index and SEW.Index.temple, SEW.Index and SEW.Index.lair
+local Lb = SEW.Index and SEW.Index.labyrinth
 
 if T then
     local m = C.Maps.temple
@@ -59,4 +60,16 @@ if L then
     stash:addStamp("Skull", nil, L.tx, L.ty, RED[1], RED[2], RED[3])
     stash:addStamp(nil, "Stash_SEW_Nest_2", L.tx + 12, L.ty - 6, INK[1], INK[2], INK[3])
     stash:addStamp(nil, "Stash_SEW_Nest_3", m.bounds[1] + 12, m.bounds[4] - 34, RED[1], RED[2], RED[3])
+end
+
+if Lb then
+    local m = C.Maps.labyrinth
+    local stash = StashUtil.newStash(m.stash, "Map", C.Maps.never, "Stash_AnnotedMap")
+    -- The trapdoor in; the blockhouse, which is the way out and no way in.
+    stash:addStamp("X", nil, Lb.tx, Lb.ty, RED[1], RED[2], RED[3])
+    stash:addStamp(nil, "Stash_SEW_Labyrinth_1", Lb.tx - 150, Lb.ty - 26, INK[1], INK[2], INK[3])
+    stash:addStamp("Circle", nil, Lb.ex, Lb.ey, INK[1], INK[2], INK[3])
+    stash:addStamp(nil, "Stash_SEW_Labyrinth_2", Lb.ex + 18, Lb.ey + 8, INK[1], INK[2], INK[3])
+    stash:addStamp("Skull", nil, m.bounds[1] + 40, m.bounds[4] - 70, RED[1], RED[2], RED[3])
+    stash:addStamp(nil, "Stash_SEW_Labyrinth_3", m.bounds[1] + 62, m.bounds[4] - 78, RED[1], RED[2], RED[3])
 end

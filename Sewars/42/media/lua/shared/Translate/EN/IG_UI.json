@@ -110,5 +110,14 @@
     "IGUI_SEW_MineForeign": "Something is already built behind this. Leave it.",
     "IGUI_SEW_MineTool": "You need a pickaxe or a sledgehammer.",
     "IGUI_SEW_MineOff": "Digging is turned off on this world.",
+    "IGUI_SEW_MineHard": "Old stone, laid to last. Nothing here gives.",
+    "IGUI_SEW_Sealed": "No handle, no hinge on this side. It opens from below.",
+    "IGUI_SEW_Shelter_labyrinth_gate": "The gate",
+    "IGUI_SEW_Shelter_labyrinth_rest": "A rest",
+    "IGUI_SEW_Shelter_labyrinth_heart": "The heart of the labyrinth",
+    "IGUI_SEW_LabyrinthHeart": "The middle of it. Firelight on steel crates, and a ladder going up.",
+    "IGUI_SEW_DevLabyrinth": "Dev build: the labyrinth is under these woods. Its trapdoor is one square north of you.",
+    "IGUI_SEW_DevBlockhouse": "Dev build: the labyrinth's way out. The hatch inside opens from below only.",
+    "IGUI_SEW_DevAtHeart": "Dev build: the last corridor. The heart's door is beside you, and you are not alone.",
     "IGUI_SEW_DevDig": "Dev build: %1 things in your inventory. Right-click below ground: Dig. Equip a pipe bomb and throw it down a tunnel, from as far back as you can."
 }

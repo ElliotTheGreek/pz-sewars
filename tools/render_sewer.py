@@ -40,7 +40,7 @@ def config_sprites():
 
     sp = {k: one(k) for k in ("floorTunnel", "floorVault", "floorShelter", "floorRock", "sludge",
                               "puddle", "debris", "lightpool", "smear", "bones", "litter", "haze",
-                              "floorTemple", "floorCarpet", "floorBoards")}
+                              "floorTemple", "floorCarpet", "floorBoards", "floorLabyrinth", "floorHeart")}
     for k in ("doorFrame", "door", "gate", "ladder", "exit", "safe", "grime", "cracks", "claws", "rousWarning", "gasSign"):
         sp[k] = pair(k)
     sp["graffiti"] = {c: {"N": n, "W": w} for c, n, w in
@@ -99,6 +99,7 @@ def decode(x, y, rec, sp):
              "n": sp["floorCave"][1 if lua_rng1(lua_hash(x, y, 5), 4) == 1 else 0] if f == "n" else None,
              "p": sp["floorCave"][1 if lua_rng1(lua_hash(x, y, 5), 4) == 1 else 0] if f == "p" else None,
              "h": sp["floorTemple"], "a": sp["floorCarpet"], "q": sp["floorBoards"],
+             "y": sp["floorLabyrinth"], "u": sp["floorHeart"],
              "v": sp["floorVault"]}.get(f)
     if floor:
         out.append(floor)
@@ -179,10 +180,10 @@ def read_town(tid):
 
 
 def temple_lights():
-    """The temple's sconces, braziers and candles, from the index."""
+    """The temple's sconces, braziers and candles, and the labyrinth's, from the index."""
     s = open(os.path.join(LUA, "shared", "SEW", "SEW_Index.lua"), encoding="utf-8").read()
-    m = re.search(r"I\.temple=\{.*?lights=\{([\d,]*)\}", s)
-    v = [int(n) for n in m.group(1).split(",")] if m else []
+    v = [int(n) for body in re.findall(r"I\.(?:temple|labyrinth)=\{.*?lights=\{([\d,]*)\}", s)
+         for n in body.split(",") if n]
     return set(zip(v[0::2], v[1::2]))
 
 

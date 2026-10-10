@@ -144,6 +144,9 @@ Digging and blasting both leave these alone:
   and the gnawed wall opens when what lives there is dead. Neither can be
   dug.
 - **The hoard, from any side**, until its own wall has been opened.
+- **The labyrinth** (0.8). None of it: not its walls, not its floors, not
+  the rock for three squares round it. *Dig* is not even on the menu in
+  there, and a bomb moves nothing. It is a labyrinth; walk it.
 - **Anything a player built.** The mod only ever removes its own walls.
 
 And it only goes sideways: the sewers are one level. You cannot dig up to
@@ -207,6 +210,7 @@ the explosion are the server's too, so they draw the dead for everybody.
 | *The ground jumps. Somewhere, a lot of rock has moved.* | A blast went off below, near you. |
 | *You need a pickaxe or a sledgehammer.* | No digging tool on you. |
 | *That will not give.* | A door, a grille, a ladder's wall, or one of the rat hole's own walls. |
+| *Old stone, laid to last. Nothing here gives.* | You are at the labyrinth. |
 | *Something is already built behind this. Leave it.* | A basement or another mod's space is there. |
 | *Not while something in the nest is still breathing.* | You tried to dig into the hoard. |
 | *Too far away.* / *Not from here.* | You moved off the square, or are not below ground. |

@@ -44,7 +44,8 @@ strand the player*, *A door with no handle on the inside*):
   way out, and a player who logs in below with no tunnel built round them is
   put at the nearest ladder, not left to fall.
 - **Offer a one-way move.** *Enter sewer* and *Climb out* are written and
-  tested as a pair.
+  tested as a pair. (One exception, asked for and said to the player: the
+  labyrinth's way out, section 7g. It is a way *out*.)
 
 ## 3. Where the sewers are: under the town, at z -1 (decided)
 
@@ -218,6 +219,14 @@ server builds from the Lua. Nothing in the game reads a map file.
     where it adds squares to that town's records and changes the one wall it
     breaks through. Floors `p` (a passage the cult dug) and `h`, `a`, `q`
     (the temple's stone, carpet and boards); breaches `O`, `Q`.
+
+19. **The labyrinth** (0.8, `tools/gen_labyrinth.py`), after the temple and
+    from a generator of its own: section 7g. A town of its own again,
+    `labyrinth`, in chunks no town has, that touches nobody's records.
+    Floors `y` (its flagstones) and `u` (its heart's), brick walls on the
+    edges between its cells, steel doors `d` on its rests and its heart.
+    `design/art/plans/labyrinth_walls.png` is its plan with the walls, the
+    way, the caches and the dead: for whoever works on it, never shipped.
 
 `design/art/plans/<town>.png` is each town's plan over its streets (caves in
 ochre, breaches pink, hatches cyan, gas yellow-green, water blue, outfalls
@@ -504,6 +513,87 @@ The tunnels are narrow on purpose; a base wants room. So the rock gives.
   to the surface, a way out of one's own making; how far a blast should
   reach -- `C.Mine.blast`.)
 
+## 7g. The labyrinth (0.8)
+
+Asked for by the author (2026-10-09): *a labyrinth ... in a remote location
+off of a town where there is nothing else ... a solid complicated labyrinth,
+truly dangerous, a large grid, little survival tools along the way like
+flashlights and food and water since you might be in there a while, with a
+solid reward chamber at the end and a one way exit through a structure on
+the surface, so you can leave but not enter that way.* And, shown the first
+one (40 cells a side): *approx 10x the size and challenge.*
+
+- **Where**: one in the world, under the deep woods about 1,500 squares west
+  of Muldraugh, south of the road out to the west (`LAB_NEAR`, 9050,10450).
+  The nearest site to that point with no building, basement, road, water or
+  sewer within 40 squares of any of it, in chunks no town has. No tunnel
+  leads to it. It is a town of its own (`labyrinth`, *the deep woods*).
+- **The maze**: 128 by 128 cells, each two squares across: 256 squares a
+  side, 65,536 squares of flagstone. Thin brick walls on the cells' edges,
+  so every square is corridor and a wall is all that is between two of
+  them. One way from the gate to the heart, laid by a recursive backtracker
+  (long winding corridors, the kind a person gets lost in), the best of
+  forty seeds by the length of that way: about 3,700 squares to walk, where
+  a straight line would be 264. One dead end in sixteen is opened into a
+  loop, so what follows somebody can come round behind them. 1,525 dead
+  ends.
+- **The way in**: a trapdoor under the weeds over the maze's north-west
+  corner, and a ladder. It is a way back out as well, for whoever can find
+  it again: nobody is ever shut in (section 2).
+  **It is in the heart.** The site search put it, by chance, on a known
+  Easter egg of the game's own map: a heart and the name BRIAN cut into the
+  grass of those woods (PZwiki, *Easter eggs*: for Brian Hicks of DayZ, who
+  is in the game's credits). The trapdoor is inside the heart. Shown it,
+  the author said to leave it there (2026-10-10): do not move the site
+  without being asked.
+- **The dark**: no light but a candle in each rest and the fires in the
+  heart. The gate's hall, the rests and the heart are lit like shelters.
+- **The map is drawn by walking**: the sewer map shows the labyrinth's
+  walls, in ink, a pixel a square -- under the fog. Each chunk walked into
+  (eight squares, four cells a side) lifts its own fog and no more, so
+  the map is exactly what somebody has uncovered: a record of where they
+  have been and what they passed, never of what is ahead. Doors are
+  marked; rooms found are named. (The first build drew no walls at all:
+  one pale square. The author, the same day: *we need the thin walls drawn
+  on the map as we uncover it.* A wall is on an edge and a pixel is a
+  square, so a wall inks the square that holds it and the corner it runs
+  to: a cell is two pixels, one of wall and one of way.)
+- **Nothing gives**: no pick, hammer or bomb moves a wall, a floor or the
+  rock for three squares round it (further than a blast reaches). *Dig* is
+  not offered there. A labyrinth somebody can dig through is a corridor too.
+- **Along the way**: in one dead end in three, a crate with what somebody
+  carried that far -- a torch, batteries, water, tins, a candle, a bandage
+  (532 of them), with their bones beside it. Sixteen **rests**, one to each
+  sixteenth of the maze: a small room behind a steel door that shuts, a
+  bedroll, two crates, a candle. These are stocked whatever the sandbox's
+  supplies: they are what gets a player through, not a find.
+- **The dead**: everybody who went in before: 1,008 of them, through all of
+  it but the first stretch from the gate, never in a room, and a knot of
+  them on the last stretch before the heart's door. A set piece like the
+  temple's (owed, not lost, when a player is too near as a chunk is built),
+  whatever the sandbox's density. Rats by the sandbox's rat setting.
+- **The heart**: sixteen squares a side, in the middle, behind one steel
+  door on the cell of its edge that is furthest to walk to. Braziers, stone
+  angels, and the reward: sixteen crates and shelves stocked from the
+  hoard's lists, the hoard's way -- arms, ammunition, medicine, tools,
+  food, valuables.
+- **The way out**: a ladder on the heart's north wall, up through a hatch
+  into a small brick **blockhouse** in the woods -- four walls three squares
+  a side, a doorway in the south one, no roof -- which the server builds
+  round the hatch when somebody first comes near, above or below. **Out,
+  never in**: the hatch has no handle on top. From above it is greyed out
+  and says so, the server refuses the climb down whatever a client asks,
+  and no rescue is ever sent to its ladder. This is the one move in the mod
+  that is one-way on purpose (section 2): it is asked for, it is the way
+  out and not the way in, and the trapdoor at the gate is still a pair.
+- **How it is found**: the blockhouse stands in the woods for anybody to
+  walk into, and a third annotated map (section 7e) shows the trapdoor and
+  says of the hut: *the way OUT. no way in*.
+- **Saves**: new chunks only. Nothing a save holds moves.
+- (**Open**: sewer gas in some of its dead ends; whether the dead should go
+  by the sandbox's density; whether the gate's trapdoor should lock behind
+  whoever goes down; a second labyrinth.)
+
 ## 8. Art
 
 Vanilla's `location_sewer_01` is the base, because it matches the game and
@@ -537,6 +627,7 @@ pipeline.
 | 8 | Art | procedural pass **done** (48 tiles); image-model pass next |
 | 9 | Danger and reward: gas, gates, outfalls | **done** (0.5), play-tested |
 | 10 | The temple of the rat cult | **built** and tested offline; waiting on the author's play-test |
+| 11 | The labyrinth | **built** and tested offline (0.8); not played |
 
 ## 10. Open decisions for the author
 
@@ -550,5 +641,7 @@ pipeline.
 - **Digging**: wear, propping, a way up, the size of a blast (section 7f).
 - **The temple**: how big, how many of the cult's dead, a locked reliquary,
   a second temple (section 7d).
+- **The labyrinth**: gas in its dead ends, its dead by the sandbox, a gate
+  that locks behind you, a second one (section 7g).
 - **Sandbox**: zombie density, their outfits, shelter supplies and rats are
   options; shelter frequency and whether covers need a tool are not.

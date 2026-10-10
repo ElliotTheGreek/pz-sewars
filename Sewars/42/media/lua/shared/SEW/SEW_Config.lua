@@ -152,6 +152,10 @@ C.Sprites = {
     floorTemple  = "floors_interior_tilesandwood_01_4",
     floorCarpet  = "floors_interior_carpet_01_9",
     floorBoards  = "floors_interior_tilesandwood_01_46",
+    -- The labyrinth (0.8; DESIGN.md 7g): grey flagstones down every corridor,
+    -- and the mixed stone of its heart. Vanilla's, each a solid floor.
+    floorLabyrinth = "floors_exterior_tilesandstone_01_7",
+    floorHeart   = "floors_exterior_tilesandstone_01_5",
     -- A manhole cover of ours, in the towns the map gives few (vanilla's
     -- picture as a floor tile: SEW_Build.cover).
     cover = "sewars_01_35",
@@ -328,6 +332,20 @@ C.Loot.hoardValuables = { "Base.GoldBar", "Base.GoldBar", "Base.SilverBar", "Bas
                           "Base.Diamond", "Base.Ring_Right_RingFinger_Gold", "Base.WristWatch_Right_ClassicGold" }
 C.HoardCount = { 5, 9 }
 
+-- The labyrinth (0.8; DESIGN.md 7g). What somebody carried as far as a dead
+-- end, and what was left in a rest: light, water, food, something for a
+-- wound. Stocked with `cache` picks whatever the sandbox's supplies -- they
+-- are what gets a player through, not a find. Its heart is stocked from the
+-- hoard's lists, the hoard's way. `light`: its candles and braziers, hung by
+-- each client within `lightRange` squares.
+C.Loot.labyrinth = { "Base.HandTorch", "Base.HandTorch", "Base.Battery", "Base.Battery", "Base.WaterBottle",
+                     "Base.WaterBottle", "Base.TinnedBeans", "Base.CannedCorn", "Base.Crisps", "Base.Candle",
+                     "Base.Matches", "Base.Bandage" }
+C.Loot.labyrinthRest = { "Base.WaterBottle", "Base.WaterBottle", "Base.TinnedSoup", "Base.CannedChili",
+                         "Base.TinOpener", "Base.HandTorch", "Base.Battery", "Base.Bandage", "Base.Disinfectant",
+                         "Base.Sheet", "Base.Pillow", "Base.Lighter" }
+C.Labyrinth = { cache = { 2, 3 }, light = { 0.90, 0.56, 0.24, 4 }, lightRange = 24 }
+
 -- How many picks a crate or shelf is stocked with (U.fill), fewest and most,
 -- by the sandbox's Sewars.Loot (None / Scarce / Normal / Plenty); never past
 -- this share of its capacity by weight. Journals and plans go in whatever
@@ -404,6 +422,10 @@ C.Maps = {
                bounds = { 11380, 8480, 11800, 8980 }, from = { 11531, 8764 } },
     nest   = { stash = "SewarsNestMap", item = "Base.LouisvilleMap1",
                bounds = { 13230, 2170, 13450, 2330 } },
+    -- The labyrinth (0.8): the woods west of Muldraugh, south of the road out
+    -- to the west, with its trapdoor and the blockhouse that is its way out.
+    labyrinth = { stash = "SewarsLabyrinthMap", item = "Base.MuldraughMap",
+                  bounds = { 8600, 9740, 9500, 10640 } },
     never = "sewars:no-such-map",
     loot = 0.10, crate = 0.05, dead = 0.02,
     -- Every plain map the game's loot may hold.

@@ -651,7 +651,7 @@ def dev_menu_test(L, p):
         return
     sub = top[0].subMenu
     names = [n for n, _ in options(sub)]
-    check(len(names) == 18, "with its eighteen stops (%s)" % names)
+    check(len(names) == 21, "with its twenty-one stops (%s)" % names)
 
     # As the game does it: nothing is loaded where a trip lands until the
     # player is there (found in play: every trip was rescued to a ladder).
@@ -728,6 +728,17 @@ def dev_menu_test(L, p):
     check((int(p.x), int(p.y)) in at and (int(p.x), int(p.y)) != first, "and again, the other")
     pick("trapdoor")
     check(p.z == 0 and int(p.x) == T.tx and int(p.y) == T.ty + 1, "Go to the temple's trapdoor puts you in the field by it")
+    # The labyrinth: the woods over its trapdoor, the last corridor before its
+    # heart (below, on a floor built for the trip), and the woods by its way out.
+    Lb = SEW.Index.labyrinth
+    pick("labyrinth")
+    check(p.z == 0 and int(p.x) == Lb.tx and int(p.y) == Lb.ty + 1, "Go to the labyrinth's trapdoor puts you in the woods by it")
+    pick("heart")
+    check(p.z == -1 and int(p.x) == Lb.dx and int(p.y) == Lb.dy
+          and L.execute("return SEW.Util.floorOf(SIM.players[1]:getCurrentSquare()) ~= nil"),
+          "Go to the labyrinth's heart puts you in the corridor at its door (%.1f,%.1f,%.1f)" % (p.x, p.y, p.z))
+    pick("blockhouse")
+    check(p.z == 0 and int(p.x) == Lb.ex and int(p.y) == Lb.ey + 3, "Go to the labyrinth's way out puts you outside its blockhouse")
     pick("dig")
     check(p.inv.containsTypeRecurse(p.inv, "PickAxe") and p.inv.containsTypeRecurse(p.inv, "PipeBomb"),
           "Give me a pickaxe and pipe bombs does")
@@ -1690,7 +1701,7 @@ def maps_test(L, p):
         C.Maps.loot = was
         return n, first, hammer, theirs:getStashMap(), none, off, fired
     """)
-    ours = (C.Maps.temple.stash, C.Maps.nest.stash)
+    ours = (C.Maps.temple.stash, C.Maps.nest.stash, C.Maps.labyrinth.stash)
     check(fill[0] == 1 and fill[1] in ours and fill[2] is None and fill[3] == "MulStashMap1",
           "a plain map in the game's loot becomes one of ours; a hammer and somebody else's annotated map do not (%s)"
           % (fill[1],))
@@ -2194,6 +2205,235 @@ def temple_test(L, p):
     check(over and ans[0] == b.town and ans[1] == b.town and SEW.Map.townAt(ix, iy) == "temple",
           "through the breach the sewer map is still %s's, in the hall the temple's (%s, %s)"
           % (b.town, ans, SEW.Map.townAt(ix, iy)))
+    q.z = 0
+
+
+def labyrinth_test(L, p):
+    """The labyrinth (DESIGN.md 7g): the trapdoor in the woods and the ladder
+    under it; brick corridors on flagstones; a cache stocked whatever the
+    sandbox's supplies; nothing that gives to a pick or a bomb; its dead a
+    set piece; the heart and its reward; and the way out -- up through a
+    hatch in a blockhouse the server builds, and never down it again."""
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    C = SEW.Config
+    Lb = SEW.Index.labyrinth
+    check(Lb is not None and SEW.Data.labyrinth is not None, "the index has the labyrinth, and the server its squares")
+    if Lb is None:
+        return
+    tx, ty, ex, ey, hx, hy = (int(v) for v in (Lb.tx, Lb.ty, Lb.ex, Lb.ey, Lb.x, Lb.y))
+    way_in, way_out = SEW.Index.shafts["%d,%d" % (tx, ty)], SEW.Index.shafts["%d,%d" % (ex, ey)]
+    check(way_in is not None and way_in.made is True and way_in.trapdoor is True and way_in.exit is None
+          and way_out is not None and way_out.exit is True and way_out.town == "labyrinth",
+          "two shafts of its own: a trapdoor in, and a way out marked up-only")
+    S = C.Sprites
+
+    # In the woods over it: the trapdoor goes into the ground as somebody comes near.
+    q = sim.newPlayer("woods", tx + 0.5, ty + 1.5, 0)
+    q.hours = 50
+    sim.players = L.table(q)
+    street(L, tx, ty, 3, manhole=False)
+    loot_was = L.execute("local v = SandboxVars.Sewars.Loot; SandboxVars.Sewars.Loot = 1; return v")
+    sim.tickN(20)
+    check(S.hatch in objects_at(L, tx, ty, 0), "a player in the woods: a trapdoor in the ground (%s)" % objects_at(L, tx, ty, 0))
+    check(S.wall.b.NW not in objects_at(L, tx - 1, ty - 1, 0), "and no blockhouse over the way in")
+    m = menu(L, 0, tx, ty)
+    opt = [o for nm, o in options(m) if nm == TEXT["ContextMenu_SEW_HatchDown"]]
+    check(len(opt) == 1 and not opt[0].notAvailable and opt[0].toolTip.description == TEXT["Tooltip_SEW_Maze"],
+          "it offers Climb down through the hatch, and says what is down there")
+    choose(m, TEXT["ContextMenu_SEW_HatchDown"])
+    sim.runActions()
+    sim.tickN(3)
+    check(abs(q.z + 1) < 1e-6 and int(q.x) == tx and int(q.y) == ty,
+          "down to the foot of the gate's ladder (%.1f,%.1f,%.1f)" % (q.x, q.y, q.z))
+    check(any(x in ("sewars_01_0", "sewars_01_1") for x in objects_at(L, tx, ty, -1)), "a ladder hangs under the trapdoor")
+    up = [o for nm, o in options(menu(L, 0, tx, ty)) if nm == TEXT["ContextMenu_SEW_HatchUp"]]
+    check(len(up) == 1, "and it is a way back out: nobody is shut in at the gate")
+    check(S.floorLabyrinth in objects_at(L, tx + 1, ty + 1, -1) and S.wall.b.NW in objects_at(L, tx, ty, -1),
+          "flagstones under brick (%s)" % objects_at(L, tx, ty, -1))
+
+    # The crate by the ladder: stocked, with the sandbox's supplies at None.
+    n = L.execute("""
+        local sq = SIM.squares[(...) .. ",-1"]
+        for _, o in ipairs(sq.objects._t) do
+            local c = SEW.Util.containerOf(o)
+            if c then return #c:getItems()._t end
+        end
+        return -1
+    """, "%d,%d" % (tx + 2, ty))
+    lo, hi = C.Labyrinth.cache[1], C.Labyrinth.cache[2]
+    check(lo >= 1 and lo <= n <= hi, "the gate's cache is stocked whatever the sandbox's supplies (%d of %d..%d)" % (n, lo, hi))
+    L.execute("SandboxVars.Sewars.Loot = ...", loot_was)
+
+    # Nothing here gives: no Dig on the menu, and the server refuses a pick
+    # at the rock outside, a pick at a wall between two corridors, and a bomb.
+    L.execute("SIM.players[1].inv = SIM.Container(50); SIM.players[1].inv:AddItem(instanceItem('Base.PickAxe'))")
+    q.x, q.y = tx + 0.5, ty + 1.5
+    check(TEXT["ContextMenu_SEW_Mine"] not in [nm for nm, _ in options(menu(L, 0, tx, ty + 1))],
+          "with a pickaxe in hand, no Dig is offered in the labyrinth")
+    notes0 = len(lua_list(sim.notes))
+    out = L.execute("return SEW.Mine.dig(SIM.players[1], %d, %d, -1, 0)" % (tx, ty + 1))
+    check(out is False and TEXT["IGUI_SEW_MineHard"] in lua_list(sim.notes)[notes0:]
+          and L.execute("return SEW.Mine.floor(%d, %d)" % (tx - 1, ty + 1)) in (".", "r"),
+          "the rock against its outer wall does not give, and says so")
+    wall = L.execute("""
+        local Mi, tx, ty = SEW.Mine, ...
+        for x = tx, tx + 15 do for y = ty + 1, ty + 15 do
+            if Mi.floor(x, y) == "y" and Mi.floor(x, y - 1) == "y" and Mi.edgeCode(x, y, x, y - 1) == "b" then return x, y end
+        end end
+    """, tx, ty)
+    check(wall is not None, "a brick wall between two corridors near the gate (%s)" % (wall,))
+    if wall is not None:
+        wx, wy = wall
+        q.x, q.y = wx + 0.5, wy + 0.5
+        out = L.execute("return SEW.Mine.dig(SIM.players[1], %d, %d, 0, -1)" % (wx, wy))
+        check(out is False and L.execute("return SEW.Mine.edgeCode(%d, %d, %d, %d)" % (wx, wy, wx, wy - 1)) == "b",
+              "a wall between two corridors does not come down")
+        opened = L.execute("return SEW.Mine.blast(%d, %d)" % (wx, wy))
+        check(opened == 0 and L.execute("return SEW.Mine.edgeCode(%d, %d, %d, %d)" % (wx, wy, wx, wy - 1)) == "b"
+              and L.execute("local n = 0; for _ in pairs(SEW.Build.state().dug) do n = n + 1 end; return n")
+              == L.execute("local n = 0; for k in pairs(SEW.Build.state().dug) do if SEW.Build.townOf(k) ~= 'labyrinth' "
+                           "then n = n + 1 end end; return n"),
+              "a bomb opens nothing there and takes no wall down (%s)" % opened)
+    check(L.execute("return SEW.Sewer.inLabyrinth(%d, %d)" % (tx - 3, ty)) is True
+          and L.execute("return SEW.Sewer.inLabyrinth(%d, %d)" % (tx - 4, ty)) is False
+          and C.Mine.blast < 3,
+          "what does not give is the labyrinth and the rock round it, further than a bomb reaches, and nothing beyond")
+
+    # All of it built, as walking it would: the dead are a set piece (owed
+    # when a player stands too near), and none of the tunnels' own.
+    dead = L.execute("""
+        local B, built = SEW.Build, 0
+        -- Somebody standing where one of them is to stand, as its chunk is built.
+        local keys = {}
+        for k in pairs(SEW.Data.labyrinth.claimed) do keys[#keys + 1] = k end
+        table.sort(keys)
+        local first = SEW.Data.labyrinth.claimed[keys[1]][1]
+        local p = SIM.players[1]
+        p.x, p.y = first[1] + 0.5, first[2] + 0.5
+        for k in pairs(SEW.Data.labyrinth.chunks) do
+            local cx, cy = k:match("^(-?%d+),(-?%d+)$")
+            SIM.load(tonumber(cx), tonumber(cy))
+            if B.chunk(k) then built = built + 1 end
+        end
+        local want, mine = 0, {}
+        for _, items in pairs(SEW.Data.labyrinth.claimed) do
+            for _, e in ipairs(items) do want = want + 1; mine[e[1] .. "," .. e[2]] = true end
+        end
+        local owed = 0
+        for k, list in pairs(B.state().owed) do if B.townOf(k) == "labyrinth" then owed = owed + #list end end
+        local got, strangers, near = 0, 0, 0
+        local gx, gy = ...
+        for _, z in ipairs(SIM.zombies) do
+            if B.townOf(math.floor(z.x / 8) .. "," .. math.floor(z.y / 8)) == "labyrinth" then
+                if mine[z.x .. "," .. z.y] then got = got + 1 else strangers = strangers + 1 end
+                if math.abs(z.x - gx) + math.abs(z.y - gy) < 10 then near = near + 1 end
+            end
+        end
+        return built, want, got, owed, strangers, near
+    """, tx, ty)
+    check(dead[3] >= 1, "built round somebody standing in a corridor, whoever was to stand there is owed (%d)" % dead[3])
+    q.x, q.y = tx + 0.5, ty + 0.5
+    sim.tickN(30)
+    settled = L.execute("""
+        local B, owed, n = SEW.Build, 0, 0
+        for k, list in pairs(B.state().owed) do if B.townOf(k) == "labyrinth" then owed = owed + #list end end
+        for _, z in ipairs(SIM.zombies) do
+            if B.townOf(math.floor(z.x / 8) .. "," .. math.floor(z.y / 8)) == "labyrinth" then n = n + 1 end
+        end
+        return owed, n
+    """)
+    check(settled[0] == 0 and settled[1] == dead[1], "and stands there once they have gone (%d of %d)" % (settled[1], dead[1]))
+    check(dead[0] >= 1000, "the labyrinth's chunks are built (%d)" % dead[0])
+    check(dead[1] >= 600 and dead[2] + dead[3] == dead[1] and dead[4] == 0 and dead[5] == 0,
+          "its dead are put down where the generator stood them, or owed; none of the tunnels' own, none by the gate "
+          "(%d of %d, %d owed, %d strangers, %d near)" % (dead[2], dead[1], dead[3], dead[4], dead[5]))
+
+    # The heart: its stone, its reward, and a word the first time.
+    check(S.floorHeart in objects_at(L, hx, hy, -1), "the heart's own stone under its middle")
+    reward = L.execute("""
+        local Lb, n, items = SEW.Index.labyrinth, 0, 0
+        for x = Lb.x - 9, Lb.x + 9 do for y = Lb.y - 9, Lb.y + 9 do
+            local sq = SIM.squares[x .. "," .. y .. ",-1"]
+            for _, o in ipairs(sq and sq.objects._t or {}) do
+                local c = SEW.Util.containerOf(o)
+                if c then n = n + 1; items = items + #c:getItems()._t end
+            end
+        end end
+        return n, items
+    """)
+    check(reward[0] >= 14 and reward[1] >= reward[0] * C.HoardCount[1] * 0.6,
+          "the reward: %d crates and shelves in the heart, %d things in them" % (reward[0], reward[1]))
+    q.x, q.y = hx + 0.5, hy + 0.5
+    notes0 = len(lua_list(sim.notes))
+    sim.tickN(100)
+    check(TEXT["IGUI_SEW_LabyrinthHeart"] in lua_list(sim.notes)[notes0:],
+          "the first sight of the heart is worth a word (%s)" % lua_list(sim.notes)[notes0:][:2])
+    lamps = L.execute("""
+        local Lb, fire, n = SEW.Index.labyrinth, {}, 0
+        for i = 1, #Lb.lights, 2 do fire[Lb.lights[i] .. "," .. Lb.lights[i + 1]] = true end
+        for l in pairs(SIM.lamps) do if fire[l.x .. "," .. l.y] then n = n + 1 end end
+        return n
+    """)
+    check(lamps >= 6, "its braziers and candles are lit round the player (%d)" % lamps)
+    check(SEW.Map.townAt(hx, hy) == "labyrinth", "and the sewer map is the labyrinth's own sheet")
+
+    # The way out: up the heart's ladder, into a blockhouse built round the hatch.
+    street(L, ex, ey, 4, manhole=False)
+    q.x, q.y = ex + 0.5, ey + 0.5
+    m = menu(L, 0, ex, ey)
+    up = [o for nm, o in options(m) if nm == TEXT["ContextMenu_SEW_HatchUp"]]
+    check(len(up) == 1 and up[0].toolTip.description == TEXT["Tooltip_SEW_MazeOut"],
+          "at the heart's ladder: the way up, and it says it will not open again")
+    choose(m, TEXT["ContextMenu_SEW_HatchUp"])
+    sim.runActions()
+    sim.tickN(3)
+    check(q.z == 0 and int(q.x) == ex and int(q.y) == ey, "up and out, into the woods (%.1f,%.1f,%.1f)" % (q.x, q.y, q.z))
+    W = S.wall.b
+    house = (S.hatch in objects_at(L, ex, ey, 0) and W.NW in objects_at(L, ex - 1, ey - 1, 0)
+             and W.N in objects_at(L, ex + 1, ey - 1, 0) and W.W in objects_at(L, ex - 1, ey + 1, 0)
+             and W.W in objects_at(L, ex + 2, ey, 0) and W.N in objects_at(L, ex - 1, ey + 2, 0)
+             and S.doorFrame.N in objects_at(L, ex, ey + 2, 0) and W.pillar in objects_at(L, ex + 2, ey + 2, 0))
+    check(house, "inside a brick blockhouse the server built round the hatch: four walls, a doorway south")
+    walls = L.execute("""
+        local ex, ey, n = ...
+        n = 0
+        for dx = -2, 3 do for dy = -2, 3 do
+            local sq = SIM.squares[(ex + dx) .. "," .. (ey + dy) .. ",0"]
+            for _, o in ipairs(sq and sq.objects._t or {}) do if o.md and o.md.sew then n = n + 1 end end
+        end end
+        return n
+    """, ex, ey)
+    sim.tickN(40)
+    again = L.execute("""
+        local ex, ey, n = ...
+        n = 0
+        for dx = -2, 3 do for dy = -2, 3 do
+            local sq = SIM.squares[(ex + dx) .. "," .. (ey + dy) .. ",0"]
+            for _, o in ipairs(sq and sq.objects._t or {}) do if o.md and o.md.sew then n = n + 1 end end
+        end end
+        return n
+    """, ex, ey)
+    check(walls == 13 and again == walls, "thirteen pieces of it, each tagged ours, and built once (%d, %d)" % (walls, again))
+    # And never down it again: greyed on the menu, refused by the server.
+    m = menu(L, 0, ex, ey)
+    shut = [o for nm, o in options(m) if nm == TEXT["ContextMenu_SEW_HatchDown"]]
+    check(len(shut) == 1 and shut[0].notAvailable is True and shut[0].toolTip.description == TEXT["Tooltip_SEW_Sealed"],
+          "from above, the hatch is greyed out and says it has no handle on this side")
+    notes0 = len(lua_list(sim.notes))
+    out = L.execute("return SEW.Server.grant(SIM.players[1], %d, %d, 'down')" % (ex, ey))
+    sim.tickN(3)
+    check(out is False and q.z == 0 and TEXT["IGUI_SEW_Sealed"] in lua_list(sim.notes)[notes0:],
+          "and the server refuses the climb down it, whatever a client asks (%s)" % lua_list(sim.notes)[notes0:][:2])
+    near = L.execute("local s = SEW.Sewer.nearestShaft(%d, %d, 400); return s and s.x, s and s.y" % (ex, ey + 3))
+    check(near is not None and (near[0], near[1]) == (tx, ty),
+          "a rescue is never sent to the heart's ladder: the nearest is the gate's (%s)" % (near,))
+    # Somebody's map of the way to it, the game's own kind.
+    made = L.execute("local it = SEW.Maps.make('labyrinth'); return it ~= nil and it:getStashMap()")
+    check(made == C.Maps.labyrinth.stash, "and an annotated map to it can be made (%s)" % made)
+    b = C.Maps.labyrinth.bounds
+    check(b[1] < tx < b[3] and b[2] < ty < b[4] and b[1] < ex < b[3] and b[2] < ey < b[4],
+          "whose sheet has both the trapdoor and the blockhouse on it")
     q.z = 0
 
 
@@ -3807,6 +4047,8 @@ def single_player():
     dev_menu_test(L, p)
     sim.players = L.table(p)
     temple_test(L, p)
+    sim.players = L.table(p)
+    labyrinth_test(L, p)
     sim.players = L.table(p)
     warren_test(L, p)
     sim.players = L.table(p)
