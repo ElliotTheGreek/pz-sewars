@@ -65,7 +65,9 @@ end
 
 function Client.climbDown(playerObj, sq)
     if not Client.approach(playerObj, sq, sq:getX(), sq:getY()) then return end
-    ISTimedActionQueue.add(SEWClimb:new(playerObj, sq:getX(), sq:getY(), "down"))
+    -- Down from the street to the sewers; or, from a tunnel, down an admin's
+    -- shaft to the level under it.
+    ISTimedActionQueue.add(SEWClimb:new(playerObj, sq:getX(), sq:getY(), "down", (S.levelOf(playerObj) or 0) - 1))
 end
 
 --- Pulling at one of the nest's walls: walk to whichever side of it is
@@ -86,6 +88,8 @@ end
 function Client.gateNear(x, y)
     for _, which in ipairs({ "wall", "gate" }) do
         local ax, ay, bx, by = S.gateSquares(which)
+        -- The sandbox's Sewars.Nest, Sealed: the false wall is a wall.
+        if which == "wall" and S.option("Nest", 1, 2) == 2 then ax = nil end
         if ax and (U.dist(x, y, ax, ay) <= C.ClickSlack + 0.5 or U.dist(x, y, bx, by) <= C.ClickSlack + 0.5)
                 and not S.gateOpenHere(ax, ay, bx, by) then
             return which
@@ -95,20 +99,36 @@ function Client.gateNear(x, y)
 end
 
 function Client.climbUp(playerObj, shaft)
-    local sq = U.square(shaft.x, shaft.y, C.Z, false)
+    local sq = U.square(shaft.x, shaft.y, shaft.z or C.Z, false)
     if not Client.approach(playerObj, sq, shaft.x, shaft.y, shaft.lx, shaft.ly) then return end
-    ISTimedActionQueue.add(SEWClimb:new(playerObj, shaft.x, shaft.y, "up"))
+    ISTimedActionQueue.add(SEWClimb:new(playerObj, shaft.x, shaft.y, "up", shaft.z or C.Z))
 end
 
 --- What the menu offers where the player clicked. Pure, so the tests can
 --- ask it: returns ("down", square) at a cover that leads somewhere,
 --- ("shut", square) at one that does not, ("up", shaft) at a ladder below.
 function Client.offer(playerObj, x, y)
-    if S.below(playerObj) then
-        local shaft = S.shaftNear(x, y, C.ClickSlack + 0.5)
-        if shaft then return "up", shaft end
-        local which = Client.gateNear(x, y)
+    local level = S.levelOf(playerObj)
+    if level then
+        -- A cover in this tunnel's floor on the very square clicked: an
+        -- admin's shaft to the level under it, before any ladder near by.
+        local here = S.isLevel(level - 1) and U.square(x, y, level, false)
+        local under = here and S.isManhole(here) and S.shaftAt(x, y, level - 1)
+        if under and Client.closed(playerObj, under) then return "closed", here, "down" end
+        if under then return "down", here end
+        -- A ladder up from this level.
+        local shaft = S.shaftNear(x, y, C.ClickSlack + 0.5, level)
+        if shaft then
+            if Client.noExit(playerObj, shaft) then return "noexit", shaft end
+            return "up", shaft
+        end
+        local which = level == C.Z and Client.gateNear(x, y)
         if which then return "pry", which end
+        -- A cover in this tunnel's floor: an admin's shaft to the level under it.
+        local cover = S.isLevel(level - 1) and S.manholeNear(x, y, C.ClickSlack, level)
+        local deep = cover and S.shaftAt(cover:getX(), cover:getY(), level - 1)
+        if deep and Client.closed(playerObj, deep) then return "closed", cover, "down" end
+        if deep then return "down", cover end
         return nil
     end
     local sq = S.manholeNear(x, y, C.ClickSlack)
@@ -118,13 +138,29 @@ function Client.offer(playerObj, x, y)
         local hs = h and S.shaftAt(h:getX(), h:getY())
         -- The labyrinth's way out: seen, and not opened from up here.
         if hs and hs.exit then return "sealed", h end
+        if hs and Client.closed(playerObj, hs) then return "closed", h, "hatch" end
         if hs then return "hatch", h end
         return nil
     end
     local shaft = S.shaftAt(sq:getX(), sq:getY())
+    if shaft and Client.closed(playerObj, shaft) then return "closed", sq, shaft.outfall and "outfall" or "down" end
     if shaft and shaft.outfall then return "outfall", sq end
     if shaft then return "down", sq end
     return "shut", sq
+end
+
+--- True when the way down at a shaft is closed to this player: closed by an
+--- admin, or by the sandbox and opened by none (S.accessMode, from what the
+--- server last sent), and the player is no admin. What the menu shows; the
+--- server decides (SEW_Server.grant).
+function Client.closed(playerObj, shaft)
+    return not S.mayEnter(S.accessMode(S.access, shaft.x, shaft.y, shaft.z)) and not S.isAdmin(playerObj)
+end
+
+--- True when a shaft's ladder is no way out for this player: an admin made
+--- this one way a way in only, or closed it both ways.
+function Client.noExit(playerObj, shaft)
+    return not S.mayLeave(S.accessMode(S.access, shaft.x, shaft.y, shaft.z)) and not S.isAdmin(playerObj)
 end
 
 ---------------------------------------------------------------------------
@@ -153,15 +189,16 @@ end
 --- it). What this machine can see for itself; the server decides (SEW_Mine).
 function Client.mineOffers(p)
     local out = {}
-    if not S.below(p) then return out end
+    local level = S.levelOf(p)
+    if not level then return out end
     if SandboxVars and SandboxVars.Sewars and tonumber(SandboxVars.Sewars.Digging) == 1 then return out end
     local x, y = math.floor(p:getX()), math.floor(p:getY())
     -- Nothing in the labyrinth gives (SEW_Mine): nothing is offered there.
-    if S.inLabyrinth(x, y) then return out end
-    local here = U.square(x, y, C.Z, false)
+    if level == C.Z and S.inLabyrinth(x, y) then return out end
+    local here = U.square(x, y, level, false)
     if not here or not U.floorOf(here) then return out end
     for _, d in ipairs(Client.DIRS) do
-        local sq = U.square(x + d[2], y + d[3], C.Z, false)
+        local sq = U.square(x + d[2], y + d[3], level, false)
         local floor = sq and U.floorOf(sq)
         -- The edge is held by the southern or eastern of the two squares.
         local edgeHolder, edgeNorth = (d[2] + d[3] > 0) and sq or here, d[2] == 0
@@ -369,6 +406,12 @@ function Client.devGo(p, what)
         end
         U.note(p, getText("IGUI_SEW_DevFire", n), 200, 190, 150)
         return n > 0
+    elseif what == "admin" then
+        -- The dev build is single player's admin (S.isAdmin). Again: a
+        -- player, to see a closed way down as one does.
+        SEW.DevPlayer = not SEW.DevPlayer
+        U.note(p, getText(SEW.DevPlayer and "IGUI_SEW_DevPlayer" or "IGUI_SEW_DevAdmin"), 200, 190, 150)
+        return true
     elseif what == "snow" then
         -- Snow on the ground, held there (Client.devWeather): for the snow that
         -- must not lie in the tunnels (SEW_Weather). Again: off.
@@ -482,7 +525,7 @@ function Client.devMenu(playerObj, context)
     local top = context:addOption(getText("ContextMenu_SEW_Dev"), nil, nil)
     local sub = context:getNew(context)
     context:addSubMenu(top, sub)
-    for _, what in ipairs({ "dig", "gun", "fire", "snow", "wind", "maps", "temple", "breach", "trapdoor", "nest", "warren",
+    for _, what in ipairs({ "admin", "dig", "gun", "fire", "snow", "wind", "maps", "temple", "breach", "trapdoor", "nest", "warren",
                             "labyrinth", "heart", "blockhouse",
                             "hatch", "cave", "outfall", "gas", "poison", "gate", "key" }) do
         sub:addOption(getText("ContextMenu_SEW_Dev_" .. what), playerObj, Client.devGo, what)
@@ -494,17 +537,47 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
     if not playerObj or playerObj:getVehicle() then return end
     if SEW.Dev and not isClient() and not test then U.try("devMenu", Client.devMenu, playerObj, context) end
     -- The map, anywhere below ground. Here and nowhere else: it has no key (0.7.6).
-    if S.below(playerObj) and SEW.Map and not test then
+    local sewer = S.levelOf(playerObj)
+    if sewer and SEW.Map and not test then
         context:addOption(getText("ContextMenu_SEW_Map"), playerObj, SEW.Map.toggle)
     end
     -- Digging, from wherever the player stands below.
-    if S.below(playerObj) and not test then U.try("mineMenu", Client.mineMenu, playerObj, context) end
+    if sewer and not test then U.try("mineMenu", Client.mineMenu, playerObj, context) end
     local x, y = U.clickedSquare(playerIndex, context, playerObj)
     if not x then return end
-    local what, where = Client.offer(playerObj, x, y)
+    local what, where, kind = Client.offer(playerObj, x, y)
+    -- An admin's works, wherever the click was (SEW_Admin): the level the
+    -- player is at, and the way down the click was on, if it was on one.
+    if not test and SEW.Admin and S.isAdmin(playerObj) then
+        local at = math.floor((U.try("menu.z", function() return playerObj:getZ() end) or 0) + 0.5)
+        local shaft = nil
+        if what == "up" or what == "noexit" then
+            shaft = where
+        elseif what == "down" or what == "outfall" or what == "hatch" or what == "closed" then
+            shaft = S.shaftAt(where:getX(), where:getY(), at - 1)
+        end
+        -- (No nil in the middle of what U.try passes on: it would end the list.)
+        U.try("adminMenu", SEW.Admin.menu, playerObj, context, x, y, at, sewer or false, shaft)
+    end
     if not what then return end
     if test then return true end
-    if what == "down" then
+    if what == "noexit" then
+        local opt = context:addOption(getText((where.hatch or where.trapdoor) and "ContextMenu_SEW_HatchUp"
+                                              or where.outfall and "ContextMenu_SEW_OutfallUp"
+                                              or "ContextMenu_SEW_Exit"), nil, nil)
+        opt.notAvailable = true
+        local tip = ISWorldObjectContextMenu.addToolTip()
+        tip.description = getText("Tooltip_SEW_NoExit")
+        opt.toolTip = tip
+    elseif what == "closed" then
+        local opt = context:addOption(getText(kind == "hatch" and "ContextMenu_SEW_HatchDown"
+                                              or kind == "outfall" and "ContextMenu_SEW_OutfallDown"
+                                              or "ContextMenu_SEW_Enter"), nil, nil)
+        opt.notAvailable = true
+        local tip = ISWorldObjectContextMenu.addToolTip()
+        tip.description = getText("Tooltip_SEW_Closed")
+        opt.toolTip = tip
+    elseif what == "down" then
         local opt = context:addOption(getText("ContextMenu_SEW_Enter"), playerObj, Client.climbDown, where)
         local tip = ISWorldObjectContextMenu.addToolTip()
         tip.description = getText(S.hasLiftTool(playerObj) and "Tooltip_SEW_EnterTool" or "Tooltip_SEW_Enter")
@@ -586,12 +659,12 @@ local answered, refusedAt = nil, -1e9
 Client.now = 0
 
 --- The action has ended on this client (SEWClimb:perform).
-function Client.expect(x, y, mode)
+function Client.expect(x, y, mode, z)
     if not isClient() then return false end
     local g = answered
     if g and g.x == x and g.y == y and g.mode == mode and Client.now - g.at < 120 then return false end
     if Client.now - refusedAt < 30 then return false end
-    awaited = { x = x, y = y, mode = mode, waited = 0, asked = false }
+    awaited = { x = x, y = y, z = z or C.Z, mode = mode, waited = 0, asked = false }
     return true
 end
 
@@ -605,7 +678,35 @@ end)
 local REFUSED = { shut = "IGUI_SEW_Shut", reach = "IGUI_SEW_Reach", level = "IGUI_SEW_Level",
                   unready = "IGUI_SEW_Unready", rous = "IGUI_SEW_RousAlive", open = "IGUI_SEW_Refused",
                   solid = "IGUI_SEW_MineSolid", foreign = "IGUI_SEW_MineForeign", tool = "IGUI_SEW_MineTool",
-                  off = "IGUI_SEW_MineOff", hard = "IGUI_SEW_MineHard", sealed = "IGUI_SEW_Sealed" }
+                  off = "IGUI_SEW_MineOff", hard = "IGUI_SEW_MineHard", sealed = "IGUI_SEW_Sealed",
+                  closed = "IGUI_SEW_Closed", admin = "IGUI_SEW_AdminOnly", noexit = "IGUI_SEW_NoExit",
+                  taken = "IGUI_SEW_Wk_taken", far = "IGUI_SEW_Wk_far", long = "IGUI_SEW_Wk_long",
+                  apart = "IGUI_SEW_Wk_apart", nothing = "IGUI_SEW_Wk_nothing", noroom = "IGUI_SEW_Wk_noroom" }
+
+-- Where the server has the labyrinth (SEW_Place): its word is the last one,
+-- whatever this machine's sandbox said at its start.
+Net.onClient("place", function(args)
+    local dx, dy = tonumber(args.dx) or 0, tonumber(args.dy) or 0
+    if SEW.Place.move(dx, dy) then
+        Client.clearLamps()
+        U.log("place: the server has the labyrinth %d,%d squares from the mod's own place", dx, dy)
+    end
+end)
+
+-- Which ways down an admin has opened or closed: the server's list, whole,
+-- at the start and whenever it changes. A copy: in single player the
+-- server's own table is in this process, and stays the server's.
+Net.onClient("access", function(args)
+    local list = {}
+    for k, v in pairs(args.list or {}) do list[k] = v end
+    S.access = list
+end)
+
+local WAY = { open = "IGUI_SEW_Way_open", ["in"] = "IGUI_SEW_Way_in", shut = "IGUI_SEW_Way_shut",
+              none = "IGUI_SEW_Way_none" }
+Net.onClient("accessSet", function(args)
+    U.note(getPlayer(), getText(WAY[args.mode] or "IGUI_SEW_Way_open"), 200, 210, 170)
+end)
 Net.onClient("refused", function(args)
     awaited = nil
     refusedAt = Client.now
@@ -623,14 +724,15 @@ function Client.unanswered(p)
     if not a.asked and a.waited >= C.ClimbAskAgain then
         a.asked = true
         U.log("WARN the server has not answered the climb %s at %d,%d; asking again by command", a.mode, a.x, a.y)
-        Net.send(p, "climb", { x = a.x, y = a.y, mode = a.mode })
+        Net.send(p, "climb", { x = a.x, y = a.y, z = a.z, mode = a.mode })
     elseif a.asked and a.waited >= C.ClimbAskAgain + C.ClimbGiveUp then
         awaited = nil
-        local s = S.shaftAt(a.x, a.y)
-        if a.mode == "up" and s and S.below(p)
+        local s = S.shaftAt(a.x, a.y, a.z)
+        -- Never past an admin's word that this is no way out.
+        if a.mode == "up" and s and S.levelOf(p) == a.z and not Client.noExit(p, s)
                 and (S.within(p, s.x, s.y, C.Reach + 0.8) or S.within(p, s.lx, s.ly, C.Reach + 0.8)) then
             U.log("WARN the server never answered the climb out at %d,%d; climbing out anyway", a.x, a.y)
-            pending = { x = a.x, y = a.y, z = 0, street = s.street or "", mode = "up",
+            pending = { x = a.x, y = a.y, z = a.z + 1, street = s.street or "", mode = "up",
                         hatch = s.hatch ~= nil or s.trapdoor == true, outfall = s.outfall == true, waited = 0 }
         else
             U.log("WARN the server never answered the climb %s at %d,%d", a.mode, a.x, a.y)
@@ -710,6 +812,10 @@ function Client.arrive(p)
     pending = nil
     U.teleport(p, m.x, m.y, m.z)
     Client.vault(p)
+    -- A level under the sewers' own may be this machine's new lowest: the
+    -- chunk map works its lowest out when a chunk comes in, not when a
+    -- square is made (IsoChunkMap.calculateZExtentsForChunkMap; DEV_GUIDE).
+    if m.z < C.Z then Client.lowest(p) end
     if m.mode == "down" then
         U.try("sound", function() p:playSound("SEW_Ladder") end)
         if m.outfall then
@@ -735,9 +841,86 @@ end
 ---------------------------------------------------------------------------
 -- Looking after the player below
 ---------------------------------------------------------------------------
+--- Has the chunk map look again for its lowest level.
+function Client.lowest(p)
+    return U.try("lowest", function()
+        getCell():getChunkMap(p:getPlayerNum()):calculateZExtentsForChunkMap()
+        return true
+    end) == true
+end
+
+--- The game's own Interact key, pressed by somebody standing at the foot of
+--- a ladder: the climb out, with no menu. **Nobody is left below because a
+--- right-click found nothing to click** (found in play, 0.9: at a new level
+--- under the sewers the game opened no menu at all, and the author stood in
+--- one square of concrete with no way to ask for anything). The menu is the
+--- game's, and needs a square the game has drawn and counts as seen
+--- (ISObjectClickHandler.doRClick); a key needs neither. Only on the
+--- ladder's own square or the shaft's, so a door a step away is still the
+--- key's first business.
+function Client.interact(key)
+    if not getCore():isKey(KeybindId.INTERACT, key) then return false end
+    local p = getPlayer()
+    if not p or p:getVehicle() then return false end
+    local level = S.levelOf(p)
+    if not level then return false end
+    local shaft = S.shaftNear(math.floor(p:getX()), math.floor(p:getY()), 1.5, level)
+    if not shaft then return false end
+    if not (S.within(p, shaft.x, shaft.y, C.LadderKeyReach) or S.within(p, shaft.lx, shaft.ly, C.LadderKeyReach)) then
+        return false
+    end
+    if Client.noExit(p, shaft) then
+        U.note(p, getText("IGUI_SEW_NoExit"), 220, 170, 120)
+        return false
+    end
+    Client.climbUp(p, shaft)
+    return true
+end
+Events.OnKeyPressed.Add(function(key) U.try("interact", Client.interact, key) end)
+
+--- The dev build, under the sewers' own level: what the game makes of the
+--- square the player stands on, in the log every few seconds. For the report
+--- after a level that drew or clicked wrong: nothing else can say why.
+function Client.devDeep(p)
+    if not SEW.Dev then return false end
+    local z = p:getZ()
+    if z > C.Z - 0.5 then return false end
+    local out = { string.format("deep %.1f,%.1f,%.1f level %s", p:getX(), p:getY(), z, tostring(S.levelOf(p))) }
+    local function ask(label, fn)
+        local ok, v = pcall(fn)
+        out[#out + 1] = label .. "=" .. (ok and tostring(v) or "ERR")
+    end
+    local sq = p:getCurrentSquare()
+    ask("square", function() return sq ~= nil and (sq:getX() .. "," .. sq:getY() .. "," .. sq:getZ()) end)
+    if sq then
+        ask("objects", function() return sq:getObjects():size() end)
+        ask("floor", function() return sq:getFloor() ~= nil end)
+        ask("seen", function() return sq:isSeen(0) end)
+        ask("canSee", function() return sq:isCanSee(0) end)
+        ask("couldSee", function() return sq:isCouldSee(0) end)
+        ask("exterior", function() return sq:has(IsoFlagType.exterior) end)
+        ask("room", function() return sq:getRoom() ~= nil end)
+        ask("chunkMin", function() return sq:getChunk():getMinLevel() end)
+        ask("light", function() return sq:getLightLevel(0) end)
+        ask("dark", function() return sq:getDarkMulti(0) end)
+    end
+    ask("picked", function()
+        local n = p:getPlayerNum()
+        local sx = isoToScreenX(n, p:getX(), p:getY(), z)
+        local sy = isoToScreenY(n, p:getX(), p:getY(), z)
+        local c = IsoObjectPicker.Instance:ContextPick(sx, sy + 20)
+        if not c then return "nothing" end
+        local t = c.tile
+        local s2 = t and t:getSquare()
+        return (t and tostring(t:getSprite() and t:getSprite():getName()) or "?") .. "@" .. (s2 and s2:getZ() or "?")
+    end)
+    U.log(table.concat(out, " "))
+    return true
+end
+
 local holdingVault = false
 function Client.vault(p)
-    local below = S.below(p)
+    local below = S.levelOf(p) ~= nil
     if below and not holdingVault then
         U.try("vault.on", function() p:setIgnoreAutoVault(true) end)
         holdingVault = true
@@ -1013,6 +1196,8 @@ Events.OnTick.Add(function()
     Client.now = tick
     local p = getPlayer()
     if not p then return end
+    -- Once, with a player to ask as: which ways down are open (SEW_Server).
+    if not Client.askedAccess then Client.askedAccess = Net.send(p, "accessAsk", {}) end
     if pending then U.try("arrive", Client.arrive, p) end
     U.try("unanswered", Client.unanswered, p)
     if Client.devTravel then U.try("devArrive", Client.devArrive, p) end
@@ -1022,6 +1207,7 @@ Events.OnTick.Add(function()
         U.try("floor", Client.checkFloor, p, tick)
     end
     if tick % 90 == 0 then U.try("light", Client.light, p) end
+    if tick % 300 == 0 and SEW.Dev then pcall(Client.devDeep, p) end
     if tick % 30 == 0 then U.try("ambience", Client.ambience, p, tick) end
 end)
 

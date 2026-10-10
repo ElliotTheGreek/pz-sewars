@@ -15,6 +15,82 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LUA = os.path.join(ROOT, "Sewars", "42", "media", "lua")
 
 MUTATIONS = [
+    # 0.8.1: which ways down are open, and the other server options.
+    # `python tests/mutate.py 0.8.1` runs these.
+    ("0.8.1 access: the server refuses a closed way down", "server/SEW/SEW_Server.lua",
+     '        if not Server.open(x, y) and not S.isAdmin(player) then return refuse(player, "closed") end\n', ""),
+    ("0.8.1 access: an admin climbs down anyway", "server/SEW/SEW_Server.lua",
+     "        if not Server.open(x, y) and not S.isAdmin(player) then return refuse",
+     "        if not Server.open(x, y) then return refuse"),
+    ("0.8.1 access: never the way up", "server/SEW/SEW_Server.lua",
+     "        if not S.below(player) then return refuse(player, \"level\") end\n        if not (S.within(player, shaft.x",
+     "        if not S.below(player) then return refuse(player, \"level\") end\n"
+     "        if not Server.open(x, y) then return refuse(player, \"closed\") end\n        if not (S.within(player, shaft.x"),
+    ("0.8.1 access: only an admin decides", "server/SEW/SEW_Server.lua",
+     '    if not S.isAdmin(player) then return refuse(player, "admin") end\n', ""),
+    ("0.8.1 access: not the labyrinth's way out", "server/SEW/SEW_Server.lua",
+     '    if not shaft or shaft.exit then return refuse(player, "shut") end\n    open = open == true',
+     '    if not shaft then return refuse(player, "shut") end\n    open = open == true'),
+    ("0.8.1 access: only what differs is kept", "server/SEW/SEW_Server.lua",
+     "    if S.accessOpen(marks, x, y) ~= open then marks[key]", "    if true then marks[key]"),
+    ("0.8.1 access: every client is told", "server/SEW/SEW_Server.lua",
+     "    Server.publishAccess(nil)\n", ""),
+    ("0.8.1 access: the admin is told", "server/SEW/SEW_Server.lua",
+     '    Net.toClient(player, "accessSet", { x = x, y = y, open = open })\n', ""),
+    ("0.8.1 access: a client asks at its start", "client/SEW/SEW_Client.lua",
+     '    if not Client.askedAccess then Client.askedAccess = Net.send(p, "accessAsk", {}) end\n', ""),
+    ("0.8.1 access: the server answers who asks", "server/SEW/SEW_Server.lua",
+     'Net.onServer("accessAsk", function(player)\n    Server.publishAccess(player)\n',
+     'Net.onServer("accessAsk", function(player)\n'),
+    ("0.8.1 access: the sandbox closes them all", "shared/SEW/SEW_Sewer.lua",
+     '    return S.option("Access", 1, 2) == 1\n', "    return true\n"),
+    ("0.8.1 access: one an admin opened", "shared/SEW/SEW_Sewer.lua",
+     '    if m == "open" then return true end\n', ""),
+    ("0.8.1 access: one an admin closed", "shared/SEW/SEW_Sewer.lua",
+     '    if m == "shut" then return false end\n', ""),
+    ("0.8.1 access: greyed out for a player", "client/SEW/SEW_Client.lua",
+     '    if shaft and Client.closed(playerObj, shaft) then return "closed", sq, shaft.outfall and "outfall" or "down" end\n', ""),
+    ("0.8.1 access: the menu's entry is an admin's", "client/SEW/SEW_Client.lua",
+     'or what == "closed") and S.isAdmin(playerObj) then', 'or what == "closed") then'),
+    ("0.8.1 access: the client's word is not the server's", "shared/SEW/SEW_Sewer.lua",
+     "    local role = player:getRole()\n    return role ~= nil and role:hasAdminTool() == true",
+     "    local role = player:getRole()\n    return role ~= nil and (isServer() or role:hasAdminTool() == true)"),
+    ("0.8.1 access: no roles in single player", "shared/SEW/SEW_Sewer.lua",
+     "        return (SEW.Dev == true and SEW.DevPlayer ~= true)\n"
+     "            or (isDebugEnabled ~= nil and isDebugEnabled() == true)\n",
+     "        return true\n"),
+    ("0.8.1 access: the dev build as a player", "shared/SEW/SEW_Sewer.lua",
+     "        return (SEW.Dev == true and SEW.DevPlayer ~= true)\n", "        return (SEW.Dev == true)\n"),
+    ("0.8.1 options: no trapdoor in a house", "server/SEW/SEW_Build.lua",
+     '    if B.option("Hatches", 1, 2) == 2 then return nil end\n', ""),
+    ("0.8.1 options: no outfall", "server/SEW/SEW_Build.lua",
+     '    if shaft.outfall and B.option("Outfalls", 1, 2) == 2 then return nil end\n', ""),
+    ("0.8.1 options: only an outfall is an outfall", "server/SEW/SEW_Build.lua",
+     '    if shaft.outfall and B.option("Outfalls", 1, 2) == 2 then return nil end\n',
+     '    if B.option("Outfalls", 1, 2) == 2 then return nil end\n'),
+    ("0.8.1 options: no labyrinth", "server/SEW/SEW_Build.lua",
+     '    if B.option("Labyrinth", 1, 2) == 2 and SEW.Index.labyrinth ~= nil',
+     '    if false and SEW.Index.labyrinth ~= nil'),
+    ("0.8.1 options: only the labyrinth's", "server/SEW/SEW_Build.lua",
+     "            and shaft.town == SEW.Index.labyrinth.town then\n        return nil", " then\n        return nil"),
+    ("0.8.1 options: no map to a labyrinth left out", "server/SEW/SEW_Maps.lua",
+     '    if which == "labyrinth" and B.option("Labyrinth", 1, 2) == 2 then return false end\n', ""),
+    ("0.8.1 options: the nest sealed", "server/SEW/SEW_Nest.lua",
+     '    if which == "wall" and B.option("Nest", 1, 2) == 2 then return refuse(player, "solid") end\n', ""),
+    ("0.8.1 options: the sealed wall not offered", "client/SEW/SEW_Client.lua",
+     '        if which == "wall" and S.option("Nest", 1, 2) == 2 then ax = nil end\n', ""),
+    ("0.8.1 options: how tough a rodent is", "server/SEW/SEW_Nest.lua",
+     '    local tough = C.Rous.tough[B.option("Rous", 2, #C.Rous.tough)]', "    local tough = 1"),
+    ("0.8.1 options: normal in a save from before", "server/SEW/SEW_Nest.lua",
+     'B.option("Rous", 2, #C.Rous.tough)', 'B.option("Rous", 3, #C.Rous.tough)'),
+    ("0.8.1 options: the set pieces' dead by the sandbox", "server/SEW/SEW_Build.lua",
+     "            elseif B.keepDead(tid, z[1], z[2]) then\n", "            else\n"),
+    ("0.8.1 options: the labyrinth's by its own option", "server/SEW/SEW_Build.lua",
+     'B.option(maze and "MazeDead" or "CultDead", #C.SetDead, #C.SetDead)', 'B.option("CultDead", #C.SetDead, #C.SetDead)'),
+    ("0.8.1 options: a quarter, a half", "shared/SEW/SEW_Config.lua",
+     "C.SetDead = { 0, 0.25, 0.5, 1 }", "C.SetDead = { 0, 0.5, 0.5, 1 }"),
+    ("0.8.1 journal: the direction in the reader's language", "client/SEW/SEW_StoryUI.lua",
+     '    local dir = j.dir and getText("IGUI_SEW_Dir_" .. (string.gsub(j.dir, "-", "_"))) or ""', "    local dir = j.dir"),
     # 0.7.6: three more from the Workshop. `python tests/mutate.py 0.7.6` runs these.
     ("0.7.6 sound: only when ticked", "client/SEW/SEW_Client.lua",
      "    if not Client.ambienceOn() then return end\n", ""),
@@ -707,13 +783,276 @@ MUTATIONS = [
 ]
 
 
+# 0.9 moved a good many of the lines the mutations above break (a level is a
+# parameter now, a way down stands four ways). Each is re-pointed here at the
+# same guard where it now is: name -> (the text to find, what replaces it).
+# A mutation whose text is not found is reported NOAPPLY and counts as missed.
+MOVED = {
+    "0.8.1 access: the server refuses a closed way down": (
+        '        if not S.mayEnter(access) and not S.isAdmin(player) then return refuse(player, "closed") end\n', ""),
+    "0.8.1 access: an admin climbs down anyway": (
+        '        if not S.mayEnter(access) and not S.isAdmin(player) then return refuse(player, "closed")',
+        '        if not S.mayEnter(access) then return refuse(player, "closed")'),
+    "0.8.1 access: never the way up": (
+        '    return S.option("Access", 1, 2) == 1 and "open" or "shut"', '    return S.option("Access", 1, 2) == 1 and "open" or "none"',
+        "shared/SEW/SEW_Sewer.lua"),
+    "0.8.1 access: not the labyrinth's way out": (
+        '    if not shaft or shaft.exit then return refuse(player, "shut") end\n    if mode ~= "open"',
+        '    if not shaft then return refuse(player, "shut") end\n    if mode ~= "open"'),
+    "0.8.1 access: only what differs is kept": (
+        "    if S.accessMode(marks, x, y, z) ~= mode then marks[key] = mode end", "    marks[key] = mode"),
+    "0.8.1 access: the admin is told": (
+        '    Net.toClient(player, "accessSet", { x = x, y = y, z = z, mode = mode })\n', ""),
+    "0.8.1 access: the sandbox closes them all": (
+        '    return S.option("Access", 1, 2) == 1 and "open" or "shut"', '    return "open"'),
+    "0.8.1 access: one an admin opened": (
+        '    if m == "open" or m == "shut" or m == "in" or m == "none" then return m end\n', ""),
+    "0.8.1 access: one an admin closed": (
+        'function S.mayEnter(mode) return mode == "open" or mode == "in" end', 'function S.mayEnter(mode) return true end'),
+    "0.8.1 access: the menu's entry is an admin's": (
+        "    if not test and SEW.Admin and S.isAdmin(playerObj) then", "    if not test and SEW.Admin then"),
+    "0.7.5 snow: only for a player in the sewer": (
+        "    if W.broken or not C.Weather.indoors or not level then return 0 end",
+        "    if W.broken or not C.Weather.indoors then return 0 end"),
+    "0.7.5 snow: the switch": (
+        "    if W.broken or not C.Weather.indoors or not level then return 0 end", "    if W.broken or not level then return 0 end"),
+    "0.7.5 climb: asked again by command": (
+        '        Net.send(p, "climb", { x = a.x, y = a.y, z = a.z, mode = a.mode })\n', ""),
+    "0.7.5 climb: out anyway": (
+        '        if a.mode == "up" and s and S.levelOf(p) == a.z and not Client.noExit(p, s)\n',
+        '        if false and s and S.levelOf(p) == a.z and not Client.noExit(p, s)\n'),
+    "0.7.5 climb: never down anyway": (
+        '        if a.mode == "up" and s and S.levelOf(p) == a.z and not Client.noExit(p, s)\n'
+        "                and (S.within(p, s.x, s.y, C.Reach + 0.8) or S.within(p, s.lx, s.ly, C.Reach + 0.8)) then",
+        "        if s then"),
+    "0.7.5 climb: the server's handler": ("    Server.grant(player, args.x, args.y, args.mode, args.z)\n", ""),
+    "0.7.5 climb: a repeat is answered once": ("    if repeated(player, x, y, mode, z) then return true end\n", ""),
+    "0.7.5 climb: back where they started is a new climb": ('        and Server.at(player, z) == (mode == "down")\n', ""),
+    "0.7.5 rous fight: three hits, whatever the weapon's damage": ("    return 1 / hits + 0.001", "    return 0.05"),
+    "0.7.5 rous fight: a bullet takes more": (
+        "    local hits = math.max(1, math.floor((ranged and C.Rous.shotHits or C.Rous.hits) * tough + 0.5))",
+        "    local hits = math.max(1, math.floor(C.Rous.hits * tough + 0.5))"),
+    "mine: only below": (
+        '    if S.levelOf(player) ~= Mi.z then return refuse(player, "level") end\n    if not S.within(player, ax, ay',
+        "    if not S.within(player, ax, ay"),
+    "mine: earth where rock is exposed": ("                setEdge(p, d[1], d[2], nx, ny, wall)\n", ""),
+    "mine: what is dug is recorded": ("        B.setRecord(e.x, e.y, e.rec, Mi.z)\n", ""),
+    "mine: a pass rebuilds what was dug where no town is": (
+        '            if B.square(tonumber(x), tonumber(y), rec, false, false, nil, never ~= nil and never[k] ~= nil) == "unloaded" then\n'
+        "                return false\n            end\n        end\n        if not B.deeper(key) then return false end",
+        "        end\n        if not B.deeper(key) then return false end"),
+    "mine: a pass rebuilds what the generator never had": (
+        '                if B.square(tonumber(x), tonumber(y), rec, false, false, nil, never ~= nil and never[k] ~= nil) == "unloaded" then\n'
+        "                    return false\n                end\n", ""),
+    "mine: dug chunks are revisited": (
+        "            if (B.townOf(key) or B.state().dug[key] or B.deepHas(key)) and not B.isCurrent(key) then",
+        "            if (B.townOf(key) or B.deepHas(key)) and not B.isCurrent(key) then"),
+    "mine: heard": (
+        '    U.try("mine.noise", function() addSound(player, ax, ay, Mi.z, C.Mine.noise[1], C.Mine.noise[2]) end)\n', ""),
+    "mine: on the menu": (
+        '    if sewer and not test then U.try("mineMenu", Client.mineMenu, playerObj, context) end\n', ""),
+    "blast: only below": ("    if z ~= C.Z and not (S.isLevel(z) and S.ours(sq)) then return false end\n", ""),
+    "blast: after the dust, not inside the engine's own explosion": (
+        "    Mi.pending[#Mi.pending + 1] = { x = sq:getX(), y = sq:getY(), z = z, at = ticks + C.Mine.blastDelay }",
+        "    Mi.blast(sq:getX(), sq:getY(), z)"),
+    "set pieces: the temple's are owed too": (
+        "            elseif B.keepDead(tid, z[1], z[2]) then\n                B.setPiece(key, z)",
+        "            elseif B.keepDead(tid, z[1], z[2]) then\n"
+        "                B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5])"),
+    "temple: the trapdoor says what it is": (
+        '(shaft and shaft.trapdoor) and "Tooltip_SEW_Trap"', 'false and "Tooltip_SEW_Trap"'),
+    "temple: the facing handed on": (
+        '    local n, why = B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5], z[6])\n    if why == "near" then',
+        '    local n, why = B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), nil, nil, z[6])\n    if why == "near" then'),
+    "labyrinth: no Dig on the menu": ("    if level == C.Z and S.inLabyrinth(x, y) then return out end\n", ""),
+    "labyrinth: its rock does not give": ('    if Mi.z == C.Z and S.inLabyrinth(x, y) then return "hard" end\n', ""),
+    "labyrinth: its walls do not give": (
+        "    if Mi.z == C.Z and (S.inLabyrinth(ax, ay) or S.inLabyrinth(bx, by)) then return false end\n", ""),
+    "hatch on the menu": ('        if hs then return "hatch", h end\n', ""),
+    "no rescue to a hatch": ("        if not s.hatch and not s.exit then", "        if not s.exit then"),
+    "discovery": (
+        'if Server.under(p) then U.try("discover", SEW.Discovery.look, p) else', "if Server.under(p) then local _ = p else"),
+    "ladder on the map": (
+        '        SEW.Discovery.ladder(player, x, y, z)\n        U.log("%s climbs down', '        U.log("%s climbs down'),
+    "level refusal (up)": (
+        '        if not Server.at(player, z) then return refuse(player, "level") end\n', ""),
+    "rooms: only a square of ours": ("    elseif not S.ours(sq) then\n        return false\n    end\n", "    end\n"),
+    "rooms: at the foot of a climb": ("        SEW.Rooms.around(x, y, C.Rooms.reach + 1, z)\n", ""),
+}
+# (A third thing in a pair's place: the file the guard is in now.)
+MUTATIONS = [(n, (MOVED.get(n, (o, w, r)) + (r,))[2]) + MOVED.get(n, (o, w))[:2] for n, r, o, w in MUTATIONS]
+
+# 0.9: an admin's works, levels, a way down's four ways, ground marked as
+# indoors. `python tests/mutate.py 0.9` runs these.
+WK, BU, SW, SV, CL, MP, AD, IN, RM, DI, MI = (
+    "server/SEW/SEW_Works.lua", "server/SEW/SEW_Build.lua", "shared/SEW/SEW_Sewer.lua", "server/SEW/SEW_Server.lua",
+    "client/SEW/SEW_Client.lua", "client/SEW/SEW_Map.lua", "client/SEW/SEW_Admin.lua", "shared/SEW/SEW_Indoors.lua",
+    "server/SEW/SEW_Rooms.lua", "server/SEW/SEW_Discovery.lua", "server/SEW/SEW_Mine.lua")
+MUTATIONS += [
+    ("0.9 works: only an admin's asking is heard", WK,
+     '    if S.isAdmin(player) then return true end\n    refuse(player, "admin")\n    return false\n', "    return true\n"),
+    ("0.9 way down: not where one is", WK, '    if S.shaftAt(x, y) then return refuse(player, "taken") end\n', ""),
+    ("0.9 way down: no further than the sandbox's passage", WK, "        if q[3] < max then\n", "        if true then\n"),
+    ("0.9 way down: its passage is joined to the tunnel", WK,
+     "            p = Mi.plan(path, { { path[#path][1], path[#path][2], touch[1], touch[2] } }, STYLE[1])",
+     "            p = Mi.plan(path, {}, STYLE[1])"),
+    ("0.9 way down: a ladder at its foot", WK,
+     '            e.rec = with(with(e.rec, FLOOR, "g"), FIX, ladderFor(x, y, path[2] or touch))',
+     '            e.rec = with(e.rec, FLOOR, "g")'),
+    ("0.9 way down: its cover in the road", WK,
+     "        local shaft = addShaft(x, y, C.Z, kind)\n        B.cover(shaft)\n", "        local shaft = addShaft(x, y, C.Z, kind)\n"),
+    ("0.9 way down: every client is told", WK,
+     '        Wk.publish(nil)\n        U.log("%s put a way down', '        U.log("%s put a way down'),
+    ("0.9 way down: its kind", WK, '    if kind == "outfall" then shaft.outfall = true end\n', ""),
+    ("0.9 way down: taken away, its cover goes", WK,
+     '            U.try("works.uncover", function() top:transmitRemoveItemFromSquare(o) end)\n', ""),
+    ("0.9 way down: taken away, its ladder goes", WK, '            e.rec = with(e.rec, FIX, ".")\n', ""),
+    ("0.9 way down: only an admin's own is taken away", AD, "        if shaft.custom then\n", "        if true then\n"),
+    ("0.9 shaft: down to a level there is", WK,
+     '    if not S.isLevel(top) or not S.isLevel(z) then return refuse(player, "level") end',
+     '    if not S.isLevel(top) then return refuse(player, "level") end'),
+    ("0.9 shaft: not offered at the lowest level", AD, "        if S.isLevel(level - 1) then\n", "        if true then\n"),
+    ("0.9 shaft: its cover in the tunnel's floor", BU,
+     "    local top = U.square(shaft.x, shaft.y, (shaft.z or B.Z) + 1, false)", "    local top = U.square(shaft.x, shaft.y, 0, false)"),
+    ("0.9 shaft: kept by its own level", SW,
+     '    return x .. "," .. y .. "," .. math.floor(z + 0.5)', '    return x .. "," .. y'),
+    ("0.9 levels: no generator's record under the sewers", BU,
+     "    if own(z) then return B.dataAt(x, y) end\n    return nil", "    return B.dataAt(x, y)"),
+    ("0.9 levels: the builder's pass builds them", BU,
+     "    if not B.deeper(key) then return false end\n    s.unbuilt[B.zkey(B.Z)", "    s.unbuilt[B.zkey(B.Z)"),
+    ("0.9 levels: a deeper one only on a square of ours", SW, "    return S.onOurs(player) and l or nil", "    return l"),
+    ("0.9 levels: the builder builds round a player there", SV,
+     '            if deep[(cx + dx) .. "," .. (cy + dy)] then return true end\n', ""),
+    ("0.9 levels: the climb is to the shaft's own", SV,
+     "        Net.toClient(player, \"go\", { x = x, y = y, z = z, street = shaft.street or \"\", mode = \"down\",",
+     "        Net.toClient(player, \"go\", { x = x, y = y, z = C.Z, street = shaft.street or \"\", mode = \"down\","),
+    ("0.9 levels: the pick digs where it is swung", MI,
+     "    if z ~= nil and z ~= C.Z then return Mi.with(z, Mi.digHere, player, ax, ay, dx, dy) end\n", ""),
+    ("0.9 levels: the chunk map asked for its lowest", CL, "    if m.z < C.Z then Client.lowest(p) end\n", ""),
+    ("0.9 levels: what is dug is on the map", MI,
+     '    if SEW.Works then U.try("mine.map", SEW.Works.changed, Mi.z, keys) end\n', ""),
+    ("0.9 levels: what is walked is on the map", DI,
+     "    if SEW.Works and S.isLevel(z) and SEW.Works.seen(p, z, key) then n = n + 1 end\n", ""),
+    ("0.9 tunnel: straight", WK,
+     "    if math.abs(x1 - x0) >= math.abs(y1 - y0) then y1 = y0 else x1 = x0 end\n", ""),
+    ("0.9 tunnel: no longer than a run", WK,
+     '    if math.abs(x1 - x0) + math.abs(y1 - y0) + 1 > C.Works.maxRun then return refuse(player, "long") end\n', ""),
+    ("0.9 tunnel: at a level there is", WK,
+     '    if not S.isLevel(z) then return refuse(player, "level") end\n    local style', "    local style"),
+    ("0.9 tunnel: kept apart it crosses nothing", WK,
+     '                if not join then return refuse(player, "apart") end\n', ""),
+    ("0.9 tunnel: joined, the walls between come down", WK,
+     "        if join then\n            -- Every wall between", "        if false then\n            -- Every wall between"),
+    ("0.9 tunnel: not through somebody's cellar", WK,
+     '                if why ~= "ok" then return refuse(player, why) end\n                dig[#dig + 1] = q\n            else',
+     "                dig[#dig + 1] = q\n            else"),
+    ("0.9 tunnel: not through the labyrinth", WK,
+     '            if z == C.Z and S.inLabyrinth(q[1], q[2]) then return refuse(player, "hard") end\n', ""),
+    ("0.9 tunnel: a trunk is brick", WK, '[5] = { floor = "k", wall = "b" }', '[5] = { floor = "t", wall = "c" }'),
+    ("0.9 tunnel: what is not loaded is owed", WK,
+     '            s.unbuilt[k][e.x .. "," .. e.y] = opened and 2 or 1\n', ""),
+    ("0.9 tunnel: never built looks for somebody else's first", BU,
+     "    local fresh = first or (caves == true and DUG[f] == true) or anew == true",
+     "    local fresh = first or (caves == true and DUG[f] == true)"),
+    ("0.9 room: only into rock", WK,
+     '        if not ok then return refuse(player, why == "space" and "apart" or why) end\n        local p = Mi.plan({}, {})',
+     "        local p = Mi.plan({}, {})"),
+    ("0.9 room: its door", WK, "            if sq then B.putDoor(sq, d[3]) end\n", ""),
+    ("0.9 room: its furniture", WK,
+     "                        if B.furnish({ e[1] + ox, e[2] + oy, e[3], e[4] }, seed, z) then things = things + 1 end\n", ""),
+    ("0.9 room: its dead at its own level", WK,
+     "{ d[1] + ox, d[2] + oy, d[3], d[4] and d[4] + ox, d[5] and d[5] + oy, z })",
+     "{ d[1] + ox, d[2] + oy, d[3], d[4] and d[4] + ox, d[5] and d[5] + oy })"),
+    ("0.9 template: tagged as a template's", WK, "        obj:getModData()[C.TemplateTag] = 1\n", ""),
+    ("0.9 template: a revision keeps its walls", BU,
+     "        if name and U.isOurs(o) and isStructural(name) and not want[name]\n"
+     "                and o:getModData()[C.TemplateTag] == nil then",
+     "        if name and U.isOurs(o) and isStructural(name) and not want[name] then"),
+    ("0.9 template: stocked with its own kind", WK,
+     '        local list = C.Loot["template_" .. tostring(loot)]', "        local list = C.Loot.template_food"),
+    ("0.9 template: its floor and no second one", WK,
+     '            U.try("tpl.unrock", function() sq:transmitRemoveItemFromSquare(old) end)\n', ""),
+    ("0.9 template: a door is a door", WK, "    if o.d then\n        return U.try(\"tpl.door\"", "    if false then\n        return U.try(\"tpl.door\""),
+    ("0.9 template: an opening where the admin stands", WK,
+     "        local p = Mi.plan(dig, { { ax, ay, ax + dx, ay + dy } }, ROOM)", "        local p = Mi.plan(dig, {}, ROOM)"),
+    ("0.9 template: forgotten", WK, "    s.templates[name] = nil\n", ""),
+    ("0.9 indoors: declared once a process", IN,
+     "    if In.broken or In.declared[id] then return 0 end", "    if In.broken then return 0 end"),
+    ("0.9 indoors: only where the meta grid has no room", IN,
+     "                if grid:getRoomAt(r[1], r[2], mark.z) ~= nil then clear = false end\n", ""),
+    ("0.9 indoors: not left for the region pass", IN,
+     "                if def and def:getBuilding() then def:getBuilding():setUserDefined(false) end\n", ""),
+    ("0.9 indoors: not left in the editor at the start", IN,
+     "            if loading then ed:removeBuilding(m.b) end\n", ""),
+    ("0.9 indoors: no square beside a door", WK,
+     "        if sq:getRoom() ~= nil or In.at(qx, qy, z) or byDoor(qx, qy, z) then return true end",
+     "        if sq:getRoom() ~= nil or In.at(qx, qy, z) then return true end"),
+    ("0.9 indoors: below the street only", WK,
+     '    if z >= 0 then return refuse(player, "level") end\n    x, y = int(x), int(y)\n    local In = SEW.Indoors',
+     "    x, y = int(x), int(y)\n    local In = SEW.Indoors"),
+    ("0.9 indoors: a mark taken away", WK, "    s.indoor[id] = nil\n", ""),
+    ("0.9 indoors: the guard leaves a marked room", RM, "        if room:getBuilding() ~= nil then return false end\n", ""),
+    ("0.9 indoors: a room with no building comes off", RM,
+     "        if room:getBuilding() ~= nil then return false end\n", "        if true then return false end\n"),
+    ("0.9 rebuild: the chunks round the admin", WK,
+     '            s.built[(math.floor(px / 8) + dx) .. "," .. (math.floor(py / 8) + dy)] = nil\n', ""),
+    ("0.9 check: a room is a room", WK, 'told(player, room and "check_room" or', 'told(player, false and "check_room" or'),
+    ("0.9 map: what was dug and drawn", MP,
+     "            self:drawRect(sx, sy, r[3] * s, s + 0.5, 0.9, K[1], K[2], K[3])\n", ""),
+    ("0.9 map: an admin's has no fog", MP, "    if M.all then return {} end\n", ""),
+    ("0.9 map: an admin's has every ladder", MP, "    if not M.all then return M.state.l end\n", "    if true then return M.state.l end\n"),
+    ("0.9 map: the pen is an admin's", MP, "    if S.isAdmin(self.player) then\n        self.drawBtn", "    if true then\n        self.drawBtn"),
+    ("0.9 map: one click is where it starts", MP, "        d.from = { wx, wy }\n        return false\n", "        d.from = { wx, wy }\n"),
+    ("0.9 map: closed, it is the player's again", MP, "    M.all = false\n    -- Where it was", "    -- Where it was"),
+    ("0.9 way: a way in only is no way out", SW,
+     'function S.mayLeave(mode) return mode == "open" or mode == "shut" end', "function S.mayLeave(mode) return true end"),
+    ("0.9 way: the server refuses the climb out", SV,
+     '        if not S.mayLeave(access) and not S.isAdmin(player) then return refuse(player, "noexit") end\n', ""),
+    ("0.9 way: an admin climbs out anyway", SV,
+     "        if not S.mayLeave(access) and not S.isAdmin(player) then return refuse",
+     "        if not S.mayLeave(access) then return refuse"),
+    ("0.9 way: greyed out below", CL, '            if Client.noExit(playerObj, shaft) then return "noexit", shaft end\n', ""),
+    ("0.9 ladder: only the Interact key", CL,
+     "    if not getCore():isKey(KeybindId.INTERACT, key) then return false end\n", ""),
+    ("0.9 ladder: only at its foot", CL,
+     "    if not (S.within(p, shaft.x, shaft.y, C.LadderKeyReach) or S.within(p, shaft.lx, shaft.ly, C.LadderKeyReach)) then\n"
+     "        return false\n    end\n", ""),
+    ("0.9 ladder: the key is the climb", CL, "    Client.climbUp(p, shaft)\n    return true\nend\nEvents.OnKeyPressed",
+     "    return true\nend\nEvents.OnKeyPressed"),
+    ("0.9 way: only the four", SV,
+     '    if mode ~= "open" and mode ~= "in" and mode ~= "shut" and mode ~= "none" then return refuse(player, "mode") end\n', ""),
+]
+
+# 0.9: the labyrinth where a host puts it (SEW_Place). `python tests/mutate.py place`.
+PL = "shared/SEW/SEW_Place.lua"
+MUTATIONS += [
+    ("0.9 place: not on a town", PL, "    if not ok then return 0, 0, why end\n", ""),
+    ("0.9 place: nor beside one", PL, "    local m = C.Place.clear\n", "    local m = 0\n"),
+    ("0.9 place: by whole chunks", PL, "    local dx = math.floor((x - HOME.x) / 8 + 0.5) * 8\n", "    local dx = x - HOME.x\n"),
+    ("0.9 place: its ways are kept under where they are", PL,
+     '        I.shafts[s.x .. "," .. s.y] = s\n', "        I.shafts[e[1]] = s\n"),
+    ("0.9 place: its squares go with it", PL, "                rekey(tbl, mx / 8, my / 8)\n", ""),
+    ("0.9 place: what stands on them too", PL, "                                e[1], e[2] = e[1] + mx, e[2] + my\n", ""),
+    ("0.9 place: its map's marks", PL,
+     "            for _, a in ipairs(st.annotations or {}) do a.x, a.y = a.x + mx, a.y + my end\n", ""),
+    ("0.9 place: a world that had one forgets its stamps", PL, "                        s[name][key] = nil\n", ""),
+    ("0.9 place: the builder forgets where it was", BU, "    chunkTown = nil\n    cut = {}\nend)", "end)"),
+    ("0.9 place: the rooms' index forgets too", SW, "SEW.Place.onMove(function() shelterChunks = nil end)\n", ""),
+    ("0.9 place: a client is told", SV,
+     '    Net.toClient(player, "place", { dx = SEW.Place.dx, dy = SEW.Place.dy })\n', ""),
+    ("0.9 place: and follows", CL, "    if SEW.Place.move(dx, dy) then\n        Client.clearLamps()",
+     "    if false then\n        Client.clearLamps()"),
+]
+
+
 def main():
     missed = []
     # `python tests/mutate.py temple` runs only the mutations whose name has
     # that word in it: for the ones just written. Before a release, all of them.
     only = sys.argv[1] if len(sys.argv) > 1 else ""
     for name, rel, old, new in MUTATIONS:
-        if only not in name:
+        # `moved`: the ones re-pointed in MOVED, after a change that moved lines.
+        if (only == "moved" and name not in MOVED) or (only != "moved" and only not in name):
             continue
         path = os.path.join(LUA, rel)
         orig = open(path, "rb").read()

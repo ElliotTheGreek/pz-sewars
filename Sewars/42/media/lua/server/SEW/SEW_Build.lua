@@ -79,6 +79,28 @@ function B.state()
     s.hatches = s.hatches or {}
     -- "x,y" of a cover of ours -> "placed".
     s.covers = s.covers or {}
+    -- "x,y" of a way down -> "open" or "shut": what an admin has said of that
+    -- one, against the sandbox's Sewars.Access (SEW_Server.setAccess). Only
+    -- the ones that differ from the sandbox are kept, so it stays short.
+    s.access = s.access or {}
+    -- An admin's works (SEW_Works). The ways down they put in: key (S.shaftKey)
+    -- -> a shaft like the index's. Kept here, and S.shaftAt reads this table.
+    s.shafts = s.shafts or {}
+    SEW.Sewer.custom = s.shafts
+    -- Records at the levels under the sewers' own, as `dug` is at it: level
+    -- ("-2", "-3") -> chunk key -> { ["x,y"] = record }.
+    s.deep = s.deep or {}
+    for _, z in ipairs(C.Levels) do
+        if z ~= C.Z then s.deep[B.zkey(z)] = s.deep[B.zkey(z)] or {} end
+    end
+    -- Records written where the ground was not loaded, and so never yet
+    -- built: "level:chunk" -> { ["x,y"] = 1 }. Their first build looks for
+    -- somebody else's underground, as any first build does.
+    s.unbuilt = s.unbuilt or {}
+    -- Room templates: name -> { w, h, loot, cells } (SEW_Works.capture).
+    s.templates = s.templates or {}
+    -- Ground marked as indoors: id -> { z, rects } (SEW_Indoors).
+    s.indoor = s.indoor or {}
     -- The rats' nest: which of its two walls are open ("wall", the false wall
     -- from the sewer; "gate", into the hoard), and which rodents have been
     -- put down ("x,y" of each, from the index).
@@ -132,6 +154,11 @@ function B.resetIndex() chunkTown = nil end
 -- chunk key -> { ["x,y"] = record } of the generator's data, cut up the first
 -- time a square of the chunk is asked for.
 local cut = {}
+-- The labyrinth's chunks are where a host put them (SEW_Place).
+SEW.Place.onMove(function()
+    chunkTown = nil
+    cut = {}
+end)
 
 --- The generator's record of x, y, or nil.
 function B.dataAt(x, y)
@@ -154,17 +181,44 @@ function B.dataAt(x, y)
     return c and c[x .. "," .. y] or nil
 end
 
+--- A level as a key: "-1", "-2", "-3".
+function B.zkey(z)
+    return string.format("%d", math.floor((z or B.Z) + 0.5))
+end
+
+local function own(z)
+    return z == nil or math.floor(z + 0.5) == B.Z
+end
+
+--- The players' and admins' own records of a level, by chunk: `dug` at the
+--- sewers' own, `deep` under it.
+function B.dugOf(z)
+    local s = B.state()
+    if own(z) then return s.dug end
+    return s.deep[B.zkey(z)] or {}
+end
+
+--- True when chunk `key` has records at a level under the sewers' own.
+function B.deepHas(key)
+    for _, by in pairs(B.state().deep) do
+        if by[key] then return true end
+    end
+    return false
+end
+
 --- The record of x, y as it stands: what a player dug there (SEW_Mine), else
---- the generator's, else nil.
-function B.recordAt(x, y)
-    local over = B.state().dug[math.floor(x / 8) .. "," .. math.floor(y / 8)]
-    return (over and over[x .. "," .. y]) or B.dataAt(x, y)
+--- the generator's, else nil. At a deeper level `z` there is no generator's.
+function B.recordAt(x, y, z)
+    local over = B.dugOf(z)[math.floor(x / 8) .. "," .. math.floor(y / 8)]
+    if over and over[x .. "," .. y] then return over[x .. "," .. y] end
+    if own(z) then return B.dataAt(x, y) end
+    return nil
 end
 
 --- Writes a record of the players' own for x, y. It is read in place of the
 --- generator's from now on, by every pass.
-function B.setRecord(x, y, rec)
-    local dug = B.state().dug
+function B.setRecord(x, y, rec, z)
+    local dug = B.dugOf(z)
     local key = math.floor(x / 8) .. "," .. math.floor(y / 8)
     dug[key] = dug[key] or {}
     dug[key][x .. "," .. y] = rec
@@ -252,6 +306,9 @@ local function putDoor(sq, north, key)
         return true
     end) == true
 end
+
+-- A copied room's door on an edge an older square holds (SEW_Works.shelter).
+B.putDoor = putDoor
 
 --- Somebody else's underground, left alone (SEW_Util: the client asks the
 --- same before it calls for a rescue).
@@ -372,7 +429,11 @@ function B.unwall(sq, walls, n, w, fix)
     local doomed = {}
     U.eachObject(sq, function(o)
         local name = U.spriteName(o)
-        if name and U.isOurs(o) and isStructural(name) and not want[name] then doomed[#doomed + 1] = o end
+        -- Never a template's: an admin's room may be walled in the sewers' own brick.
+        if name and U.isOurs(o) and isStructural(name) and not want[name]
+                and o:getModData()[C.TemplateTag] == nil then
+            doomed[#doomed + 1] = o
+        end
     end)
     for _, o in ipairs(doomed) do
         U.try("unwall", function() sq:transmitRemoveItemFromSquare(o) end)
@@ -528,15 +589,18 @@ end
 --- `caves` is true when this chunk's caves have not been dug yet: a cave
 --- square is then new ground, even in a chunk built before caves existed.
 --- Returns "built", "foreign" or "unloaded".
-function B.square(x, y, rec, first, caves)
-    local sq = U.square(x, y, B.Z, true)
+--- `z`: the level, when not the sewers' own. `anew`: the square has never
+--- been built (a work drawn where the ground was not loaded): as on a first
+--- build, anything of somebody else's on it and it is left alone.
+function B.square(x, y, rec, first, caves, z, anew)
+    local sq = U.square(x, y, z or B.Z, true)
     if not sq then return "unloaded" end
     local f, n, w, fix, dress = rec:sub(3, 3), rec:sub(4, 4), rec:sub(5, 5), rec:sub(6, 6), rec:sub(7, 7)
     -- The nest's walls that open: a wall, or once opened a breach.
     local gateEdge = GATE[n] and "N" or GATE[w] and "W" or nil
     if GATE[n] then n = B.gateOpen(GATE[n].which) and GATE[n].open or GATE[n].shut end
     if GATE[w] then w = B.gateOpen(GATE[w].which) and GATE[w].open or GATE[w].shut end
-    local fresh = first or (caves == true and DUG[f] == true)
+    local fresh = first or (caves == true and DUG[f] == true) or anew == true
     if fresh and foreign(sq) then return "foreign" end
 
     local floorFn = FLOOR[f]
@@ -616,9 +680,9 @@ end
 ---------------------------------------------------------------------------
 -- Shelters and the dead
 ---------------------------------------------------------------------------
-function B.furnish(entry, seed)
+function B.furnish(entry, seed, z)
     local x, y, sprite, loot, extra = entry[1], entry[2], entry[3], entry[4], entry[5]
-    local sq = U.square(x, y, B.Z, true)
+    local sq = U.square(x, y, z or B.Z, true)
     if not sq or U.findSprite(sq, sprite) then return false end
     local obj = U.try("IsoObject.new", function() return IsoObject.new(sq, sprite, "") end)
     if not obj then return false end
@@ -662,10 +726,10 @@ end
 --- One of the dead at x, y. `fx, fy`: the square it is turned to -- the
 --- temple's stand round their slab, facing it (tools/gen_temple.py).
 --- Returns how many were made; false, "near" when a player is too close.
-function B.spawn(x, y, outfit, fx, fy)
+function B.spawn(x, y, outfit, fx, fy, z)
     if nearAPlayer(x, y, C.SpawnClearance) then return false, "near" end
     local list = U.try("addZombiesInOutfit", function()
-        return addZombiesInOutfit(x, y, B.Z, 1, outfit, 50, false, false, false, false, false, false, 1.0)
+        return addZombiesInOutfit(x, y, z or B.Z, 1, outfit, 50, false, false, false, false, false, false, 1.0)
     end)
     local n = list ~= nil and U.try("zombies.size", function() return list:size() end) or false
     if fx and fy and n and n > 0 then
@@ -679,11 +743,11 @@ end
 --- not put down beside a player; these are the point of the place, and a
 --- hall found empty because somebody arrived through its trapdoor is not it.
 function B.setPiece(key, z)
-    local n, why = B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5])
+    local n, why = B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5], z[6])
     if why == "near" then
         local s = B.state()
         s.owed[key] = s.owed[key] or {}
-        table.insert(s.owed[key], { z[1], z[2], z[3], z[4], z[5] })
+        table.insert(s.owed[key], { z[1], z[2], z[3], z[4], z[5], z[6] })
     end
     return n
 end
@@ -698,7 +762,7 @@ function B.settle()
         if U.chunkLoaded(tonumber(cx) * 8 + 4, tonumber(cy) * 8 + 4) then
             local left = {}
             for _, z in ipairs(list) do
-                local n, why = B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5])
+                local n, why = B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5], z[6])
                 if why == "near" then left[#left + 1] = z elseif n then made = made + 1 end
             end
             if #left == 0 then done[#done + 1] = key else s.owed[key] = left end
@@ -715,6 +779,17 @@ function B.option(name, default, n)
     v = tonumber(v)
     if not v or v < 1 or v > n then return default end
     return math.floor(v)
+end
+
+--- Whether one of a set piece's dead, stood at x, y by the generator, is
+--- put down: by the sandbox's Sewars.CultDead for the temple's and
+--- Sewars.MazeDead for the labyrinth's (None / A few / Half / All: C.SetDead).
+--- By where it stands, so a world has the same ones every time it is asked.
+function B.keepDead(tid, x, y)
+    local maze = SEW.Index.labyrinth ~= nil and SEW.Index.labyrinth.town == tid
+    local share = C.SetDead[B.option(maze and "MazeDead" or "CultDead", #C.SetDead, #C.SetDead)]
+    if share >= 1 then return true end
+    return U.rng(U.hash(x, y, 83))(1000) <= share * 1000
 end
 
 --- Whether the EXIT stencil the generator put at x, y is painted, by the
@@ -770,6 +845,9 @@ function B.hatch(shaft)
     local s = B.state()
     local key = shaft.x .. "," .. shaft.y
     if s.hatches[key] then return s.hatches[key] end
+    -- The sandbox's Sewars.Hatches, No: no house not yet looked at gets one.
+    -- Not written down: a server that says Yes later gets them then.
+    if B.option("Hatches", 1, 2) == 2 then return nil end
     local under = shaft.under or {}
     if not U.chunkLoaded(shaft.x, shaft.y) then return nil end
     for i = 1, #under, 2 do
@@ -799,10 +877,19 @@ end
 function B.cover(shaft)
     if not shaft or not shaft.made then return nil end
     local s = B.state()
-    local key = shaft.x .. "," .. shaft.y
+    local key = SEW.Sewer.shaftKey(shaft.x, shaft.y, shaft.z)
     if s.covers[key] then return s.covers[key] end
+    -- The sandbox's Sewars.Outfalls and Sewars.Labyrinth, No: the grate, the
+    -- trapdoor and the blockhouse are not put in. Not written down either.
+    if shaft.outfall and B.option("Outfalls", 1, 2) == 2 then return nil end
+    if B.option("Labyrinth", 1, 2) == 2 and SEW.Index.labyrinth ~= nil
+            and shaft.town == SEW.Index.labyrinth.town then
+        return nil
+    end
     if not U.chunkLoaded(shaft.x, shaft.y) then return nil end
-    local top = U.square(shaft.x, shaft.y, 0, false)
+    -- On the street; or, for an admin's shaft to a deeper level, in the
+    -- floor of the tunnel over it.
+    local top = U.square(shaft.x, shaft.y, (shaft.z or B.Z) + 1, false)
     if not top or not U.floorOf(top) then return nil end
     -- The temple's way out is a trapdoor in a field: a house's hatch, with no house.
     local sprite = shaft.outfall and C.Sprites.outfall or shaft.trapdoor and C.Sprites.hatch or C.Sprites.cover
@@ -850,21 +937,49 @@ function B.hasCave(body)
     return false
 end
 
+--- The records of chunk `key` at the levels under the sewers' own (an
+--- admin's works, and what was dug from them): built like any other, and one
+--- never built looks first for somebody else's underground. False when a
+--- square of it is not loaded.
+function B.deeper(key)
+    local s = B.state()
+    for _, z in ipairs(C.Levels) do
+        local dug = z ~= B.Z and s.deep[B.zkey(z)][key]
+        if dug then
+            local uk = B.zkey(z) .. ":" .. key
+            local never = s.unbuilt[uk]
+            for k, rec in pairs(dug) do
+                local x, y = k:match("^(-?%d+),(-?%d+)$")
+                if B.square(tonumber(x), tonumber(y), rec, false, false, z, never ~= nil and never[k] ~= nil) == "unloaded" then
+                    return false
+                end
+            end
+            s.unbuilt[uk] = nil
+        end
+    end
+    return true
+end
+
 --- Builds chunk `key` ("cx,cy") if it is loaded. Returns true when it is now
 --- current; false when it must be tried again (not loaded).
 function B.chunk(key)
     local tid = B.townOf(key)
+    local never = B.state().unbuilt[B.zkey(B.Z) .. ":" .. key]
     if not tid then
         -- No town's chunk -- but players may have dug into it (SEW_Mine): what
         -- they dug is all there is here, and a pass puts back any of it missing.
         local dug = B.state().dug[key]
-        if not dug then return true end
+        if not dug and not B.deepHas(key) then return true end
         local kx, ky = key:match("^(-?%d+),(-?%d+)$")
         if not U.chunkLoaded(tonumber(kx) * 8 + 4, tonumber(ky) * 8 + 4) then return false end
-        for k, rec in pairs(dug) do
+        for k, rec in pairs(dug or {}) do
             local x, y = k:match("^(-?%d+),(-?%d+)$")
-            if B.square(tonumber(x), tonumber(y), rec, false, false) == "unloaded" then return false end
+            if B.square(tonumber(x), tonumber(y), rec, false, false, nil, never ~= nil and never[k] ~= nil) == "unloaded" then
+                return false
+            end
         end
+        if not B.deeper(key) then return false end
+        B.state().unbuilt[B.zkey(B.Z) .. ":" .. key] = nil
         B.state().built[key] = B.rev()
         return true
     end
@@ -889,7 +1004,7 @@ function B.chunk(key)
             seen[x .. "," .. y] = true
             rec = over[x .. "," .. y] or rec
         end
-        local how = B.square(x, y, rec, first, caves)
+        local how = B.square(x, y, rec, first, caves, nil, never ~= nil and never[x .. "," .. y] ~= nil)
         if how == "unloaded" then return false end
         if how == "foreign" then
             skipped = skipped + 1
@@ -908,10 +1023,14 @@ function B.chunk(key)
         for k, rec in pairs(over) do
             if not (seen and seen[k]) then
                 local x, y = k:match("^(-?%d+),(-?%d+)$")
-                if B.square(tonumber(x), tonumber(y), rec, false, false) == "unloaded" then return false end
+                if B.square(tonumber(x), tonumber(y), rec, false, false, nil, never ~= nil and never[k] ~= nil) == "unloaded" then
+                    return false
+                end
             end
         end
     end
+    if not B.deeper(key) then return false end
+    s.unbuilt[B.zkey(B.Z) .. ":" .. key] = nil
     if skipped > 0 then
         U.warnOnce("foreign:" .. key, "chunk %s: %d squares already hold something underground "
                    .. "(a basement?) and were left alone", key, skipped)
@@ -934,7 +1053,11 @@ function B.chunk(key)
         local piece = (SEW.Index.temple ~= nil and SEW.Index.temple.town == tid)
             or (SEW.Index.labyrinth ~= nil and SEW.Index.labyrinth.town == tid)
         for _, z in ipairs(T.claimed[key] or {}) do
-            if piece then B.setPiece(key, z) else B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5]) end
+            if not piece then
+                B.spawn(z[1], z[2], B.dress(z[3], z[1], z[2]), z[4], z[5])
+            elseif B.keepDead(tid, z[1], z[2]) then
+                B.setPiece(key, z)
+            end
         end
         -- The town's maintenance key, in the unlocked county rooms' crates
         -- (DESIGN.md 7, Locked gates): once, with the rest of the stocking.
@@ -990,7 +1113,7 @@ function B.pending(x, y, r)
     for dx = -r, r do
         for dy = -r, r do
             local key = (pcx + dx) .. "," .. (pcy + dy)
-            if (B.townOf(key) or B.state().dug[key]) and not B.isCurrent(key) then
+            if (B.townOf(key) or B.state().dug[key] or B.deepHas(key)) and not B.isCurrent(key) then
                 out[#out + 1] = { key = key, d = dx * dx + dy * dy }
             end
         end

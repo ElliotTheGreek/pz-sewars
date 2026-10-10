@@ -651,7 +651,7 @@ def dev_menu_test(L, p):
         return
     sub = top[0].subMenu
     names = [n for n, _ in options(sub)]
-    check(len(names) == 21, "with its twenty-one stops (%s)" % names)
+    check(len(names) == 22, "with its twenty-two stops (%s)" % names)
 
     # As the game does it: nothing is loaded where a trip lands until the
     # player is there (found in play: every trip was rescued to a ladder).
@@ -3071,6 +3071,1125 @@ def exit_signs_test(L, mx, my):
     check(out[4] is True and out[5] is False, "and the builder paints one, or with None does not (%s, %s)" % (out[4], out[5]))
 
 
+def admin_menu(L, x, y):
+    """The admin's submenu on the right-click menu at x, y, or None."""
+    for n, o in options(menu(L, 0, x, y)):
+        if n == TEXT["ContextMenu_SEW_Admin"]:
+            return o.subMenu
+    return None
+
+
+def admin_pick(L, x, y, *names):
+    """Chooses an entry of the admin's menu at x, y, down through its
+    submenus by name. False when it is not there to choose."""
+    sub = admin_menu(L, x, y)
+    for name in names[:-1]:
+        o = dict(options(sub)).get(name) if sub is not None else None
+        sub = o.subMenu if o is not None else None
+    o = dict(options(sub)).get(names[-1]) if sub is not None else None
+    if o is None or o.notAvailable or o.onSelect is None:
+        return False
+    o.onSelect(o.target, o.args[1], o.args[2], o.args[3])
+    return True
+
+
+def access_test(L, p, mx, my, lx, ly):
+    """Who may use a way down (0.8.1, four ways since 0.9): the sandbox's
+    Sewars.Access, and what an admin says of one cover. Single player: the
+    dev build is the admin."""
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    key = "%d,%d" % (mx, my)
+    enter, leave, way = TEXT["ContextMenu_SEW_Enter"], TEXT["ContextMenu_SEW_Exit"], TEXT["ContextMenu_SEW_AdmWay"]
+    mode = {m: TEXT["ContextMenu_SEW_AdmWay_" + m] for m in ("open", "in", "shut", "none")}
+
+    def street():
+        L.execute("SEW.Server.granted = {}")
+        p.x, p.y, p.z = mx + 0.5, my + 1.5, 0
+        sim.tickN(12)
+
+    def below():
+        L.execute("SEW.Server.granted = {}")
+        p.x, p.y, p.z = lx + 0.5, ly + 0.5, -1
+        sim.tickN(12)
+
+    def entry(x=None, y=None):
+        return dict(options(menu(L, 0, mx if x is None else x, my if y is None else y)))
+
+    def marks():
+        return dict(L.execute("return SEW.Build.state().access").items())
+
+    def said(since):
+        return lua_list(sim.notes)[since:]
+
+    def grant(how):
+        ok = L.execute("return SEW.Server.grant(SIM.players[1], %d, %d, '%s')" % (mx, my, how))
+        sim.tickN(12)
+        return ok
+
+    street()
+    e = entry()
+    check(enter in e and not e[enter].notAvailable and admin_menu(L, mx, my) is None,
+          "as shipped every cover is open, and a player is offered nothing an admin is (%s)" % sorted(e))
+
+    # The sandbox closes them all: as ways in. Never as ways out.
+    L.execute("SandboxVars.Sewars.Access = 2")
+    e = entry()
+    check(enter in e and e[enter].notAvailable is True and e[enter].toolTip.description == TEXT["Tooltip_SEW_Closed"],
+          "with the sandbox on Closed a cover is greyed out, and says why")
+    check(SEW.Client.offer(p, mx, my)[0] == "closed", "and the menu's own answer is closed")
+    notes = len(lua_list(sim.notes))
+    check(grant("down") is False and abs(p.z) < 1e-6 and TEXT["IGUI_SEW_Closed"] in said(notes),
+          "the server refuses the climb down whatever a client asks, and says so (%s)" % said(notes))
+    below()
+    e = entry(lx, ly)
+    check(leave in e and not e[leave].notAvailable and grant("up") is True and abs(p.z) < 1e-6,
+          "the sandbox never closes a way out: under a closed cover the ladder still takes a player up (%.1f)" % p.z)
+    street()
+
+    # A player is no admin: asked by command anyway, nothing changes.
+    notes = len(lua_list(sim.notes))
+    done = L.execute("return SEW.Server.setAccess(SIM.players[1], %d, %d, 'open')" % (mx, my))
+    check(done is False and not marks() and TEXT["IGUI_SEW_AdminOnly"] in said(notes),
+          "a player who asks to open one is refused, and nothing is written down")
+
+    # The admin (single player: the dev build) opens this one.
+    SEW.Dev = True
+    sub = admin_menu(L, mx, my)
+    ways = dict(options(dict(options(sub))[way].subMenu)) if sub is not None and way in dict(options(sub)) else {}
+    check(sorted(ways) == sorted(mode.values()) and ways[mode["shut"]].notAvailable is True
+          and not ways[mode["open"]].notAvailable,
+          "an admin's menu on a cover has the four ways it can stand, and the way it stands now is not there to choose (%s)"
+          % sorted(ways))
+    e = entry()
+    check(enter in e and not e[enter].notAvailable, "and an admin may climb down a closed one anyway")
+    notes = len(lua_list(sim.notes))
+    check(admin_pick(L, mx, my, way, mode["open"]), "Open both ways is there to choose")
+    sim.tickN(2)
+    check(marks() == {key: "open"} and TEXT["IGUI_SEW_Way_open"] in said(notes),
+          "choosing it opens that cover on the server, and says so (%s)" % marks())
+    SEW.Dev = None
+    e = entry()
+    check(enter in e and not e[enter].notAvailable and SEW.Client.offer(p, mx, my)[0] == "down"
+          and L.execute("return SEW.Server.open(%d, %d)" % (mx, my)) is True,
+          "a player finds it open: on the menu, and on the server")
+    other = L.execute("""
+        local mx, my = ...
+        for _, s in pairs(SEW.Index.shafts) do
+            if s.town == "muldraugh" and not s.hatch and not s.made and (s.x ~= mx or s.y ~= my) then
+                return SEW.Server.open(s.x, s.y)
+            end
+        end
+    """, mx, my)
+    check(other is False, "and every other cover is still closed")
+    # Put back to what the sandbox says: nothing is left written down.
+    SEW.Dev = True
+    admin_pick(L, mx, my, way, mode["shut"])
+    sim.tickN(2)
+    SEW.Dev = None
+    check(not marks() and SEW.Client.offer(p, mx, my)[0] == "closed",
+          "made a way out only again it is the sandbox's again: nothing is kept that says what the sandbox says")
+
+    # The sandbox open, one cover made a way out only by an admin.
+    L.execute("SandboxVars.Sewars.Access = nil")
+    SEW.Dev = True
+    notes = len(lua_list(sim.notes))
+    admin_pick(L, mx, my, way, mode["shut"])
+    sim.tickN(2)
+    check(marks() == {key: "shut"} and TEXT["IGUI_SEW_Way_shut"] in said(notes),
+          "with the sandbox on Open an admin makes one cover a way out only (%s)" % marks())
+    check(grant("down") is True and abs(p.z + 1) < 1e-6, "which the admin can still climb down")
+    street()
+    SEW.Dev = None
+    check(grant("down") is False and abs(p.z) < 1e-6 and SEW.Client.offer(p, mx, my)[0] == "closed",
+          "and a player cannot")
+
+    # A way in only: an admin's own choice for this one, and the one thing
+    # that is ever no way out.
+    SEW.Dev = True
+    admin_pick(L, mx, my, way, mode["in"])
+    sim.tickN(2)
+    SEW.Dev = None
+    check(marks() == {key: "in"} and SEW.Client.offer(p, mx, my)[0] == "down" and grant("down") is True
+          and abs(p.z + 1) < 1e-6, "a way in only: a player climbs down it (%s)" % marks())
+    below()
+    e = entry(lx, ly)
+    notes = len(lua_list(sim.notes))
+    check(leave in e and e[leave].notAvailable is True and e[leave].toolTip.description == TEXT["Tooltip_SEW_NoExit"]
+          and SEW.Client.offer(p, lx, ly)[0] == "noexit",
+          "and finds its ladder greyed out below, and why")
+    check(grant("up") is False and abs(p.z + 1) < 1e-6 and TEXT["IGUI_SEW_NoExit"] in said(notes),
+          "and the server refuses the climb out whatever a client asks (%s)" % said(notes))
+    SEW.Dev = True
+    below()
+    check(grant("up") is True and abs(p.z) < 1e-6, "an admin climbs out of it")
+    # Closed both ways.
+    street()
+    admin_pick(L, mx, my, way, mode["none"])
+    sim.tickN(2)
+    SEW.Dev = None
+    check(marks() == {key: "none"} and grant("down") is False, "closed both ways: no way in")
+    below()
+    check(grant("up") is False and abs(p.z + 1) < 1e-6, "and no way out")
+    street()
+
+    # The labyrinth's way out opens for nobody from above, admin or not.
+    SEW.Dev = True
+    ex = L.execute("for _, s in pairs(SEW.Index.shafts) do if s.exit then return s.x, s.y end end")
+    done = L.execute("return SEW.Server.setAccess(SIM.players[1], %d, %d, 'open')" % (ex[0], ex[1]))
+    check(done is False and marks() == {key: "none"}, "the labyrinth's way out is nobody's to open")
+    done = L.execute("return SEW.Server.setAccess(SIM.players[1], %d, %d, 'wide')" % (mx, my))
+    check(done is False and marks() == {key: "none"}, "and a way a cover cannot stand is refused")
+    # The dev build's own menu makes it a player, to see what one sees.
+    SEW.DevPlayer = True
+    e = entry()
+    check(admin_menu(L, mx, my) is None and e[enter].notAvailable is True,
+          "the dev build chosen to be a player sees a closed cover as one")
+    SEW.DevPlayer = None
+    SEW.Dev = None
+    # -debug is single player's other admin.
+    sim.debug = True
+    check(admin_menu(L, mx, my) is not None, "in single player -debug is an admin too")
+    sim.debug = False
+    L.execute("SEW.Build.state().access = {}; SEW.Sewer.access = {}; SEW.Server.granted = {}")
+    p.x, p.y, p.z = mx + 0.5, my + 0.5, 0
+    sim.tickN(12)
+
+
+def options_test(L, p):
+    """The sandbox's other server options (0.8.1): trapdoors in houses,
+    outfalls, the nest sealed, how tough its rodents are, the labyrinth, and
+    how many of the temple's and the labyrinth's dead there are."""
+    g = L.globals()
+    sim = g.SIM
+    # A house's trapdoor, an outfall's grate, the labyrinth's trapdoor: each
+    # not put in with its option on No, and put in with it on Yes.
+    places = L.execute("""
+        local st = SEW.Build.state()
+        local function find(test)
+            local best = nil
+            for _, s in pairs(SEW.Index.shafts) do
+                if test(s) and (best == nil or s.x < best.x or (s.x == best.x and s.y < best.y)) then best = s end
+            end
+            return best
+        end
+        local lab = SEW.Index.labyrinth.town
+        local h = find(function(s) return s.hatch ~= nil and not st.hatches[s.x .. "," .. s.y] end)
+        local o = find(function(s) return s.outfall == true and not st.covers[s.x .. "," .. s.y] end)
+        local t = find(function(s) return s.town == lab and s.trapdoor == true and not s.exit end)
+        local e = find(function(s) return s.exit == true end)
+        return h.x, h.y, o.x, o.y, t.x, t.y, e.x, e.y
+    """)
+    hx, hy, ox, oy, tx, ty, ex, ey = places
+    for x, y in ((hx, hy), (ox, oy), (tx, ty), (ex, ey)):
+        street(L, x, y, 4, manhole=False)
+    out = L.execute("""
+        local hx, hy, ox, oy, tx, ty, ex, ey = ...
+        local B, C, S = SEW.Build, SEW.Config, SEW.Sewer
+        local st = B.state()
+        local function has(x, y, sprite)
+            local sq = SIM.squares[x .. "," .. y .. ",0"]
+            return sq ~= nil and SEW.Util.findSprite(sq, sprite) ~= nil
+        end
+        local r = {}
+        -- Houses.
+        SandboxVars.Sewars.Hatches = 2
+        r.hatchOff = B.hatch(S.shaftAt(hx, hy)) == nil and not has(hx, hy, C.Sprites.hatch) and st.hatches[hx .. "," .. hy] == nil
+        SandboxVars.Sewars.Hatches = nil
+        r.hatchOn = B.hatch(S.shaftAt(hx, hy)) == "open" and has(hx, hy, C.Sprites.hatch)
+        SandboxVars.Sewars.Hatches = 2
+        r.hatchKept = B.hatch(S.shaftAt(hx, hy)) == "open"
+        SandboxVars.Sewars.Hatches = nil
+        -- Outfalls.
+        SandboxVars.Sewars.Outfalls = 2
+        r.outfallOff = B.cover(S.shaftAt(ox, oy)) == nil and not has(ox, oy, C.Sprites.outfall) and st.covers[ox .. "," .. oy] == nil
+        -- The labyrinth left out is the labyrinth's alone: an outfall still goes in.
+        SandboxVars.Sewars.Outfalls, SandboxVars.Sewars.Labyrinth = nil, 2
+        r.outfallOn = B.cover(S.shaftAt(ox, oy)) == "placed" and has(ox, oy, C.Sprites.outfall)
+        SandboxVars.Sewars.Labyrinth = nil
+        -- The labyrinth: its trapdoor, and the blockhouse over its way out.
+        local tk, ek = tx .. "," .. ty, ex .. "," .. ey
+        local was = { st.covers[tk], st.covers[ek] }
+        st.covers[tk], st.covers[ek] = nil, nil
+        SandboxVars.Sewars.Labyrinth = 2
+        local walls = 0
+        local function ours()
+            local n = 0
+            for dx = -1, 2 do for dy = -1, 2 do
+                local sq = SIM.squares[(ex + dx) .. "," .. (ey + dy) .. ",0"]
+                for _, o in ipairs(sq and sq.objects._t or {}) do if o.md and o.md.sew then n = n + 1 end end
+            end end
+            return n
+        end
+        local before = ours()
+        r.mazeOff = B.cover(S.shaftAt(tx, ty)) == nil and B.cover(S.shaftAt(ex, ey)) == nil
+            and st.covers[tk] == nil and st.covers[ek] == nil and ours() == before
+        r.mazeMapOff = SEW.Maps.make("labyrinth") == nil and SEW.Maps.make("temple") ~= nil
+        -- An outfall is not the labyrinth's, and the labyrinth is not an outfall.
+        SandboxVars.Sewars.Labyrinth, SandboxVars.Sewars.Outfalls = nil, 2
+        r.mazeOn = B.cover(S.shaftAt(tx, ty)) == "placed" and has(tx, ty, C.Sprites.hatch)
+            and B.cover(S.shaftAt(ex, ey)) == "placed"
+        r.mazeMapOn = SEW.Maps.make("labyrinth") ~= nil
+        SandboxVars.Sewars.Outfalls = nil
+        st.covers[tk], st.covers[ek] = was[1] or st.covers[tk], was[2] or st.covers[ek]
+        return r
+    """, hx, hy, ox, oy, tx, ty, ex, ey)
+    check(out.hatchOff and out.hatchOn and out.hatchKept,
+          "trapdoors in houses by the sandbox: none put in on No and nothing written down, one on Yes, and one already there kept (%s, %s, %s)"
+          % (out.hatchOff, out.hatchOn, out.hatchKept))
+    check(out.outfallOff and out.outfallOn, "an outfall's grate the same (%s, %s)" % (out.outfallOff, out.outfallOn))
+    check(out.mazeOff and out.mazeOn,
+          "the labyrinth on No: no trapdoor and no blockhouse; on Yes both, whatever the outfalls' option (%s, %s)"
+          % (out.mazeOff, out.mazeOn))
+    check(out.mazeMapOff and out.mazeMapOn,
+          "and no annotated map to a labyrinth left out, the temple's still made (%s, %s)" % (out.mazeMapOff, out.mazeMapOn))
+
+    # The nest sealed: the false wall is a wall, the gnawed wall as it was.
+    lair = g.SEW.Index.lair
+    was = (p.x, p.y, p.z)
+    p.x, p.y, p.z = lair.tx + 0.5, lair.ty + 0.5, -1
+    notes = len(lua_list(sim.notes))
+    sealed = L.execute("""
+        local st = SEW.Build.state().lair
+        local was = st.open.wall
+        st.open.wall = nil
+        SandboxVars.Sewars.Nest = 2
+        local pried = SEW.Nest.pry(SIM.players[1], "wall")
+        local left = st.open.wall
+        -- The lair's test has pulled the wall down in this world: the menu
+        -- is asked as it would be with the wall still standing.
+        local S = SEW.Sewer
+        local seen = S.gateOpenHere
+        S.gateOpenHere = function() return false end
+        local offered = SEW.Client.gateNear(SEW.Index.lair.tx, SEW.Index.lair.ty)
+        SandboxVars.Sewars.Nest = nil
+        local unsealed = SEW.Client.gateNear(SEW.Index.lair.tx, SEW.Index.lair.ty)
+        S.gateOpenHere = seen
+        st.open.wall = was
+        return pried, left, offered, unsealed
+    """)
+    check(sealed[0] is False and sealed[1] is None and TEXT["IGUI_SEW_MineSolid"] in lua_list(sim.notes)[notes:],
+          "the nest sealed by the sandbox: the false wall does not come away, and says so")
+    check(sealed[2] != "wall" and sealed[3] == "wall",
+          "and pulling at it is not offered, as it is with the nest open (%s, %s)" % (sealed[2], sealed[3]))
+    p.x, p.y, p.z = was
+
+    # A journal's direction is the reader's word for it, not the generator's.
+    page = L.execute('''
+        local was = { SIM.text.IGUI_SEW_Dir_north, SIM.text.IGUI_SEW_Dir_south_west }
+        SIM.text.IGUI_SEW_Dir_north, SIM.text.IGUI_SEW_Dir_south_west = "NORTE", "SUROESTE"
+        local function has(dir, word)
+            for i, j in ipairs(SEW.Index.journals) do
+                if j.dir == dir then
+                    local _, lines = SEW.StoryUI.page(i)
+                    local text = table.concat(lines, " ")
+                    return text:find(word, 1, true) ~= nil and text:find(dir, 1, true) == nil
+                end
+            end
+        end
+        local a, b = has("north", "NORTE"), has("south-west", "SUROESTE")
+        SIM.text.IGUI_SEW_Dir_north, SIM.text.IGUI_SEW_Dir_south_west = was[1], was[2]
+        return a, b
+    ''')
+    check(page[0] is True and page[1] is True,
+          "a journal's direction is the reader's own word for it, a two-word one too (%s, %s)" % (page[0], page[1]))
+
+    # How tough the rodents are: blows and bullets to put one down.
+    hits = L.execute("""
+        local N = SEW.Nest
+        local bar, gun = SIM.newWeapon("Crowbar", 1, 2, 1.2, false), SIM.newWeapon("Pistol", 1, 2, 10, true)
+        local out = {}
+        for _, v in ipairs({ 1, 2, 3, 4, 0 }) do
+            SandboxVars.Sewars.Rous = v > 0 and v or nil
+            out[#out + 1] = math.ceil(1 / N.lossOf(bar))
+            out[#out + 1] = math.ceil(1 / N.lossOf(gun))
+        end
+        return out
+    """)
+    check(lua_list(hits) == [2, 1, 3, 2, 6, 4, 12, 8, 3, 2],
+          "the rodents by the sandbox: 2, 3, 6 or 12 blows and 1, 2, 4 or 8 bullets; three and two in a save from before it (%s)"
+          % lua_list(hits))
+
+    # The temple's dead and the labyrinth's, each by its own option.
+    share = L.execute("""
+        local B = SEW.Build
+        local temple, maze = SEW.Index.temple.town, SEW.Index.labyrinth.town
+        local function count(tid)
+            local n = 0
+            for i = 1, 1000 do if B.keepDead(tid, 9000 + i, 10000 + 3 * i) then n = n + 1 end end
+            return n
+        end
+        local out = {}
+        for _, v in ipairs({ 1, 2, 3, 4, 0 }) do
+            SandboxVars.Sewars.CultDead = v > 0 and v or nil
+            out[#out + 1] = count(temple)
+        end
+        SandboxVars.Sewars.CultDead, SandboxVars.Sewars.MazeDead = 1, nil
+        out[#out + 1] = count(maze)
+        SandboxVars.Sewars.CultDead, SandboxVars.Sewars.MazeDead = nil, 1
+        out[#out + 1] = count(maze)
+        out[#out + 1] = count(temple)
+        SandboxVars.Sewars.MazeDead = nil
+        return out
+    """)
+    s = lua_list(share)
+    check(s[0] == 0 and 180 <= s[1] <= 320 and 430 <= s[2] <= 570 and s[3] == 1000 and s[4] == 1000,
+          "the temple's dead by the sandbox: none, about a quarter (%d of 1000), about half (%d), all; all in a save from before it"
+          % (s[1], s[2]))
+    check(s[5] == 1000 and s[6] == 0 and s[7] == 1000,
+          "the labyrinth's by its own option and not the temple's, and the temple's not by the labyrinth's (%s)" % s[5:])
+    # And through the builder: two corridors of the labyrinth nobody has walked.
+    built = L.execute("""
+        local B = SEW.Build
+        local st = B.state()
+        local T = SEW.Data[SEW.Index.labyrinth.town]
+        local keys = {}
+        for key, list in pairs(T.claimed) do
+            if #list > 0 then keys[#keys + 1] = key end
+        end
+        table.sort(keys)
+        -- The labyrinth's test has walked all of it: a chunk is made new
+        -- again, without its furniture (that is stocked once, ever).
+        local function build(key, v)
+            local cx, cy = key:match("^(-?%d+),(-?%d+)$")
+            SIM.load(tonumber(cx), tonumber(cy))
+            local furniture = T.furniture[key]
+            T.furniture[key], st.first[key] = nil, nil
+            SandboxVars.Sewars.MazeDead = v
+            local n, owed = #SIM.zombies, 0
+            for _, list in pairs(st.owed) do owed = owed + #list end
+            local ok = B.chunk(key)
+            local after = 0
+            for _, list in pairs(st.owed) do after = after + #list end
+            SandboxVars.Sewars.MazeDead = nil
+            T.furniture[key] = furniture
+            return ok, #SIM.zombies - n + after - owed, #T.claimed[key]
+        end
+        local a, na, wa = build(keys[1], 1)
+        local b, nb, wb = build(keys[#keys], 4)
+        return #keys, a, na, wa, b, nb, wb
+    """)
+    check(built[0] >= 2 and built[1] is True and built[2] == 0 and built[3] > 0,
+          "a corridor of the labyrinth first walked with its dead on None has none (%d of %d)" % (built[2], built[3]))
+    check(built[4] is True and built[5] == built[6] and built[6] > 0,
+          "and one walked with them on All has every one (%d of %d)" % (built[5], built[6]))
+
+
+def works_test(L, p, mx, my):
+    """An admin's works (0.9; SEW_Works): a way down put on a street with its
+    passage, a shaft to a deeper level, the pick down there, a tunnel drawn
+    on the map, a room of the mod's own and one from a template, ground
+    marked as indoors, the rebuild and the check. Single player: the dev
+    build is the admin."""
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    T = TEXT
+    enter, leave = T["ContextMenu_SEW_Enter"], T["ContextMenu_SEW_Exit"]
+
+    def said(since):
+        return lua_list(sim.notes)[since:]
+
+    def note_of(key, *args):
+        s = T[key]
+        for i, a in enumerate(args, 1):
+            s = s.replace("%%%d" % i, str(a))
+        return s
+
+    def stand(x, y, z):
+        L.execute("SEW.Server.granted = {}")
+        p.x, p.y, p.z = x + 0.5, y + 0.5, z
+        sim.tickN(12)
+
+    def rec(x, y, z=-1):
+        return L.execute("return SEW.Build.recordAt(%d, %d, %d)" % (x, y, z))
+
+    def sprites(x, y, z):
+        return objects_at(L, x, y, z)
+
+    def walks(x, y, z, to_walkway=True, limit=400):
+        """How many squares can be walked to from x, y at z, and whether a
+        square of the generator's own walkway is among them."""
+        out = L.execute("""
+            local x, y, z, limit = ...
+            local seen, q, head, reached = { [x .. "," .. y] = true }, { { x, y } }, 1, false
+            while head <= #q and #q < limit do
+                local c = q[head]
+                head = head + 1
+                local d = z == -1 and SEW.Build.dataAt(c[1], c[2])
+                local f = d and d:sub(3, 3)
+                if f == "t" or f == "k" then reached = true break end
+                local a = SIM.squares[c[1] .. "," .. c[2] .. "," .. z]
+                for _, n in ipairs({ { 0, -1 }, { -1, 0 }, { 1, 0 }, { 0, 1 } }) do
+                    local nx, ny = c[1] + n[1], c[2] + n[2]
+                    local b = SIM.squares[nx .. "," .. ny .. "," .. z]
+                    if a and b and b:getFloor() and not seen[nx .. "," .. ny] and not a:isBlockedTo(b) then
+                        seen[nx .. "," .. ny] = true
+                        q[#q + 1] = { nx, ny }
+                    end
+                end
+            end
+            return #q, reached
+        """, x, y, z, limit)
+        return out[0], out[1]
+
+    SEW.Dev = True
+    # ---------------------------------------------------------------- a way down, anywhere
+    ex, ey = L.execute("""
+        local mx, my = ...
+        local Mi = SEW.Mine
+        for r = 5, 14 do
+            for dx = -r, r do for dy = -r, r do
+                local x, y = mx + dx, my + dy
+                if math.max(math.abs(dx), math.abs(dy)) == r and not SEW.Sewer.shaftAt(x, y) then
+                    local near = false
+                    for ax = -2, 2 do for ay = -2, 2 do
+                        if Mi.isSpace(x + ax, y + ay) or SEW.Build.dataAt(x + ax, y + ay) then near = true end
+                    end end
+                    if not near then return x, y end
+                end
+            end end
+        end
+    """, mx, my)
+    street(L, ex, ey, 2, manhole=False)
+    stand(ex, ey + 1, 0)
+    put = (T["ContextMenu_SEW_AdmPut"], T["ContextMenu_SEW_AdmPut_cover"])
+    # A player's asking is not heard.
+    SEW.Dev = None
+    notes = len(lua_list(sim.notes))
+    done = L.execute("return SEW.Works.entrance(SIM.players[1], %d, %d, 'cover')" % (ex, ey))
+    check(done is False and g.SEW.Sewer.shaftAt(ex, ey) is None and rec(ex, ey) is None
+          and T["IGUI_SEW_AdminOnly"] in said(notes), "a player who asks for a way down is refused, and nothing is dug")
+    check(admin_menu(L, ex, ey) is None, "and is not shown the admin's menu")
+    SEW.Dev = True
+    # No tunnel within the sandbox's reach: refused, nothing dug.
+    L.execute("SandboxVars.Sewars.Passage = 1; SEW.Config.Works.passage[1] = 1")
+    notes = len(lua_list(sim.notes))
+    admin_pick(L, ex, ey, *put)
+    sim.tickN(2)
+    check(g.SEW.Sewer.shaftAt(ex, ey) is None and rec(ex, ey) is None and T["IGUI_SEW_Wk_far"] in said(notes),
+          "with no tunnel near enough for the sandbox's longest passage, no way down is put in (%s)" % said(notes))
+    L.execute("SandboxVars.Sewars.Passage = nil; SEW.Config.Works.passage[1] = 20")
+    notes = len(lua_list(sim.notes))
+    check(admin_pick(L, ex, ey, *put), "an admin on a street is offered a way down put here")
+    sim.tickN(2)
+    sh = g.SEW.Sewer.shaftAt(ex, ey)
+    foot = rec(ex, ey) or "......."
+    n, reached = walks(ex, ey, -1)
+    check(sh is not None and sh.custom is True and (sh.z or -1) == -1
+          and "street_decoration_01_15" not in sprites(ex, ey, 0) and g.SEW.Config.Sprites.cover in sprites(ex, ey, 0),
+          "it is a shaft of the admin's, with a cover of ours in the road (%s)" % sprites(ex, ey, 0))
+    check(foot[2] == "g" and foot[5] in "Ll" and reached is True and n >= 3,
+          "under it a ladder's foot, and a passage dug through the rock to the tunnel (%s; %d squares walked)" % (foot, n))
+    check(any(("%d" % (n2)) in s for s in said(notes) for n2 in range(2, 40)) and
+          any(s.startswith(T["IGUI_SEW_Wk_entrance"].split("%1")[0]) for s in said(notes)),
+          "and the admin is told how long a passage (%s)" % said(notes))
+    passage = L.execute("""
+        local ex, ey = ...
+        local n, concrete = 0, true
+        for key, by in pairs(SEW.Build.state().dug) do
+            for k, r in pairs(by) do
+                local f = r:sub(3, 3)
+                if f == "t" or f == "g" then
+                    n = n + 1
+                    for _, col in ipairs({ 4, 5 }) do
+                        local ch = r:sub(col, col)
+                        if ch ~= "." and ch ~= "c" then concrete = false end
+                    end
+                end
+            end
+        end
+        return n, concrete
+    """, ex, ey)
+    check(passage[0] >= 3 and passage[1] is True, "the passage is a culvert of the sewers' own concrete (%d squares)" % passage[0])
+    # Twice on one square is refused.
+    notes = len(lua_list(sim.notes))
+    done = L.execute("return SEW.Works.entrance(SIM.players[1], %d, %d, 'cover')" % (ex, ey))
+    check(done is False and T["IGUI_SEW_Wk_taken"] in said(notes), "a second way down on the same square is refused")
+    theirs = L.execute("""
+        for _, s in pairs(SEW.Index.shafts) do
+            local r = SEW.Build.recordAt(s.x, s.y)
+            if s.town == "muldraugh" and not s.hatch and (s.lx ~= s.x or s.ly ~= s.y) and r and r:sub(6, 6) == "." then
+                return s.x, s.y
+            end
+        end
+    """)
+    notes = len(lua_list(sim.notes))
+    done = L.execute("return SEW.Works.entrance(SIM.players[1], %d, %d, 'cover')" % (theirs[0], theirs[1]))
+    check(done is False and T["IGUI_SEW_Wk_taken"] in said(notes),
+          "and one on a cover the map came with, whose ladder hangs a square away (%s)" % said(notes))
+    # A player uses it like any cover: down, and up again.
+    SEW.Dev = None
+    choose(menu(L, 0, ex, ey), enter)
+    sim.runActions()
+    sim.tickN(12)
+    check(abs(p.z + 1) < 1e-6 and int(p.x) == ex and int(p.y) == ey, "a player climbs down it (%.1f,%.1f,%.1f)" % (p.x, p.y, p.z))
+    choose(menu(L, 0, ex, ey), leave)
+    sim.runActions()
+    sim.tickN(12)
+    check(abs(p.z) < 1e-6, "and back up its ladder (%.1f)" % p.z)
+    SEW.Dev = True
+    # Taken away: the cover and the ladder go, what was dug stays.
+    notes = len(lua_list(sim.notes))
+    check(admin_pick(L, ex, ey, T["ContextMenu_SEW_AdmRemove"]), "an admin's own way down can be taken away")
+    sim.tickN(2)
+    gone = rec(ex, ey)
+    check(g.SEW.Sewer.shaftAt(ex, ey) is None and g.SEW.Config.Sprites.cover not in sprites(ex, ey, 0)
+          and gone[2] == "t" and gone[5] == "." and T["IGUI_SEW_Wk_removed"] in said(notes),
+          "taken away, its cover and its ladder go and its passage stays (%s)" % gone)
+    check(not dict(options(admin_menu(L, mx, my))).get(T["ContextMenu_SEW_AdmRemove"]),
+          "a cover the map came with has no such entry")
+    # Put back over what is now a tunnel: no passage, a ladder on its wall. As a grate.
+    notes = len(lua_list(sim.notes))
+    admin_pick(L, ex, ey, T["ContextMenu_SEW_AdmPut"], T["ContextMenu_SEW_AdmPut_outfall"])
+    sim.tickN(2)
+    sh = g.SEW.Sewer.shaftAt(ex, ey)
+    check(sh is not None and sh.outfall is True and rec(ex, ey)[5] in "Ll"
+          and g.SEW.Config.Sprites.outfall in sprites(ex, ey, 0),
+          "over a tunnel a way down needs no passage; as a grate it is an outfall's (%s)" % rec(ex, ey))
+
+    # ---------------------------------------------------------------- a shaft down a level
+    sx, sy = L.execute("""
+        local ex, ey = ...
+        for _, n in ipairs({ { 0, -1 }, { -1, 0 }, { 1, 0 }, { 0, 1 } }) do
+            if SEW.Mine.isSpace(ex + n[1], ey + n[2]) then return ex + n[1], ey + n[2] end
+        end
+    """, ex, ey)
+    stand(sx, sy, -1)
+    notes = len(lua_list(sim.notes))
+    zext = sim.zExtents
+    check(admin_pick(L, sx, sy, T["ContextMenu_SEW_AdmShaft"]), "an admin in a tunnel is offered a shaft down a level")
+    sim.tickN(2)
+    deep = g.SEW.Sewer.shaftAt(sx, sy, -2)
+    r2 = rec(sx, sy, -2) or "......."
+    check(deep is not None and deep.z == -2 and g.SEW.Sewer.shaftAt(sx, sy) is None
+          and g.SEW.Config.Sprites.cover in sprites(sx, sy, -1) and note_of("IGUI_SEW_Wk_shaft", 2) in said(notes),
+          "it is a shaft to level 2 of its own, with a cover in the tunnel's floor (%s)" % said(notes))
+    check(r2[2] == "g" and r2[3] == "c" and r2[4] == "c" and r2[5] == "L"
+          and L.execute("local sq = SIM.squares['%d,%d,-2']; return sq ~= nil and sq:getFloor() ~= nil" % (sx, sy)) is True,
+          "under it, one square of the level below with a ladder on its wall (%s)" % r2)
+    check(rec(sx, sy, -1)[2] in "tk" and rec(sx + 40, sy, -2) is None and rec(mx, my, -1) is not None
+          and rec(mx, my, -2) is None,
+          "the tunnel above is as it was, and the level below is nothing but what was made: the generator's records are the sewers' own level's")
+    SEW.Dev = None
+    e = dict(options(menu(L, 0, sx, sy)))
+    check(enter in e and not e[enter].notAvailable, "a player in the tunnel is offered the climb down it (%s)" % sorted(e))
+    choose(menu(L, 0, sx, sy), enter)
+    sim.runActions()
+    sim.tickN(12)
+    check(abs(p.z + 2) < 1e-6 and g.SEW.Sewer.levelOf(p) == -2 and sim.zExtents > zext,
+          "and climbs down to level 2, where the chunk map is asked for its lowest level again (%.1f)" % p.z)
+    e = dict(options(menu(L, 0, sx, sy)))
+    check(leave in e and T["ContextMenu_SEW_Map"] in e, "down there: the ladder up, and the sewer map (%s)" % sorted(e))
+    check(g.SEW.Server.under(p) is True and L.execute("return SEW.Server.ours(SIM.players[1], %d, %d)" % (sx, sy)) is False,
+          "the builder builds round a player down there, and the rescue is the sewers' own level's alone")
+    # The pick works at the level it is swung at, and at no other.
+    L.execute("SIM.players[1].inv = SIM.Container(50); SIM.players[1].inv:AddItem(instanceItem('Base.PickAxe'))")
+    L.execute("SEW.Map.works = {}")
+    dug = L.execute("return SEW.Mine.dig(SIM.players[1], %d, %d, 1, 0)" % (sx, sy))
+    bit = L.execute("""
+        local x, y = ...
+        local bits = SEW.Map.works["-2:" .. math.floor(x / 8) .. "," .. math.floor(y / 8)]
+        return bits ~= nil and bits:sub((y % 8) * 8 + (x % 8) + 1, (y % 8) * 8 + (x % 8) + 1) == "1"
+    """, sx + 1, sy)
+    sim.tickN(2)
+    check(dug is True and (rec(sx + 1, sy, -2) or ".......")[2] == "m" and (rec(sx + 1, sy, -1) or "..r")[2] != "m"
+          and L.execute("local sq = SIM.squares['%d,%d,-2']; return sq ~= nil and sq:getFloor() ~= nil" % (sx + 1, sy)) is True,
+          "a pick swung at level 2 digs level 2, and the sewers' own level over it is untouched (%s)" % rec(sx + 1, sy, -2))
+    check(bit is True, "and the square dug is on the digger's map of that level the moment it is dug")
+    # A bomb is the sewer's business at the sewers' own level, and under it on a square of ours only.
+    bombs = L.execute("""
+        local x, y = ...
+        local Mi = SEW.Mine
+        local ours = Mi.onExplode(SIM.newTrap(x, y, -2, 3))
+        Mi.pending = {}
+        local air = getCell():getOrCreateGridSquare(x, y, 1)
+        local up = Mi.onExplode(SIM.newTrap(x, y, 1, 3))
+        local bunker = Mi.onExplode(SIM.newTrap(x + 60, y, -2, 3))
+        local n = #Mi.pending
+        Mi.pending = {}
+        return ours, up, bunker, n
+    """, sx, sy)
+    check(bombs[0] is True and bombs[1] is False and bombs[2] is False and bombs[3] == 0,
+          "a bomb at level 2 is the sewer's on a square of ours; in somebody's bunker down there, or upstairs, it is not (%s)"
+          % [bombs[i] for i in range(4)])
+    # A revision pass down there puts back what is missing, like anywhere.
+    lost = L.execute("""
+        local x, y = ...
+        local sq = SIM.squares[x .. "," .. y .. ",-2"]
+        local wall = nil
+        for _, o in ipairs(sq.objects._t) do
+            if o.md and o.md.sew and o.sprite:getName() ~= sq:getFloor().sprite:getName() then wall = o end
+        end
+        local name = wall.sprite:getName()
+        sq.objects:remove(wall)
+        local key = math.floor(x / 8) .. "," .. math.floor(y / 8)
+        SEW.Build.state().built[key] = nil
+        local ok = SEW.Build.chunk(key)
+        return ok, SEW.Util.findSprite(sq, name) ~= nil
+    """, sx, sy)
+    check(lost[0] is True and lost[1] is True, "a wall lost at level 2 is put back by the builder's own pass")
+    # No menu needed to get out: the game's Interact key at the ladder's foot.
+    sim.fire("OnKeyPressed", 17)
+    check(len(lua_list(sim.queue)) == 0, "some other key at a ladder's foot is nobody's business")
+    stand(sx + 1, sy, -2)
+    sim.fire("OnKeyPressed", 18)
+    check(len(lua_list(sim.queue)) == 0, "the Interact key a square from the ladder is the game's own")
+    stand(sx, sy, -2)
+    sim.fire("OnKeyPressed", 18)
+    sim.runActions()
+    sim.tickN(12)
+    check(abs(p.z + 1) < 1e-6, "the Interact key at a ladder's foot is the climb out, with no menu (%.1f)" % p.z)
+    # Level 2 where nothing of ours is: the map's bunkers are down there, and are nobody's business.
+    stand(mx + 60, my, -2)
+    check(g.SEW.Sewer.levelOf(p) is None and T["ContextMenu_SEW_Map"] not in dict(options(menu(L, 0, mx + 60, my)))
+          and g.SEW.Server.under(p) is False,
+          "two levels down on ground that is not ours is not the sewer: no map, no builder")
+    stand(sx, sy, -1)
+    SEW.Dev = True
+    # And one more level, and no further.
+    stand(sx + 1, sy, -2)
+    admin_pick(L, sx + 1, sy, T["ContextMenu_SEW_AdmShaft"])
+    sim.tickN(2)
+    check(g.SEW.Sewer.shaftAt(sx + 1, sy, -3) is not None, "from level 2 a shaft goes down to level 3")
+    stand(sx + 1, sy, -3)
+    L.execute("SEW.Mine.dig(SIM.players[1], %d, %d, 1, 0)" % (sx + 1, sy))
+    stand(sx + 2, sy, -3)
+    sub3 = admin_menu(L, sx + 2, sy)
+    refused = L.execute("return SEW.Works.shaft(SIM.players[1], %d, %d)" % (sx + 2, sy))
+    check((rec(sx + 2, sy, -3) or ".......")[2] == "m" and sub3 is not None
+          and T["ContextMenu_SEW_AdmShaft"] not in dict(options(sub3)) and refused is False
+          and g.SEW.Sewer.shaftAt(sx + 2, sy, -4) is None, "from level 3 none is offered, and the server digs none")
+
+    # ---------------------------------------------------------------- a tunnel drawn on the map
+    stand(sx + 1, sy, -2)
+    win = SEW.Map.open(p)
+    check(win is not None and win.level == -2 and win.drawBtn is not None,
+          "the map opens at the level the player is at, with the admin's pen")
+    win.drawBtn.click(win.drawBtn)
+    win.drawBtn.click(win.drawBtn)
+    check(win.draw is not None and win.draw.width == 3 and win.draw.join is True, "the pen: one wide, then three (%s)"
+          % (win.draw and win.draw.width))
+    fx, fy = win.toScreen(win, sx + 3 + 0.5, sy + 0.5)
+    tx, ty = win.toScreen(win, sx + 14 + 0.5, sy + 1 + 0.5)
+    notes = len(lua_list(sim.notes))
+    win.onMouseDown(win, fx, fy)
+    win.onMouseUp(win, fx, fy)
+    check(win.draw["from"] is not None and (rec(sx + 3, sy, -2) or ".......")[2] != "t", "one click is where it starts: nothing is dug yet")
+    win.onMouseDown(win, tx, ty)
+    win.onMouseUp(win, tx, ty)
+    sim.tickN(2)
+    run = [rec(x, y, -2) for x in range(sx + 3, sx + 15) for y in (sy - 1, sy, sy + 1)]
+    check(all(r is not None and r[2] == "t" for r in run) and note_of("IGUI_SEW_Wk_tunnel", 36) in said(notes),
+          "a second click draws it: straight, three wide, twelve long (%s)" % said(notes))
+    check((rec(sx + 3, sy - 1, -2) or ".......")[3] == "c" and (rec(sx + 3, sy + 2, -2) or ".......")[3] == "c"
+          and (rec(sx + 4, sy, -2) or ".......")[3:5] == "..",
+          "walled in concrete where rock is behind it, and open inside")
+    check(L.execute("local sq = SIM.squares['%d,%d,-2']; return sq ~= nil and sq:getFloor() ~= nil" % (sx + 9, sy + 1)) is True,
+          "its squares are built")
+    # Apart from what is there: a run beside the dug square leaves the wall between.
+    apart = L.execute("""
+        local sx, sy = ...
+        local a, b = SIM.squares[(sx + 1) .. "," .. sy .. ",-2"], SIM.squares[(sx + 2) .. "," .. sy .. ",-2"]
+        return a ~= nil and b == nil or (b ~= nil and (b:getFloor() == nil or a:isBlockedTo(b)))
+    """, sx, sy)
+    check(apart is True, "it does not reach what was dug two squares off")
+    win.flipJoin(win)
+    win.draw.width = 1
+    notes = len(lua_list(sim.notes))
+    done = L.execute("return SEW.Works.tunnel(SIM.players[1], %d, %d, %d, %d, 1, -2, false)" % (sx + 2, sy, sx + 6, sy))
+    check(done is False and T["IGUI_SEW_Wk_apart"] in said(notes) and (rec(sx + 2, sy, -2) or ".......")[2] != "t",
+          "kept apart, a run that would cross a tunnel is refused and digs nothing")
+    done = L.execute("return SEW.Works.tunnel(SIM.players[1], %d, %d, %d, %d, 1, -2, true)" % (sx + 2, sy, sx + 3, sy))
+    n, _ = walks(sx, sy, -2)
+    check(done is True and (rec(sx + 2, sy, -2) or ".......")[2] == "t" and n >= 38,
+          "joined, it runs into what it meets: the shaft's foot, the dug square and the tunnel are one (%d squares walked)" % n)
+    # Five wide is brick.
+    done = L.execute("return SEW.Works.tunnel(SIM.players[1], %d, %d, %d, %d, 5, -2, true)" % (sx + 12, sy - 9, sx + 12, sy - 2))
+    trunk = rec(sx + 10, sy - 6, -2) or "......."
+    check(done is True and trunk[2] == "k" and trunk[4] == "b" and (rec(sx + 14, sy - 6, -2) or ".......")[2] == "k",
+          "five wide it is a trunk, in brick (%s)" % trunk)
+    # Somebody else's cellar in the way (an earlier test's, at level 2 here): refused whole.
+    theirs = L.execute("""
+        local sx, sy = ...
+        local sq = getCell():getOrCreateGridSquare(sx + 30, sy + 30, -2)
+        sq.objects:add(IsoObject.new(sq, "floors_interior_tilesandwood_01_0", ""))
+        SIM.violations = {}
+        return SEW.Works.tunnel(SIM.players[1], sx + 26, sy + 30, sx + 34, sy + 30, 1, -2, true), SEW.Build.recordAt(sx + 27, sy + 30, -2)
+    """, sx, sy)
+    check(theirs[0] is False and theirs[1] is None, "a run that would go through somebody else's cellar is refused, and digs nothing")
+    # What is refused.
+    lab = g.SEW.Index.labyrinth
+    cases = L.execute("""
+        local sx, sy, lx, ly = ...
+        local p, W = SIM.players[1], SEW.Works
+        local long = W.tunnel(p, sx, sy + 20, sx + SEW.Config.Works.maxRun + 1, sy + 20, 1, -2, true)
+        local level = W.tunnel(p, sx, sy + 20, sx + 4, sy + 20, 1, -4, true)
+        local street = W.tunnel(p, sx, sy + 20, sx + 4, sy + 20, 1, 0, true)
+        local hard = W.tunnel(p, lx + 10, ly + 10, lx + 14, ly + 10, 1, -1, true)
+        -- And where its ground is not loaded, so nothing can be looked at.
+        -- The rock against it, which is its too (S.inLabyrinth's margin).
+        local cx, cy = math.floor((lx - 3) / 8), math.floor((ly + 10) / 8)
+        for dx = -1, 1 do SIM.unload(cx + dx, cy) end
+        local blind = W.tunnel(p, lx - 3, ly + 10, lx - 2, ly + 10, 1, -1, true)
+        for dx = -1, 1 do SIM.load(cx + dx, cy) end
+        hard = not (hard == false and blind == false and SEW.Build.state().dug[cx .. "," .. cy] == nil)
+        local under = W.tunnel(p, lx + 10, ly + 10, lx + 14, ly + 10, 1, -2, true)
+        SEW.Dev = nil
+        local player = W.tunnel(p, sx, sy + 30, sx + 4, sy + 30, 1, -2, true)
+        SEW.Dev = true
+        return long, level, street, hard, under, player, SEW.Build.recordAt(sx, sy + 30, -2)
+    """, sx, sy, lab.x0, lab.y0)
+    check(cases[0] is False and cases[1] is False and cases[2] is False and cases[3] is False and cases[5] is False
+          and cases[6] is None,
+          "refused: too long, a level there is none of, the street, the labyrinth, and a player's asking (%s)"
+          % [cases[i] for i in range(6)])
+    check(cases[4] is True, "under the labyrinth, at level 2, is ordinary rock")
+    # Drawn where the ground is not loaded: written down, built when somebody comes.
+    far = L.execute("""
+        local sx, sy = ...
+        local B, W = SEW.Build, SEW.Works
+        local x0 = sx + 400
+        local cx, cy = math.floor(x0 / 8), math.floor(sy / 8)
+        for dx = 0, 3 do SIM.unload(cx + dx, cy) end
+        local ok = W.tunnel(SIM.players[1], x0, sy, x0 + 9, sy, 1, -2, true)
+        local written = B.recordAt(x0 + 4, sy, -2)
+        local made = SIM.squares[(x0 + 4) .. "," .. sy .. ",-2"] ~= nil
+        local owed = 0
+        for k, list in pairs(B.state().unbuilt) do for _ in pairs(list) do owed = owed + 1 end end
+        -- Somebody else's cellar is on one of its squares when the ground loads.
+        for dx = 0, 3 do SIM.load(cx + dx, cy) end
+        local theirs = getCell():getOrCreateGridSquare(x0 + 2, sy, -2)
+        theirs.objects:add(IsoObject.new(theirs, "floors_interior_tilesandwood_01_24", ""))
+        local pend = false
+        for _, e in ipairs(B.pending(x0, sy, 1)) do if e.key == cx .. "," .. cy then pend = true end end
+        for dx = 0, 3 do B.chunk((cx + dx) .. "," .. cy) end
+        local sq = SIM.squares[(x0 + 4) .. "," .. sy .. ",-2"]
+        local ours = 0
+        for _, o in ipairs(theirs.objects._t) do if o.md and o.md.sew then ours = ours + 1 end end
+        local left = 0
+        for k, list in pairs(B.state().unbuilt) do for _ in pairs(list) do left = left + 1 end end
+        return ok, written, made, owed, pend, sq ~= nil and sq:getFloor() ~= nil, ours, left
+    """, sx, sy)
+    check(far[0] is True and far[1] is not None and far[2] is False and far[3] >= 10,
+          "a tunnel drawn through ground that is not loaded is written down and not built (%d squares owed)" % far[3])
+    check(far[4] is True and far[5] is True and far[7] == 0,
+          "and built by the builder's own pass when the ground comes in, with nothing left owed")
+    check(far[6] == 0, "but for a square somebody else's cellar is on: that is left alone, as on any first build")
+    win.close(win)
+
+    # ---------------------------------------------------------------- a room of the mod's own
+    stand(sx + 6, sy - 1, -2)
+    kinds = L.execute("""
+        local c = SEW.Works.shelters()
+        local out = {}
+        for _, kind in ipairs(SEW.Works.KINDS) do
+            local n = 0
+            for _ in pairs(c[kind]) do n = n + 1 end
+            out[#out + 1] = n
+        end
+        return out
+    """)
+    check(all(k >= 1 for k in lua_list(kinds)), "each of the mod's four rooms is there to copy (%s ways round)" % lua_list(kinds))
+    notes = len(lua_list(sim.notes))
+    zombies = len(lua_list(sim.zombies))
+    room = (T["ContextMenu_SEW_AdmRoom"], T["IGUI_SEW_Dir_north"], T["IGUI_SEW_Shelter_laststand"])
+    placed = admin_pick(L, sx + 6, sy - 1, *room)
+    sim.tickN(2)
+    got = L.execute("""
+        local x, y = ...
+        local B = SEW.Build
+        -- The door on the wall the admin faced, and what is behind it.
+        local doors, crates, stocked, floors = 0, 0, 0, 0
+        for k, sq in pairs(SIM.squares) do
+            if sq.z == -2 and sq.y <= y and math.abs(sq.x - x) < 12 and y - sq.y < 14 then
+                for _, o in ipairs(sq.specials._t) do if o.class == "IsoDoor" then doors = doors + 1 end end
+                for _, o in ipairs(sq.objects._t) do
+                    local c = SEW.Util.containerOf(o)
+                    if c then
+                        crates = crates + 1
+                        if #c.items._t > 0 then stocked = stocked + 1 end
+                    end
+                end
+                local r = B.recordAt(sq.x, sq.y, -2)
+                if r and r:sub(3, 3) == "s" then floors = floors + 1 end
+            end
+        end
+        local owed = 0
+        for _, list in pairs(B.state().owed) do
+            for _, z in ipairs(list) do if z[6] == -2 then owed = owed + 1 end end
+        end
+        return doors, crates, stocked, floors, owed
+    """, sx + 6, sy - 1)
+    check(placed and got[0] == 1 and got[3] >= 6,
+          "a last stand set down behind the wall to the north: its floor, and one steel door (%d doors, %d squares)" % (got[0], got[3]))
+    check(got[1] >= 1 and got[2] >= 1 and any(s.startswith(T["IGUI_SEW_Wk_room"].split("%1")[0]) for s in said(notes)),
+          "with its furniture, stocked as a new shelter's is (%d containers, %d stocked)" % (got[1], got[2]))
+    check(got[4] >= 1 and len(lua_list(sim.zombies)) == zombies,
+          "its dead are owed while the admin stands there, at its own level (%d)" % got[4])
+    stand(mx + 200, my, 0)
+    last = L.execute("SEW.Build.settle(); local z = SIM.zombies[#SIM.zombies]; return z and z.z")
+    check(len(lua_list(sim.zombies)) > zombies and last == -2, "and put down at level 2 once nobody is near (%s)" % last)
+    stand(sx + 6, sy - 1, -2)
+    notes = len(lua_list(sim.notes))
+    again = L.execute("return SEW.Works.shelter(SIM.players[1], 'laststand', 0, -1)")
+    check(again is False and T["IGUI_SEW_Wk_apart"] in said(notes), "a second where the first stands is refused")
+
+    # ---------------------------------------------------------------- a room from a template
+    bx, by = mx + 2, my + 2
+    made = L.execute("""
+        local bx, by = ...
+        local C = SEW.Config
+        local function sq(dx, dy) return getCell():getOrCreateGridSquare(bx + dx, by + dy, 0) end
+        local crate = nil
+        for _, list in pairs(SEW.Data.muldraugh.furniture) do
+            for _, e in ipairs(list) do if e[4] then crate = e[3] break end end
+            if crate then break end
+        end
+        local wall = IsoObject.new(sq(0, 0), C.Sprites.wall.b.N, "")
+        sq(0, 0).objects:add(wall)
+        local box = IsoObject.new(sq(1, 1), crate, "")
+        sq(1, 1).objects:add(box)
+        local door = IsoDoor.new(getCell(), sq(2, 2), C.Sprites.door.N, true)
+        sq(2, 2):AddSpecialObject(door)
+        SIM.violations = {}
+        return crate, #sq(1, 1).objects._t
+    """, bx, by)
+    crate = made[0]
+    stand(bx, by + 3, 0)
+    notes = len(lua_list(sim.notes))
+    admin_pick(L, bx, by, T["ContextMenu_SEW_AdmCorner"])
+    check(T["IGUI_SEW_Wk_corner"] in said(notes), "a corner is marked by a click")
+    keep = (T["ContextMenu_SEW_AdmCapture"], T["ContextMenu_SEW_Loot_medical"])
+    notes = len(lua_list(sim.notes))
+    check(admin_pick(L, bx + 2, by + 2, *keep), "and from it a box is kept as a room, with a kind of stock")
+    sim.tickN(2)
+    tpl = L.execute("""
+        local t = SEW.Build.state().templates["medical 1"]
+        if not t then return nil end
+        local n = 0
+        for _, list in pairs(t.cells) do n = n + #list end
+        return t.w, t.h, t.loot, n, #SEW.Admin.templates
+    """)
+    name = T["ContextMenu_SEW_Loot_medical"] + " 1"
+    check(tpl is not None and tpl[0] == 3 and tpl[1] == 3 and tpl[2] == "medical" and tpl[3] >= 12 and tpl[4] == 1
+          and note_of("IGUI_SEW_Wk_template", name) in said(notes),
+          "kept by name: its size, its stock, every object in the box (%s; %s)" % (tpl and list(tpl), said(notes)))
+    stand(sx + 5, sy + 1, -2)
+    notes = len(lua_list(sim.notes))
+    placed = admin_pick(L, sx + 5, sy + 1, T["ContextMenu_SEW_AdmRoom"], T["IGUI_SEW_Dir_south"], name)
+    sim.tickN(2)
+    got = L.execute("""
+        local ax, ay, crate = ...
+        local C, B = SEW.Config, SEW.Build
+        local x0, y0 = ax - 1, ay + 1
+        local function at(dx, dy) return SIM.squares[(x0 + dx) .. "," .. (y0 + dy) .. ",-2"] end
+        local r = {}
+        r.floors, r.one = 0, true
+        for dx = 0, 2 do for dy = 0, 2 do
+            local rec = B.recordAt(x0 + dx, y0 + dy, -2)
+            if rec and rec:sub(3, 3) == "s" then r.floors = r.floors + 1 end
+            local n = 0
+            for _, o in ipairs(at(dx, dy).objects._t) do
+                if o.sprite:getName():find("^floors_") then n = n + 1 end
+            end
+            if n ~= 1 then r.one = false; r.bad = (r.bad or "") .. dx .. "," .. dy .. ":" .. n .. " " end
+        end end
+        local wall = nil
+        for _, o in ipairs(at(0, 0).objects._t) do
+            if o.sprite:getName() == C.Sprites.wall.b.N and o.md.sewt then wall = o end
+        end
+        r.wall = wall ~= nil and wall.md.sew ~= nil
+        local box = nil
+        for _, o in ipairs(at(1, 1).objects._t) do if o.sprite:getName() == crate then box = o end end
+        local c = box and SEW.Util.containerOf(box)
+        r.stock, r.medical = c and #c.items._t or -1, true
+        local list = {}
+        for _, id in ipairs(C.Loot.template_medical) do list[id] = true end
+        for _, it in ipairs(c and c.items._t or {}) do if not list[it:getFullType()] then r.medical = false end end
+        r.door = false
+        for _, o in ipairs(at(2, 2).specials._t) do if o.class == "IsoDoor" and o.md.sewt then r.door = true end end
+        r.open = not SIM.squares[ax .. "," .. ay .. ",-2"]:isBlockedTo(at(1, 0))
+        -- A revision pass takes none of it for a wall of the builder's own.
+        local key = math.floor(x0 / 8) .. "," .. math.floor(y0 / 8)
+        B.state().built[key] = nil
+        B.chunk(key)
+        r.kept = false
+        for _, o in ipairs(at(0, 0).objects._t) do if o == wall then r.kept = true end end
+        return r
+    """, sx + 5, sy + 1, crate)
+    check(placed and got.floors == 9 and got.one is True,
+          "set down behind the wall to the south: its box, each square with the template's own floor and no second one (%s, %s)"
+          % (got.floors, got.bad or got.one))
+    check(got.wall is True and got.door is True and got.open is True,
+          "its wall and its door as they were, a door a door, and an opening where the admin stood (%s, %s, %s)"
+          % (got.wall, got.door, got.open))
+    check(got.stock >= 1 and got.medical is True, "its crate stocked with its kind of stock and nothing else (%d things)" % got.stock)
+    check(got.kept is True, "and a revision pass never takes a template's brick wall for one of the builder's own")
+    notes = len(lua_list(sim.notes))
+    admin_pick(L, sx + 5, sy + 1, T["ContextMenu_SEW_AdmForget"], name)
+    sim.tickN(2)
+    check(L.execute("return SEW.Build.state().templates['medical 1']") is None and len(lua_list(SEW.Admin.templates)) == 0
+          and note_of("IGUI_SEW_Wk_forgot", name) in said(notes), "a template can be forgotten")
+
+    # ---------------------------------------------------------------- indoors
+    In = SEW.Indoors
+    stand(sx + 12, sy, -2)
+    check(L.execute("return SIM.squares['%d,%d,-2']:getRoom()" % (sx + 12, sy)) is None
+          and L.execute("return SEW.Compat.wrapped") == 3, "a tunnel down there has no room to the game")
+    notes = len(lua_list(sim.notes))
+    admin_pick(L, sx + 12, sy, T["ContextMenu_SEW_AdmCheck"])
+    sim.tickN(2)
+    check(T["IGUI_SEW_Wk_check_sewer"] in said(notes), "the check says so: the sewer's, outdoors to the game (%s)" % said(notes))
+    notes = len(lua_list(sim.notes))
+    check(admin_pick(L, sx + 12, sy, T["ContextMenu_SEW_AdmIndoorRoom"]), "an admin below is offered this room counted as indoors")
+    sim.tickN(2)
+    ind = L.execute("""
+        local x, y = ...
+        local In = SEW.Indoors
+        local r = { marks = 0, rects = 0, rooms = 0, whole = true, byDoor = 0, defs = #SIM.roomDefs, user = false }
+        for id, m in pairs(SEW.Build.state().indoor) do
+            r.marks = r.marks + 1
+            r.rects = r.rects + #m.rects
+        end
+        for _, def in ipairs(SIM.roomDefs) do if def.building.userDefined then r.user = true end end
+        for k, sq in pairs(SIM.squares) do
+            if sq.z == -2 and sq:getRoom() ~= nil then
+                r.rooms = r.rooms + 1
+                if sq:getRoom():getBuilding() == nil then r.whole = false end
+                if #sq.specials._t > 0 then r.byDoor = r.byDoor + 1 end
+            end
+        end
+        r.here = SIM.squares[x .. "," .. y .. ",-2"]:getRoom() ~= nil
+        r.at = In.at(x, y, -2) ~= nil
+        r.above = In.at(x, y, -1) ~= nil
+        return r
+    """, sx + 12, sy)
+    check(ind.marks == 1 and ind.rooms >= 30 and ind.here is True and ind.at is True and ind.above is False
+          and any(s.startswith(T["IGUI_SEW_Wk_indoor"].split("%1")[0]) or s.endswith(T["IGUI_SEW_Wk_indoor"].split("%1")[1])
+                  for s in said(notes)),
+          "marked: every square that can be walked to from there has a room now, at that level alone (%d squares, %d rectangles; %s)"
+          % (ind.rooms, ind.rects, said(notes)))
+    check(ind.whole is True and ind.defs >= 1 and ind.user is False,
+          "a real room: each has a building, and none is left for the region pass to throw away (%d rooms declared)" % ind.defs)
+    check(ind.byDoor == 0, "no square beside a door is in it: a locked door still holds against the dead")
+    blanked = sim.roomsBlanked
+    passed = sim.regionPass()
+    whole = L.execute("""
+        for _, sq in pairs(SIM.squares) do
+            if sq.z == -2 and sq:getRoom() ~= nil and sq:getRoom():getBuilding() == nil then return false end
+        end
+        return true
+    """)
+    check(passed == 0 and whole is True and sim.roomsBlanked == blanked,
+          "somebody builds a wall in that cell and the engine's region pass leaves the room alone")
+    notes = len(lua_list(sim.notes))
+    admin_pick(L, sx + 12, sy, T["ContextMenu_SEW_AdmCheck"])
+    sim.tickN(2)
+    check(T["IGUI_SEW_Wk_check_room"] in said(notes), "the check now says indoors: the game has a room here")
+    # Never twice: marking it again, and declaring it again, make nothing and clear nothing.
+    notes = len(lua_list(sim.notes))
+    again = L.execute("return SEW.Works.indoor(SIM.players[1], %d, %d)" % (sx + 12, sy))
+    twice = L.execute("""
+        local n = 0
+        for id, m in pairs(SEW.Indoors.marks) do n = n + SEW.Indoors.declare(id, m, false) end
+        return n, #SIM.roomDefs
+    """)
+    check(again is False and T["IGUI_SEW_Wk_nothing"] in said(notes) and twice[0] == 0 and twice[1] == ind.defs
+          and sim.roomsBlanked == blanked,
+          "marked again or declared again, nothing is made and no room is cleared: a room is declared once")
+    lone = L.execute("""
+        local In = SEW.Indoors
+        local id, mark = nil, nil
+        for k, m in pairs(In.marks) do id, mark = k, m end
+        -- The same ground under another name: the meta grid has a room there.
+        local renamed = In.declare("again", mark, false)
+        -- And were the meta grid to say nothing, this process's own list says once.
+        local world = getWorld
+        getWorld = function()
+            return { getMetaGrid = function() return { getRoomAt = function() return nil end } end }
+        end
+        local listed = In.declare(id, mark, false)
+        getWorld = world
+        return renamed, listed, #SIM.roomDefs, SIM.roomsBlanked
+    """)
+    check(lone[0] == 0 and lone[1] == 0 and lone[2] == ind.defs and lone[3] == blanked,
+          "each of the two things that say *once* says it alone: the meta grid's own room, and this process's list (%s)"
+          % [lone[i] for i in range(4)])
+    # A box, by two corners; and a mark taken away.
+    stand(sx + 400 + 4, sy, -2)
+    bxx = sx + 400 + 3
+    admin_pick(L, bxx, sy, T["ContextMenu_SEW_AdmCorner"])
+    notes = len(lua_list(sim.notes))
+    check(admin_pick(L, bxx + 4, sy, T["ContextMenu_SEW_AdmIndoorBox"]), "from a marked corner, a box counted as indoors")
+    sim.tickN(2)
+    boxed = L.execute("""
+        local x, y = ...
+        local n, their = 0, SIM.squares[(x - 1) .. "," .. y .. ",-2"]
+        for dx = 0, 4 do if SIM.squares[(x + dx) .. "," .. y .. ",-2"]:getRoom() ~= nil then n = n + 1 end end
+        return n, SEW.Indoors.at(x, y, -2) ~= nil
+    """, bxx, sy)
+    check(boxed[0] == 5 and boxed[1] is True, "the box's squares have a room (%d of 5)" % boxed[0])
+    notes = len(lua_list(sim.notes))
+    check(admin_pick(L, bxx, sy, T["ContextMenu_SEW_AdmOutdoor"]), "on marked ground: no longer count this as indoors")
+    sim.tickN(2)
+    after = L.execute("return SEW.Indoors.at(%d, %d, -2) ~= nil, SIM.squares['%d,%d,-2']:getRoom() ~= nil, SIM.roomsBlanked"
+                      % (bxx, sy, bxx, sy))
+    check(after[0] is False and after[1] is True and after[2] == blanked,
+          "the mark goes and the room stays until the next start: a room is never taken away under a running world")
+    stand(mx, my, 0)
+    check(L.execute("return SEW.Works.indoor(SIM.players[1], %d, %d)" % (mx, my)) is False,
+          "nothing at street level is marked: the game has its own way there")
+
+    # ---------------------------------------------------------------- rebuild, and the whole map
+    stand(sx, sy, -1)
+    lost = L.execute("""
+        local x, y = ...
+        local sq = SIM.squares[x .. "," .. y .. ",-1"]
+        local floor = sq:getFloor()
+        local name = floor.sprite:getName()
+        sq.objects:remove(floor)
+        return name
+    """, sx, sy)
+    notes = len(lua_list(sim.notes))
+    check(admin_pick(L, sx, sy, T["ContextMenu_SEW_AdmRebuild"]), "an admin below is offered the sewer round here rebuilt")
+    sim.tickN(2)
+    check(lost in sprites(sx, sy, -1) and any(s.endswith(T["IGUI_SEW_Wk_rebuilt"].split("%1")[1]) for s in said(notes)),
+          "a floor taken out from under the admin is put back, and they are told (%s)" % said(notes))
+    L.execute("SEW.Map.works = {}; SEW.Map.worksVersion = SEW.Map.worksVersion + 1")
+    check(admin_pick(L, sx, sy, T["ContextMenu_SEW_AdmMap"]), "and the whole sewer map")
+    sim.tickN(2)
+    win = SEW.Map.window
+    every = L.execute("local n = 0; for _ in pairs(SEW.Map.works) do n = n + 1 end; return n, #SEW.Map.fog(SEW.Map.window.tid)")
+    ladders = L.execute("local n = 0; for _ in pairs(SEW.Map.ladders()) do n = n + 1 end; return n")
+    check(win is not None and SEW.Map.all is True and every[0] >= 8 and every[1] == 0 and ladders > 1000,
+          "it has no fog, every ladder, and everything dug and drawn at every level (%d chunks, %d ladders)" % (every[0], ladders))
+    sim.draws = L.table()
+    win.level = -2
+    win.cx, win.cy = sx + 8, sy
+    win.render(win)
+    red = L.execute("""
+        local n = 0
+        for _, d in ipairs(SIM.draws) do
+            local c = d.extra
+            if d.kind == "rect" and c and math.abs((c[1] or 0) - 0.78) < 0.01 and math.abs((c[2] or 0) - 0.18) < 0.01 then n = n + 1 end
+        end
+        return n
+    """)
+    check(red >= 5, "at level 2 the tunnels are drawn in that level's ink (%d runs)" % red)
+    win.nextLevel(win)
+    check(win.level == -3 and win.levelBtn.title == note_of("IGUI_SEW_MapLevel", 3), "the level button goes down a level (%s)" % win.levelBtn.title)
+    win.nextLevel(win)
+    check(win.level == -1, "and round to the sewers' own again")
+    win.close(win)
+    check(SEW.Map.all is False, "closed, the map is the player's own again")
+    SEW.Dev = None
+    win = SEW.Map.open(p)
+    check(win.drawBtn is None and win.levelBtn is not None, "a player's map has the levels and no pen")
+    win.close(win)
+    stand(mx, my, 0)
+    L.execute("SEW.Server.granted = {}")
+
+
 def single_player():
     print("single player")
     L = process("sp")
@@ -4072,6 +5191,9 @@ def single_player():
     wind_test(L, p, mx, my)
     climb_test(L, p, mx, my, lx, ly)
     exit_signs_test(L, mx, my)
+    access_test(L, p, mx, my, lx, ly)
+    options_test(L, p)
+    works_test(L, p, mx, my)
     sim.players = L.table(p)
 
     unknown = [k for k in sim.unknownSprites.keys()]
@@ -4081,6 +5203,159 @@ def single_player():
     w = warns(L, allowed=("left alone",))
     check(not w, "no WARN logged (%s)" % w[:3])
     return L
+
+
+def place_test():
+    """The labyrinth somewhere else (SEW_Place; SERVERS.md, *If another mod is
+    in the way*): the sandbox's MazeX and MazeY say which square its trapdoor
+    is on, and everything that says where the labyrinth is moves together,
+    once, as a world starts. Then the whole of labyrinth_test, at the new
+    place: what a player can do there is what they could do at the old one."""
+    print("the labyrinth, moved by the sandbox")
+    L = process("sp")
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    C, P, Lb = SEW.Config, SEW.Place, SEW.Index.labyrinth
+    hx, hy, ox, oy = int(Lb.tx), int(Lb.ty), int(Lb.ex), int(Lb.ey)
+    check(tuple(P.home()) == (hx, hy) and P.dx == 0 and P.dy == 0, "the mod's own place is the generator's")
+    sb = open(os.path.join(ROOT, "Sewars", "42", "media", "sandbox-options.txt")).read()
+    dflt = [int(re.search(r"option Sewars\.Maze%s = \{\s*type = integer, min = 0, max = \d+, default = (\d+)" % a, sb).group(1))
+            for a in "XY"]
+    check(dflt == [hx, hy], "and the sandbox's own numbers are that square (%s)" % dflt)
+    only = L.execute("""
+        local I, n = SEW.Index, 0
+        for _, list in ipairs({ I.journals, I.plans, I.caves, I.gas, I.gates }) do
+            for _, e in ipairs(list) do if e.town == "labyrinth" then n = n + 1 end end
+        end
+        return n
+    """)
+    check(only == 0, "nothing of the labyrinth's is in a list SEW_Place does not move (%d)" % only)
+
+    # What is asked before it moves, so every cache made from the old place is made.
+    snap = """
+        local B, S, I = SEW.Build, SEW.Sewer, SEW.Index
+        local L = I.labyrinth
+        local heart = S.shelterAt(L.x, L.y)
+        local n = 0
+        for _ in pairs(SEW.Data.labyrinth.chunks) do n = n + 1 end
+        local t = I.towns.labyrinth
+        local mark = nil
+        for _, st in ipairs(StashDescriptions) do
+            if st.name == SEW.Config.Maps.labyrinth.stash then mark = st.annotations[1] end
+        end
+        return { rec = B.dataAt(L.tx + 1, L.ty + 1), town = B.townOf(math.floor(L.tx / 8) .. "," .. math.floor(L.ty / 8)),
+                 heart = heart and I.shelters[heart].kind, chunks = n, x0 = t.x0, y0 = t.y0, x1 = t.x1, y1 = t.y1,
+                 tx = L.tx, ty = L.ty, ex = L.ex, ey = L.ey, light = L.lights[1], light2 = L.lights[2],
+                 b1 = SEW.Config.Maps.labyrinth.bounds[1], b2 = SEW.Config.Maps.labyrinth.bounds[2],
+                 mx = mark and mark.x, my = mark and mark.y, inside = S.inLabyrinth(L.tx, L.ty) }
+    """
+    was = L.execute(snap)
+    check(was.rec is not None and was.town == "labyrinth" and was.heart == "labyrinth_heart" and was.chunks == 1089
+          and was.mx == hx and was.my == hy, "as the mod comes: its squares, its heart, its map's X on the trapdoor")
+
+    def start(x, y):
+        L.execute("SandboxVars.Sewars.MazeX, SandboxVars.Sewars.MazeY = ...", x, y)
+        n = len(lua_list(sim.log))
+        sim.fire("OnInitGlobalModData")
+        return [l for l in lua_list(sim.log)[n:] if "place" in l]
+
+    # Nothing said, and the mod's own numbers: nothing moves, nothing is logged.
+    check(start(None, None) == [] and start(hx, hy) == [] and start(hx + 3, hy - 3) == [] and P.dx == 0 and P.dy == 0
+          and int(Lb.tx) == hx, "a world that says nothing, or the mod's own square, has it where it always was")
+    # A place on a town: refused, and said.
+    m = SEW.Index.towns.muldraugh
+    said = start(int(m.x0) + 40, int(m.y0) + 40)
+    check(len(said) == 1 and "WARN" in said[0] and "muldraugh" in said[0] and P.dx == 0 and int(Lb.tx) == hx,
+          "a place on Muldraugh's sewers is refused, and the log says which town (%s)" % said)
+    said = start(int(m.x0) - 256 - C.Place.clear + 8, int(m.y0))
+    check(len(said) == 1 and "WARN" in said[0] and P.dx == 0, "and one beside them, nearer than the clearance")
+    said = start(8, hy)
+    check(len(said) == 1 and "WARN" in said[0] and "north or west" in said[0] and P.dx == 0, "and one off the map's edge")
+    check(len(warns(L)) == 3, "three refusals, three warnings (%s)" % len(warns(L)))
+
+    # A world that built it at the mod's own place, then moved: stamps under
+    # both places are forgotten, so the new one is built from the first.
+    dx, dy = 800, -496
+    old_key, new_key = "%d,%d" % (hx // 8, hy // 8), "%d,%d" % ((hx + dx) // 8, (hy + dy) // 8)
+    L.execute("""
+        local s = SEW.Build.state()
+        local old, new = ...
+        s.built[old], s.first[old], s.built[new] = "x", "x", "x"
+        s.built["1,1"] = "x"
+    """, old_key, new_key)
+    said = start(hx + dx + 3, hy + dy - 4)
+    now = L.execute(snap)
+    check(P.dx == dx and P.dy == dy and len(said) == 2 and not any("WARN" in l for l in said)
+          and "%d,%d" % (hx + dx, hy + dy) in said[0],
+          "a clear place is taken, to the nearest chunk, and the log says where (%s, %s; %s)" % (P.dx, P.dy, said))
+    st = L.execute("local s = SEW.Build.state(); local o, n = ...; return s.built[o], s.first[o], s.built[n], s.built['1,1'], s.place",
+                   old_key, new_key)
+    check(tuple(st) == (None, None, None, "x", "%d,%d" % (dx, dy)),
+          "a world that had one: the stamps under the old place and the new are forgotten, nobody else's (%s)" % (tuple(st),))
+    check((now.tx, now.ty, now.ex, now.ey) == (hx + dx, hy + dy, ox + dx, oy + dy)
+          and (now.x0, now.y0, now.x1, now.y1) == (was.x0 + dx, was.y0 + dy, was.x1 + dx, was.y1 + dy)
+          and (now.light, now.light2) == (was.light + dx, was.light2 + dy),
+          "the index moved: its ways, its town's sheet, its lights")
+    check(now.rec == was.rec and now.town == "labyrinth" and now.chunks == 1089 and now.heart == "labyrinth_heart"
+          and now.inside is True,
+          "its squares are the same squares, by chunk, at the new place; the heart is found there")
+    gone = L.execute("""
+        local B, S, I = SEW.Build, SEW.Sewer, SEW.Index
+        local hx, hy, ox, oy = ...
+        return { B.dataAt(hx + 1, hy + 1) or false, B.townOf(math.floor(hx / 8) .. "," .. math.floor(hy / 8)) or false,
+                 S.inLabyrinth(hx, hy), I.shafts[hx .. "," .. hy] or false, I.shafts[ox .. "," .. oy] or false,
+                 S.shelterAt(hx + 121, hy + 121) or false }
+    """, hx, hy, ox, oy)
+    check(lua_list(gone) == [False] * 6, "and nothing of it is left at the old one (%s)" % lua_list(gone))
+    inside = L.execute("""
+        local t, bad, n = SEW.Index.towns.labyrinth, 0, 0
+        for _, name in ipairs({ "furniture", "claimed" }) do
+            for key, list in pairs(SEW.Data.labyrinth[name]) do
+                for _, e in ipairs(list) do
+                    n = n + 1
+                    if e[1] < t.x0 or e[1] > t.x1 or e[2] < t.y0 or e[2] > t.y1
+                            or key ~= math.floor(e[1] / 8) .. "," .. math.floor(e[2] / 8) then bad = bad + 1 end
+                end
+            end
+        end
+        return n, bad
+    """)
+    check(inside[0] > 1500 and inside[1] == 0, "its furniture and its dead are in it, each kept under its own chunk (%d, %d)" % tuple(inside))
+    check((now.b1, now.b2, now.mx, now.my) == (was.b1 + dx, was.b2 + dy, hx + dx, hy + dy),
+          "its annotated map shows the new ground, with the X on the trapdoor")
+    # Asked again -- a second start in one process cannot happen, but twice is once.
+    check(start(hx + dx, hy + dy) == [] and int(Lb.tx) == hx + dx, "settling twice moves it once")
+
+    # A client is told where the server has it, first of all it is told.
+    sent = []
+    L.execute("SEW.Net.clientHandlers.place_was = SEW.Net.clientHandlers.place")
+    hook = L.eval("function(f) SEW.Net.clientHandlers.place = function(a) f(a.dx, a.dy) SEW.Net.clientHandlers.place_was(a) end end")
+    hook(lambda a, b: sent.append((a, b)))
+    q = sim.newPlayer("asker", hx + 0.5, hy + 0.5, 0)
+    sim.players = L.table(q)
+    sim.fire("OnClientCommand", SEW.Net.MODULE, "accessAsk", q, L.table())
+    check(sent == [(dx, dy)], "whoever asks at their start is told where the labyrinth is (%s)" % sent)
+    L.execute("SEW.Net.clientHandlers.place = SEW.Net.clientHandlers.place_was; SEW.Net.clientHandlers.place_was = nil")
+
+    # And it is the labyrinth, there: every check of the place itself.
+    sim.fire("OnGameStart")
+    fails = len(FAILS)
+    labyrinth_test(L, q)
+    check(len(FAILS) == fails, "everything the labyrinth is, it is at the new place")
+    check(len(warns(L)) == 3, "and nothing new is warned of (%s)" % warns(L)[3:5])
+
+    # A client whose own sandbox said otherwise follows the server.
+    Lc = process("client")
+    gc = Lc.globals()
+    cl = gc.SEW.Index.labyrinth
+    gc.SIM.fire("OnInitGlobalModData")
+    gc.SIM.fire("OnServerCommand", gc.SEW.Net.MODULE, "place", Lc.table_from({"dx": dx, "dy": dy}))
+    check(int(cl.tx) == hx + dx and int(cl.ty) == hy + dy and gc.SEW.Index.shafts["%d,%d" % (hx + dx, hy + dy)] is not None
+          and gc.SEW.Sewer.inLabyrinth(hx + dx, hy + dy) is True and gc.SEW.Sewer.inLabyrinth(hx, hy) is False,
+          "a client with no squares of its own moves its index by the server's word")
+    gc.SIM.fire("OnServerCommand", gc.SEW.Net.MODULE, "place", Lc.table_from({"dx": 0, "dy": 0}))
+    check(int(cl.tx) == hx and gc.SEW.Index.shafts["%d,%d" % (hx, hy)] is not None, "and back again by it")
+    check(not warns(Lc), "with nothing to say about it (%s)" % warns(Lc)[:2])
 
 
 # --- a server and a client ---------------------------------------------------------------------
@@ -4549,6 +5824,178 @@ def multiplayer():
     pc.x, pc.y, pc.z = mx + 0.5, my + 0.5, 0
     ps.x, ps.y, ps.z = pc.x, pc.y, pc.z
 
+    # Which ways down are open, on a server (0.8.1): the server decides, an
+    # admin's role is the server's copy's, and every client is told.
+    key = "%d,%d" % (mx, my)
+    enter = TEXT["ContextMenu_SEW_Enter"]
+    opens = (TEXT["ContextMenu_SEW_AdmWay"], TEXT["ContextMenu_SEW_AdmWay_open"])
+    pc.x, pc.y, pc.z = mx + 0.5, my + 1.5, 0
+    pump()
+    check(gc.SEW.Client.askedAccess is True,
+          "a client asks at its start which ways down are open")
+    for L in (Ls, Lc):
+        L.execute("SandboxVars.Sewars.Access = 2")
+    e = dict(options(menu(Lc, 0, mx, my)))
+    check(enter in e and e[enter].notAvailable is True and admin_menu(Lc, mx, my) is None,
+          "on a server that closes them all, a player's cover is greyed out and offers nothing of an admin's")
+    notes = len(lua_list(gc.SIM.notes))
+    Lc.execute("SEW.Net.send(SIM.players[1], 'climb', { x = %d, y = %d, mode = 'down' })" % (mx, my))
+    pump()
+    check(abs(pc.z) < 1e-6 and TEXT["IGUI_SEW_Closed"] in lua_list(gc.SIM.notes)[notes:],
+          "and the server refuses a climb down asked for anyway")
+    # The client says it is an admin; the server's copy is not.
+    pc.admin = True
+    notes = len(lua_list(gc.SIM.notes))
+    admin_pick(Lc, mx, my, *opens)
+    pump()
+    check(not dict(Ls.execute("return SEW.Build.state().access").items())
+          and TEXT["IGUI_SEW_AdminOnly"] in lua_list(gc.SIM.notes)[notes:],
+          "a client that only says it is an admin opens nothing: the server asks its own copy")
+    ps.admin = True
+    notes = len(lua_list(gc.SIM.notes))
+    admin_pick(Lc, mx, my, *opens)
+    pump()
+    check(dict(Ls.execute("return SEW.Build.state().access").items()) == {key: "open"}
+          and gc.SEW.Sewer.access[key] == "open" and TEXT["IGUI_SEW_Way_open"] in lua_list(gc.SIM.notes)[notes:],
+          "an admin opens the cover: written down on the server, sent to the client, and said")
+    pc.admin = ps.admin = None
+    e = dict(options(menu(Lc, 0, mx, my)))
+    check(enter in e and not e[enter].notAvailable, "and a player's menu offers the climb again")
+    # Somebody who joins later is told what was decided before they came.
+    Lc.execute("SEW.Sewer.access = {}; SEW.Client.askedAccess = nil")
+    gc.SIM.tickN(2)
+    pump()
+    check(gc.SEW.Sewer.access[key] == "open", "a client that joins later is told what was decided before it came")
+    for L in (Ls, Lc):
+        L.execute("SandboxVars.Sewars.Access = nil; SEW.Sewer.access = {}")
+    Ls.execute("SEW.Build.state().access = {}")
+    pc.x, pc.y, pc.z = mx + 0.5, my + 0.5, 0
+    ps.x, ps.y, ps.z = pc.x, pc.y, pc.z
+
+    # An admin's works on a server (0.9): asked by the client, done by the
+    # server for its own copy's role, and what is made reaches every client.
+    ex, ey = Ls.execute("""
+        local mx, my = ...
+        local Mi = SEW.Mine
+        for r = 5, 14 do
+            for dx = -r, r do for dy = -r, r do
+                local x, y = mx + dx, my + dy
+                if math.max(math.abs(dx), math.abs(dy)) == r and not SEW.Sewer.shaftAt(x, y) then
+                    local near = false
+                    for ax = -2, 2 do for ay = -2, 2 do
+                        if Mi.isSpace(x + ax, y + ay) or SEW.Build.dataAt(x + ax, y + ay) then near = true end
+                    end end
+                    if not near then return x, y end
+                end
+            end end
+        end
+    """, mx, my)
+    for L in (Ls, Lc):
+        street(L, ex, ey, 2, manhole=False)
+    pc.x, pc.y, pc.z = ex + 0.5, ey + 1.5, 0
+    pump()
+    put = (TEXT["ContextMenu_SEW_AdmPut"], TEXT["ContextMenu_SEW_AdmPut_cover"])
+    pc.admin = True
+    notes = len(lua_list(gc.SIM.notes))
+    admin_pick(Lc, ex, ey, *put)
+    pump()
+    check(gs.SEW.Sewer.shaftAt(ex, ey) is None and TEXT["IGUI_SEW_AdminOnly"] in lua_list(gc.SIM.notes)[notes:],
+          "a client that only says it is an admin gets no way down dug")
+    ps.admin = True
+    gc.SIM.violations = Lc.table()
+    admin_pick(Lc, ex, ey, *put)
+    pump()
+    pump()
+    cs = gc.SEW.Sewer.shaftAt(ex, ey)
+    check(gs.SEW.Sewer.shaftAt(ex, ey) is not None and cs is not None and cs.custom is True
+          and gc.SEW.Config.Sprites.cover in objects_at(Lc, ex, ey, 0),
+          "an admin's way down: made on the server, known to the client, its cover in the client's road")
+    check(not lua_list(gc.SIM.violations), "and the client edited nothing to get it")
+    pc.admin = ps.admin = None
+    choose(menu(Lc, 0, ex, ey), enter)
+    pump()
+    pump()
+    check(abs(pc.z + 1) < 1e-6 and int(pc.x) == ex, "a player on the client climbs down it (%.1f)" % pc.z)
+    # A shaft down a level, and the climb between levels over the network.
+    sx, sy = Ls.execute("""
+        local ex, ey = ...
+        for _, n in ipairs({ { 0, -1 }, { -1, 0 }, { 1, 0 }, { 0, 1 } }) do
+            if SEW.Mine.isSpace(ex + n[1], ey + n[2]) then return ex + n[1], ey + n[2] end
+        end
+    """, ex, ey)
+    pc.x, pc.y = sx + 0.5, sy + 0.5
+    pc.admin = ps.admin = True
+    pump()
+    admin_pick(Lc, sx, sy, TEXT["ContextMenu_SEW_AdmShaft"])
+    pump()
+    pump()
+    pc.admin = ps.admin = None
+    check(gc.SEW.Sewer.shaftAt(sx, sy, -2) is not None and gc.SEW.Config.Sprites.cover in objects_at(Lc, sx, sy, -1),
+          "a shaft down a level reaches the client: the shaft, and its cover in the tunnel's floor")
+    Lc.execute("SEW.Map.works = {}")
+    choose(menu(Lc, 0, sx, sy), enter)
+    pump()
+    pump()
+    check(abs(pc.z + 2) < 1e-6 and Lc.execute("local sq = SIM.squares['%d,%d,-2']; return sq ~= nil and sq:getFloor() ~= nil"
+                                              % (sx, sy)) is True,
+          "the client climbs down to level 2, on to a floor the server built and sent (%.1f)" % pc.z)
+    pump()
+    check(gc.SEW.Map.works["-2:%d,%d" % (sx // 8, sy // 8)] is not None,
+          "and what is down there is on the client's map once walked")
+    # Ground marked as indoors: a server makes the room at its next start; a client now.
+    pc.admin = ps.admin = True
+    notes = len(lua_list(gc.SIM.notes))
+    admin_pick(Lc, sx, sy, TEXT["ContextMenu_SEW_AdmIndoorRoom"])
+    pump()
+    marks = Ls.execute("local n = 0; for _ in pairs(SEW.Build.state().indoor) do n = n + 1 end; return n")
+    said = lua_list(gc.SIM.notes)[notes:]
+    check(marks == 1 and len(lua_list(gs.SIM.roomDefs)) == 0
+          and any(s.endswith(TEXT["IGUI_SEW_Wk_indoorLater"].split("%1")[1]) for s in said),
+          "marked on a server: written down, no room made under a running server, and the admin told it waits for a restart (%s)" % said)
+    client_rooms = Lc.execute("""
+        local x, y = ...
+        local user = false
+        for _, def in ipairs(SIM.roomDefs) do if def.building.userDefined then user = true end end
+        local sq = SIM.squares[x .. "," .. y .. ",-2"]
+        return #SIM.roomDefs, user, sq:getRoom() ~= nil and sq:getRoom():getBuilding() ~= nil, SIM.regionPass()
+    """, sx, sy)
+    check(client_rooms[0] >= 1 and client_rooms[1] is False and client_rooms[2] is True and client_rooms[3] == 0,
+          "the client has the room at once: declared there, with a building, and safe from its region pass")
+    pc.admin = ps.admin = None
+    # The server's next start: the saved marks are declared before any chunk loads.
+    L2 = process("server")
+    g2 = L2.globals()
+    L2.execute("local state, key = ...; ModData.add(key, state)", copy(L2, Ls.execute("return SEW.Build.state()")),
+               gs.SEW.Config.StateKey)
+    g2.SIM.fire("OnLoadMapZones")
+    started = L2.execute("return #SIM.roomDefs, #SIM.editor.buildings, SEW.Indoors.made")
+    check(started[0] >= 1 and started[1] == 0 and started[2] >= 1,
+          "a server at its start declares what was marked, and leaves nothing in the editor to be declared twice (%d rooms)" % started[0])
+    kept = L2.execute("""
+        local x, y = ...
+        local key = math.floor(x / 8) .. "," .. math.floor(y / 8)
+        for cx = math.floor(x / 8) - 2, math.floor(x / 8) + 2 do
+            for cy = math.floor(y / 8) - 2, math.floor(y / 8) + 2 do SIM.load(cx, cy) end
+        end
+        SEW.Build.chunk(key)
+        SIM.assignRooms()                    -- as the chunk's load from disk does
+        local sq = SIM.squares[x .. "," .. y .. ",-2"]
+        local had = sq:getRoom() ~= nil and sq:getRoom():getBuilding() ~= nil
+        SEW.Rooms.around(x, y, 3, -2)
+        local keeps = sq:getRoom() ~= nil
+        -- The room that stops a server: blanked. It comes off, marked or not.
+        sq:getRoom().building = nil
+        SEW.Rooms.around(x, y, 3, -2)
+        return had, keeps, sq:getRoom() == nil, SEW.Indoors.declareAll(true), #SIM.roomDefs
+    """, sx, sy)
+    check(kept[0] is True and kept[1] is True,
+          "its squares load with the room, and the guard that takes rooms off the sewer leaves a marked one alone")
+    check(kept[2] is True, "but a room with no building comes off whoever's square it is on")
+    check(kept[3] == 0 and kept[4] == started[0], "and nothing is declared a second time")
+    pc.x, pc.y, pc.z = mx + 0.5, my + 0.5, 0
+    ps.x, ps.y, ps.z = pc.x, pc.y, pc.z
+    Ls.execute("SEW.Server.granted = {}")
+
     quiet = ("has not answered", "never answered")
     check(not warns(Ls), "no WARN on the server (%s)" % warns(Ls)[:3])
     check(not warns(Lc, allowed=quiet), "no WARN on the client (%s)" % warns(Lc, allowed=quiet)[:3])
@@ -4557,6 +6004,7 @@ def multiplayer():
 
 if __name__ == "__main__":
     single_player()
+    place_test()
     multiplayer()
     print()
     if FAILS:

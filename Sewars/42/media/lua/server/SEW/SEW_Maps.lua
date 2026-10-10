@@ -69,6 +69,8 @@ end
 function M.annotate(item, which)
     local m = C.Maps[which]
     if not m or not item then return false end
+    -- No map to a labyrinth the sandbox has left out (Sewars.Labyrinth).
+    if which == "labyrinth" and B.option("Labyrinth", 1, 2) == 2 then return false end
     return U.try("map.annotate", function()
         local stash = StashSystem.getStash(m.stash)
         if not stash then

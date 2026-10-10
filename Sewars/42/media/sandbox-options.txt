@@ -41,3 +41,58 @@ option Sewars.ExitSigns = {
     type = enum, numValues = 3, default = 3,
     page = Sewars, translation = Sewars.ExitSigns, valueTranslation = Sewars.ExitSigns,
 }
+
+option Sewars.Access = {
+    type = enum, numValues = 2, default = 1,
+    page = Sewars, translation = Sewars.Access, valueTranslation = Sewars.Access,
+}
+
+option Sewars.Hatches = {
+    type = enum, numValues = 2, default = 1,
+    page = Sewars, translation = Sewars.Hatches, valueTranslation = Sewars.Hatches,
+}
+
+option Sewars.Outfalls = {
+    type = enum, numValues = 2, default = 1,
+    page = Sewars, translation = Sewars.Outfalls, valueTranslation = Sewars.Outfalls,
+}
+
+option Sewars.Nest = {
+    type = enum, numValues = 2, default = 1,
+    page = Sewars, translation = Sewars.Nest, valueTranslation = Sewars.Nest,
+}
+
+option Sewars.Rous = {
+    type = enum, numValues = 4, default = 2,
+    page = Sewars, translation = Sewars.Rous, valueTranslation = Sewars.Rous,
+}
+
+option Sewars.CultDead = {
+    type = enum, numValues = 4, default = 4,
+    page = Sewars, translation = Sewars.CultDead, valueTranslation = Sewars.CultDead,
+}
+
+option Sewars.Labyrinth = {
+    type = enum, numValues = 2, default = 1,
+    page = Sewars, translation = Sewars.Labyrinth, valueTranslation = Sewars.Labyrinth,
+}
+
+option Sewars.MazeDead = {
+    type = enum, numValues = 4, default = 4,
+    page = Sewars, translation = Sewars.MazeDead, valueTranslation = Sewars.MazeDead,
+}
+
+option Sewars.Passage = {
+    type = enum, numValues = 3, default = 2,
+    page = Sewars, translation = Sewars.Passage, valueTranslation = Sewars.Passage,
+}
+
+option Sewars.MazeX = {
+    type = integer, min = 0, max = 100000, default = 8922,
+    page = Sewars, translation = Sewars.MazeX,
+}
+
+option Sewars.MazeY = {
+    type = integer, min = 0, max = 100000, default = 10322,
+    page = Sewars, translation = Sewars.MazeY,
+}

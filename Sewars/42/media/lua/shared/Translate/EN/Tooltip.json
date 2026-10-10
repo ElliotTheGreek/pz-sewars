@@ -19,5 +19,7 @@
     "Tooltip_SEW_MazeOut": "Up the ladder and out through the hatch. It will not open again from above.",
     "Tooltip_SEW_MineNoTool": "Rock, brick and concrete. You need a pickaxe or a sledgehammer.",
     "Tooltip_SEW_MinePick": "Heavy work with the pickaxe, and loud. One square at a time.",
-    "Tooltip_SEW_MineHammer": "Heavy work, slow with a sledgehammer, and loud. A pickaxe would be quicker."
+    "Tooltip_SEW_MineHammer": "Heavy work, slow with a sledgehammer, and loud. A pickaxe would be quicker.",
+    "Tooltip_SEW_Closed": "Sealed shut. On this server, this way into the sewers is closed.",
+    "Tooltip_SEW_NoExit": "Sealed from above. On this server, this is no way out."
 }

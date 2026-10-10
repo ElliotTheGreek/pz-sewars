@@ -528,6 +528,17 @@ one (40 cells a side): *approx 10x the size and challenge.*
   The nearest site to that point with no building, basement, road, water or
   sewer within 40 squares of any of it, in chunks no town has. No tunnel
   leads to it. It is a town of its own (`labyrinth`, *the deep woods*).
+- **A host may put it somewhere else** (0.9; sandbox `MazeX`, `MazeY`;
+  `SEW_Place`). Asked for by the author (2026-10-10): *some mods have
+  things in similar empty space, we need to be able to shift where this is
+  in case another mod has a collision.* It is the one thing of ours that
+  can move, because nothing leads to it: its records, its index and its
+  annotated map are moved together by whole chunks, once, as a world
+  starts. The mod's own place is still the default, and is still not to
+  be moved without being asked. **The temple cannot**: it is joined to two
+  towns' sewers by breaches in their hulls (section 7h, *A setting decides
+  what is put in, never what a record means*). A place on or beside a
+  town is refused; what else is in the ground there is the host's to know.
 - **The maze**: 128 by 128 cells, each two squares across: 256 squares a
   side, 65,536 squares of flagstone. Thin brick walls on the cells' edges,
   so every square is corridor and a wall is all that is between two of
@@ -594,6 +605,95 @@ one (40 cells a side): *approx 10x the size and challenge.*
   by the sandbox's density; whether the gate's trapdoor should lock behind
   whoever goes down; a second labyrinth.)
 
+## 7h. What a server decides (0.8.1)
+
+Asked for by the author (2026-10-10), for roleplay servers and anybody
+else who runs one. `SERVERS.md` is the host's guide; this is why it is the
+way it is.
+
+- **Ways down are opened and closed, never the sewers.** A way down is a
+  cover, a house's trapdoor, an outfall's grate, the temple's trapdoor, the
+  labyrinth's. The sandbox says whether they start open or closed
+  (`Sewars.Access`), and an admin's right-click decides any one of them.
+  **Down only** (section 2): a ladder under a closed cover takes anybody
+  up, so closing one behind a player shuts nobody in. Admins climb down
+  closed ones. The labyrinth's way out is nobody's to open.
+- **An admin is whoever the game shows its admin button to**: a role with
+  any admin tool, so a moderator or a game master, not only the one admin
+  role. The server asks its own copy of the player.
+- **Nothing in the world marks a closed cover.** It is a line in the
+  server's state and a greyed entry on the menu. A mark on the road would
+  be an object on four hundred covers, and something to keep in step.
+- **A setting decides what is put in, never what a record means.** The
+  seven others (houses' trapdoors, outfalls, the nest's wall, the rodents'
+  toughness, the temple's dead, the labyrinth and its dead) each act where
+  the server decides to put something down or to let something be done.
+  None changes how a tunnel's record is read: there is no switch for the
+  caves or the temple, because both are joined to the tunnels by breaches
+  in the hull, and a wall that depends on a setting is a wall a later
+  revision takes away from whoever built against it.
+- **Normal is the fight as it was.** `Sewars.Rous` scales the count of
+  blows either way from the one the author settled in 0.7.5.
+- **Every language the game has**, by the game's own means (a folder a
+  language, the game's fallback to English key by key). The generator's
+  English no longer reaches a page: a journal's direction is looked up.
+  What is painted stays painted.
+- (**Open**: tunnels an admin draws; a switch for the temple that is a
+  door rather than a wall; the two names a server writes in its own
+  language, the key's and the rodents'.)
+
+## 7i. An admin's works (0.9)
+
+Asked for by the author (2026-10-10): entrances anywhere, who may use each,
+tunnels drawn on the map, levels under the sewers, the mod's shelters and
+an admin's own rooms set down, hand-built basements made indoors, the whole
+map, a rebuild, a check -- *properly and surgically worked out so it's not
+a limitation*. `SERVERS.md` is how each is used.
+
+- **A work is a change to the records, and nothing else.** The sewers are
+  one record a square and the builder raises them (section 5, 7f). An
+  entrance's passage, a shaft's foot, a tunnel, a room's hull: each is
+  planned by the planner a pick uses (`SEW_Mine.plan`), written as the
+  players' own records, and built by `B.square`. So a pick, a bomb, the
+  map, a revision pass and an admin all read one thing, and what an admin
+  makes is kept exactly as what a player digs is (*once built, it is the
+  player's*). No second kind of tunnel exists.
+- **Levels: the sewers are still one level, and an admin's works are two
+  more.** Section 3's decision stands: nothing of the generator's is under
+  level -1, and `S.below` still means that level and nothing else. Levels
+  -2 and -3 hold only records somebody made (`s.deep`), and a player is "in
+  the sewer" down there only on a square of ours (`S.levelOf`): the map's
+  bunkers are at those depths too (DEV_GUIDE, *Below ground is not all
+  ours*). A shaft is a way down like any other with a level of its own, so
+  the climb, the menu, who may use it and the map's ladders are the same
+  code at every level.
+- **A way down stands four ways** -- both, in only, out only, neither --
+  and the sandbox only ever says *both* or *out only*. A way that is no way
+  out is the one thing in the mod that can shut a player in, so it is never
+  a setting's doing: only an admin's own choice for one cover (section 2,
+  and the labyrinth's exception beside it).
+- **A tunnel may be drawn where nobody is.** It is a line on a map. What is
+  loaded is built at once; the rest is written down as never built
+  (`s.unbuilt`) and gets a first build's look for somebody else's
+  underground when it loads, as the generator's own squares do.
+- **A room is a copy of what was built.** The mod's four are copied from
+  the generator's own data (hull, door, furniture, dead), moved; an
+  admin's own is the objects in a box, kept by picture. Neither is turned.
+  A template's objects are ours and tagged again, so the builder's revision
+  never takes a template's brick wall for one of its own.
+- **Indoors is the engine's own room, for what an admin marks, and nothing
+  less.** Below the street nothing but a room is indoors to the engine
+  (no roof test under level 0, no regions under level 0), and every answer
+  the mod gave until now was to one asker at a time. The rooms editor the
+  game ships makes a real room with a real building; three rules keep it
+  from ever being the room with no building that stopped servers in 0.7.2
+  (DEV_GUIDE, *A room is declared once*). **A tunnel is still not a room
+  by itself** (section 3): a server that wants one marks it.
+- (**Open**: the generator's tunnels declared as rooms from the layout, for
+  every process, once marked ground has been played on a server; a room
+  turned to face a wall; an admin's works undone; sound between the levels
+  below, which the engine lets through as it did the street's.)
+
 ## 8. Art
 
 Vanilla's `location_sewer_01` is the base, because it matches the game and
@@ -628,6 +728,7 @@ pipeline.
 | 9 | Danger and reward: gas, gates, outfalls | **done** (0.5), play-tested |
 | 10 | The temple of the rat cult | **built** and tested offline; waiting on the author's play-test |
 | 11 | The labyrinth | **built** and tested offline (0.8); not played |
+| 12 | Languages, a server's settings, an admin's works | **built** and tested offline (0.9); not played |
 
 ## 10. Open decisions for the author
 

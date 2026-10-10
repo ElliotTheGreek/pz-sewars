@@ -77,19 +77,30 @@ local ticks = 0
 -- first answer put them. A player back where they started is asking anew.
 Server.granted = {}
 
-local function repeated(player, x, y, mode)
+local function repeated(player, x, y, mode, z)
     local g = Server.granted[nameOf(player)]
-    return g ~= nil and g.x == x and g.y == y and g.mode == mode and ticks - g.at < C.ClimbRepeat
-        and S.below(player) == (mode == "down")
+    return g ~= nil and g.x == x and g.y == y and g.mode == mode and g.z == z and ticks - g.at < C.ClimbRepeat
+        and Server.at(player, z) == (mode == "down")
+end
+
+--- True when the server has the player at level z (0: the street).
+function Server.at(player, z)
+    local pz = U.try("getZ", function() return player:getZ() end) or 0
+    return pz < z + 0.5 and pz >= z - 0.5
 end
 
 --- A climb, down a cover or up a ladder. Called from SEWClimb:complete(),
 --- and from the `climb` command a client sends when that went unanswered.
-function Server.grant(player, x, y, mode)
+--- `z`: the level of the shaft's foot, when not the sewers' own (an admin's
+--- shaft down from a tunnel: SEW_Works).
+function Server.grant(player, x, y, mode, z)
     x, y = math.floor(tonumber(x) or 0), math.floor(tonumber(y) or 0)
-    if repeated(player, x, y, mode) then return true end
-    local shaft = S.shaftAt(x, y)
+    z = math.floor(tonumber(z) or C.Z)
+    if not S.isLevel(z) then return refuse(player, "level") end
+    if repeated(player, x, y, mode, z) then return true end
+    local shaft = S.shaftAt(x, y, z)
     if not shaft then return refuse(player, "shut") end
+    local access = S.accessMode(B.state().access, x, y, z)
 
     -- A hatch leads anywhere only once its house has been found clear (SEW_Build.hatch).
     if shaft.hatch and B.hatch(shaft) ~= "open" then return refuse(player, "shut") end
@@ -99,38 +110,101 @@ function Server.grant(player, x, y, mode)
     if mode == "down" then
         -- The labyrinth's way out is a way out: its hatch has no handle on top.
         if shaft.exit then return refuse(player, "sealed") end
-        if S.below(player) then return refuse(player, "level") end
+        if not Server.at(player, z + 1) then return refuse(player, "level") end
+        -- A way down an admin has closed, or one no admin has opened on a
+        -- server whose sandbox closes them all.
+        if not S.mayEnter(access) and not S.isAdmin(player) then return refuse(player, "closed") end
         if not S.within(player, x, y, C.Reach + 1.0) then return refuse(player, "reach") end
         local done, left = B.around(x, y, C.EntryRadiusChunks)
         if not B.isCurrent(math.floor(x / 8) .. "," .. math.floor(y / 8)) then
             return refuse(player, "unready")
         end
         -- Nobody is sent onto a square the engine has left a room on (SEW_Rooms).
-        SEW.Rooms.around(x, y, C.Rooms.reach + 1)
-        SEW.Discovery.ladder(player, x, y)
-        U.log("%s climbs down at %d,%d (%s; %d chunks built, %d waiting)",
-              nameOf(player), x, y, shaft.town, done, left)
-        Server.granted[nameOf(player)] = { x = x, y = y, mode = mode, at = ticks }
-        Net.toClient(player, "go", { x = x, y = y, z = C.Z, street = shaft.street or "", mode = "down",
+        SEW.Rooms.around(x, y, C.Rooms.reach + 1, z)
+        SEW.Discovery.ladder(player, x, y, z)
+        U.log("%s climbs down at %d,%d to level %d (%s; %d chunks built, %d waiting)",
+              nameOf(player), x, y, z, shaft.town, done, left)
+        Server.granted[nameOf(player)] = { x = x, y = y, z = z, mode = mode, at = ticks }
+        Net.toClient(player, "go", { x = x, y = y, z = z, street = shaft.street or "", mode = "down",
                                      hatch = shaft.hatch ~= nil or shaft.trapdoor == true,
                                      outfall = shaft.outfall == true })
         return true
     elseif mode == "up" then
-        if not S.below(player) then return refuse(player, "level") end
+        if not Server.at(player, z) then return refuse(player, "level") end
+        -- A way an admin has made no way out. Their own choice for this one,
+        -- never the sandbox's (S.accessMode): nobody is shut in by a setting.
+        if not S.mayLeave(access) and not S.isAdmin(player) then return refuse(player, "noexit") end
         if not (S.within(player, shaft.x, shaft.y, C.Reach + 1.0)
                 or S.within(player, shaft.lx, shaft.ly, C.Reach + 1.0)) then
             return refuse(player, "reach")
         end
-        SEW.Discovery.ladder(player, x, y)
-        U.log("%s climbs out at %d,%d (%s)", nameOf(player), x, y, shaft.town)
-        Server.granted[nameOf(player)] = { x = x, y = y, mode = mode, at = ticks }
-        Net.toClient(player, "go", { x = x, y = y, z = 0, street = shaft.street or "", mode = "up",
+        SEW.Discovery.ladder(player, x, y, z)
+        U.log("%s climbs out at %d,%d to level %d (%s)", nameOf(player), x, y, z + 1, shaft.town)
+        Server.granted[nameOf(player)] = { x = x, y = y, z = z, mode = mode, at = ticks }
+        Net.toClient(player, "go", { x = x, y = y, z = z + 1, street = shaft.street or "", mode = "up",
                                      hatch = shaft.hatch ~= nil or shaft.trapdoor == true,
                                      outfall = shaft.outfall == true })
         return true
     end
     return refuse(player, "mode")
 end
+
+---------------------------------------------------------------------------
+-- Which ways down are open (0.8.1)
+---------------------------------------------------------------------------
+--- True when the way down at x, y is a way in for players, as the server has it.
+function Server.open(x, y, z)
+    return S.mayEnter(S.accessMode(B.state().access, x, y, z))
+end
+
+--- Everything an admin has decided, to one player's client (so its menu
+--- can grey a closed cover out before anybody lifts it), or to everybody.
+function Server.publishAccess(player)
+    local list = {}
+    for k, v in pairs(B.state().access) do list[k] = v end
+    if player then
+        Net.toClient(player, "access", { list = list })
+        return
+    end
+    for _, p in ipairs(U.players()) do Net.toClient(p, "access", { list = list }) end
+end
+
+--- An admin decides who may use one way down: `mode` is "open" (both
+--- ways), "in", "shut" (a way out only) or "none". Only what differs from
+--- the sandbox is kept. Returns true when it was done.
+function Server.setAccess(player, x, y, mode, z)
+    if not S.isAdmin(player) then return refuse(player, "admin") end
+    x, y = math.floor(tonumber(x) or 0), math.floor(tonumber(y) or 0)
+    z = math.floor(tonumber(z) or C.Z)
+    local shaft = S.shaftAt(x, y, z)
+    -- Not the labyrinth's way out: that one opens for nobody from above.
+    if not shaft or shaft.exit then return refuse(player, "shut") end
+    if mode ~= "open" and mode ~= "in" and mode ~= "shut" and mode ~= "none" then return refuse(player, "mode") end
+    local marks, key = B.state().access, S.shaftKey(x, y, z)
+    marks[key] = nil
+    if S.accessMode(marks, x, y, z) ~= mode then marks[key] = mode end
+    U.log("%s made the way down at %d,%d,%d %s (%s)", nameOf(player), x, y, z, mode, shaft.town)
+    Server.publishAccess(nil)
+    Net.toClient(player, "accessSet", { x = x, y = y, z = z, mode = mode })
+    return true
+end
+
+Net.onServer("access", function(player, args)
+    Server.setAccess(player, args.x, args.y, args.mode, args.z)
+end)
+
+--- A client at its start asks what has been decided: where the labyrinth
+--- is (SEW_Place: first, the rest is read by it), which ways down are
+--- open, the ways down and templates an admin has made, what is marked as
+--- indoors (SEW_Works).
+Net.onServer("accessAsk", function(player)
+    Net.toClient(player, "place", { dx = SEW.Place.dx, dy = SEW.Place.dy })
+    Server.publishAccess(player)
+    if SEW.Works then
+        SEW.Works.publish(player)
+        SEW.Works.publishIndoor(player)
+    end
+end)
 
 --- True when a player with no floor under them is the sewer's to rescue: on
 --- its level, and either standing on no square at all (nobody's basement has
@@ -159,7 +233,7 @@ end
 Net.onServer("climb", function(player, args)
     U.log("%s asks for the climb %s at %s,%s by command: the action went unanswered",
           nameOf(player), tostring(args.mode), tostring(args.x), tostring(args.y))
-    Server.grant(player, args.x, args.y, args.mode)
+    Server.grant(player, args.x, args.y, args.mode, args.z)
 end)
 
 --- A client below ground found no floor under its player.
@@ -193,6 +267,7 @@ end)
 ---------------------------------------------------------------------------
 -- Every hatch and every cover of ours in the index, listed once.
 local surfaceList = nil
+SEW.Place.onMove(function() surfaceList = nil end)
 --- What the server puts in at street level near a player there, each once:
 --- the trapdoors of houses with a way down (SEW_Build.hatch, which may leave
 --- one shut) and the covers of ours in the towns the map gives few
@@ -215,6 +290,23 @@ function Server.hatches(p)
     end
 end
 
+--- True for a player the builder builds round: at the sewers' own level, or
+--- under it where an admin's works are (records, not what stands there: the
+--- floor may not be built yet).
+function Server.under(p)
+    if S.below(p) then return true end
+    local z = math.floor((U.try("getZ", function() return p:getZ() end) or 0) + 0.5)
+    if z == C.Z or not S.isLevel(z) then return false end
+    local cx, cy = math.floor(p:getX() / 8), math.floor(p:getY() / 8)
+    local deep = B.dugOf(z)
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            if deep[(cx + dx) .. "," .. (cy + dy)] then return true end
+        end
+    end
+    return false
+end
+
 local function service()
     ticks = ticks + 1
     if ticks % C.BuildEveryTicks ~= 0 then return end
@@ -222,14 +314,14 @@ local function service()
     -- Discovery first, for everyone: the build loop below stops when its budget
     -- is spent, and a player later in the list must not miss what they walk into.
     for _, p in ipairs(players) do
-        if S.below(p) then U.try("discover", SEW.Discovery.look, p) else U.try("hatches", Server.hatches, p) end
+        if Server.under(p) then U.try("discover", SEW.Discovery.look, p) else U.try("hatches", Server.hatches, p) end
     end
     -- Whoever a set piece is owed (SEW_Build.setPiece), now that nobody is near.
     U.try("settle", B.settle)
     local budget = C.BuildChunksPerTick
     for _, p in ipairs(players) do
         if budget <= 0 then return end
-        if S.below(p) then
+        if Server.under(p) then
             local px = U.try("px", function() return p:getX() end)
             local py = U.try("py", function() return p:getY() end)
             if px and py then

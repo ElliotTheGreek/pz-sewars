@@ -2,7 +2,13 @@
 
 A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
-> Status: **0.7.6**: no wind chill below ground, the sounds in the pipes off unless
+> Status: **0.9.0**: every language the game speaks, and for servers an
+> admin's tools -- who may use a way down, ways down put anywhere, tunnels
+> drawn on the map, two deeper levels, rooms set down, ground marked as
+> indoors -- and eight more sandbox settings (`SERVERS.md`), on top of
+> 0.8.0: the labyrinth, a brick maze under the deep woods west of
+> Muldraugh with one way through and a way out that is no way in, on top of
+> 0.7.6: no wind chill below ground, the sounds in the pipes off unless
 > you tick them, and the map on the right-click menu only (no K), on top of
 > 0.7.5: fixes from the Workshop's comments (fire coming down through
 > the street, snow in the tunnels, the rodents of unusual size hard to hit, a ladder
@@ -31,12 +37,13 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   meant to.
 - **Ladders out.** Every manhole has a ladder under it. Right-click a ladder:
   **Climb out to the street**, and you come up through the cover above it.
+  Or stand at the ladder's foot and press your Interact key (E).
 - **Vast, dark and scary.** Brick vaults and concrete tunnels, sludge
   channels, pipes, puddles, graffiti from whoever came before. The only
   daylight is what falls through the holes in the covers. The dead are down
   here too. (Tick *Sounds in the pipes* under Options -> Mods -> Sewers and
   now and then you will hear things in the pipes as well. Off by default.)
-- **The labyrinth.** *(Coming in 0.8.)* Somewhere in the deep woods west of
+- **The labyrinth.** Somewhere in the deep woods west of
   Muldraugh, a trapdoor under the weeds. Under it, a brick maze 256 squares a
   side, with no light and one way through. Your sewer map draws its walls
   only where you have walked. Whoever went in before is
@@ -111,7 +118,22 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 - **EXIT stencils**: none, few, or by every ladder (the default). The
   stencilled EXIT and its arrow on the tunnel walls near a ladder.
 
-Each applies to tunnels and shelters not yet found.
+- **Ways into the sewers**: open, or closed until an admin opens them. A
+  setting never closes a way out.
+- **Longest passage to a new way down**: 20, 40 or 80 squares.
+- **The labyrinth's place** (east, south): two numbers, for when another
+  mod has something in the same ground. Leave them alone otherwise.
+- **Trapdoors in houses**: yes or no.
+- **Storm-drain outfalls**: yes or no.
+- **The rats' nest**: open, or sealed (its false wall will not come away).
+- **Rodents of unusual size**: weak, normal, tough or monstrous.
+- **The dead in the temple**, **The dead in the labyrinth**: none, a few,
+  half or all.
+- **The labyrinth**: yes or no.
+
+Those that fill a place apply to tunnels and shelters not yet found; the
+rest act at once. **`SERVERS.md` has every setting, what it really does and
+when, and settings to copy for a roleplay server.**
 
 One more is each player's own, under Options -> Mods -> Sewers: **Sounds in
 the pipes**, off unless ticked.
@@ -139,6 +161,34 @@ mod's build) is left alone.
   street itself is not changed by the mod (a cover it added is one picture on
   the road, and goes with it), so a world above ground carries on as it was;
   a base you built in the tunnels is what you would lose the look of.
+
+## For servers: an admin's tools
+
+On a server, an admin (a moderator or game master counts) has one more
+entry on the right-click menu, **Sewers (admin)**:
+
+- **Who may use a way down**: both ways, in only, out only, or nobody.
+- **A way down put anywhere**: a cover, trapdoor or grate on any square of
+  street, with a passage dug to the nearest tunnel.
+- **Tunnels drawn on the sewer map**, 1, 3 or 5 wide, joined or apart.
+- **Levels 2 and 3**, reached by shafts from the tunnels, each with its own
+  sheet of the map.
+- **Rooms set down** behind a tunnel wall: copies of the mod's four, or of
+  a room an admin built and kept with a kind of stock.
+- **Ground marked as indoors**: a hand-built basement or bunker, or a
+  stretch of tunnel, made a real room to the game.
+- The whole map, a rebuild of the tunnel round you, a check of a square.
+
+`SERVERS.md` is the guide to all of it.
+
+## Languages
+
+Every language the game ships: Spanish (Spain, Argentina, Chile, Mexico),
+Portuguese (Portugal, Brazil), French, German, Italian, Dutch, Catalan,
+Russian, Ukrainian, Polish, Czech, Hungarian, Romanian, Danish, Norwegian,
+Finnish, Turkish, Indonesian, Thai, Korean, Japanese, Chinese (Simplified
+and Traditional). Each player sees their own. What is painted on the walls
+stays as painted. Corrections are welcome (`SERVERS.md`, *Languages*).
 
 ## Other mods
 
@@ -174,6 +224,7 @@ temple of thirteen, laid out from the game's own street map.
 
 ## For developers
 
-`DEV_GUIDE.md` is how to build, test and update the mod. `DESIGN.md` is how
+`SERVERS.md` is for whoever runs a server: every setting, the admin's
+menu, the languages. `DEV_GUIDE.md` is how to build, test and update the mod. `DESIGN.md` is how
 the sewers work and why. `DIGGING.md` is the player's guide to digging and
 blasting.

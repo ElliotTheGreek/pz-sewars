@@ -46,6 +46,7 @@ def build():
 def check():
     run("tools/luacheck.py", "Sewars/42/media/lua", what="Lua syntax")
     run("tests/test_assets.py", what="every name against the game")
+    run("tests/test_translations.py", what="every language against the English")
     run("tests/test_layout.py", what="the tunnels, walked")
     run("tests/test_flow.py", what="the loop, single player and multiplayer")
 

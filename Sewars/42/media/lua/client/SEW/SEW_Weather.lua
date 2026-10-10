@@ -102,13 +102,13 @@ end
 
 --- One row of the window round x, y at the sewer's level. Returns how many
 --- squares lost the flag.
-function W.sweepRow(x, y, row)
+function W.sweepRow(x, y, row, z)
     local cell = U.cell()
     if not cell then return 0 end
     local r, n = C.Weather.reach, 0
     local sy = math.floor(y) + row
     for sx = math.floor(x) - r, math.floor(x) + r do
-        local sq = cell:getGridSquare(sx, sy, C.Z)
+        local sq = cell:getGridSquare(sx, sy, z or C.Z)
         if sq and W.indoors(sq, cell) then n = n + 1 end
     end
     return n
@@ -117,11 +117,12 @@ end
 --- Every tick, for a player in the sewer: the next rows of the window. A
 --- call the engine refuses is refused once, not once a square a tick.
 function W.tick(p)
-    if W.broken or not C.Weather.indoors or not S.below(p) then return 0 end
+    local level = S.levelOf(p)
+    if W.broken or not C.Weather.indoors or not level then return 0 end
     local r, n = C.Weather.reach, 0
     local px, py = p:getX(), p:getY()
     for _ = 1, C.Weather.rows do
-        local ok, got = pcall(W.sweepRow, px, py, W.row - r)
+        local ok, got = pcall(W.sweepRow, px, py, W.row - r, level)
         if not ok then
             W.broken = true
             U.warnOnce("weather", "the sewer stays outdoors to the weather: %s", tostring(got))

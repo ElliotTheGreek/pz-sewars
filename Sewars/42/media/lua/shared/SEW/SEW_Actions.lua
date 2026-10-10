@@ -33,16 +33,18 @@ local S = SEW.Sewer
 
 SEWClimb = ISBaseTimedAction:derive("SEWClimb")
 
-function SEWClimb:new(character, x, y, mode)
+function SEWClimb:new(character, x, y, mode, z)
     local o = ISBaseTimedAction.new(self, character)
     o.character = character
     o.x = x
     o.y = y
     o.mode = mode
+    -- The level of the shaft's foot: the sewers' own, or an admin's deeper one.
+    o.z = z or C.Z
     o.stopOnWalk = true
     o.stopOnRun = true
     local ticks = C.ClimbTicks
-    local shaft = S.shaftAt(x, y)
+    local shaft = S.shaftAt(x, y, o.z)
     -- The temple's trapdoor in the field is a hatch to the hand: no lid.
     o.hatch = shaft ~= nil and (shaft.hatch ~= nil or shaft.trapdoor == true)
     -- An outfall's grate lifts like a trapdoor: no iron lid to prise up.
@@ -57,12 +59,14 @@ function SEWClimb:new(character, x, y, mode)
 end
 
 function SEWClimb:isValid()
+    local pz = U.try("climb.z", function() return self.character:getZ() end) or 0
+    local function at(z) return pz < z + 0.5 and pz >= z - 0.5 end
     if self.mode == "down" then
-        return not S.below(self.character) and S.shaftAt(self.x, self.y) ~= nil
+        return at(self.z + 1) and S.shaftAt(self.x, self.y, self.z) ~= nil
             and S.within(self.character, self.x, self.y, C.Reach + 0.8)
     elseif self.mode == "up" then
-        local s = S.shaftAt(self.x, self.y)
-        return s ~= nil and S.below(self.character)
+        local s = S.shaftAt(self.x, self.y, self.z)
+        return s ~= nil and at(self.z)
             and (S.within(self.character, s.x, s.y, C.Reach + 0.8) or S.within(self.character, s.lx, s.ly, C.Reach + 0.8))
     end
     return false
@@ -95,14 +99,14 @@ function SEWClimb:perform()
     -- On a client the move is the server's to grant (complete, there). The
     -- client starts waiting for the answer, and does not wait for ever.
     if isClient() and SEW.Client and SEW.Client.expect then
-        U.try("expect", SEW.Client.expect, self.x, self.y, self.mode)
+        U.try("expect", SEW.Client.expect, self.x, self.y, self.mode, self.z)
     end
     ISBaseTimedAction.perform(self)
 end
 
 function SEWClimb:complete()
     if SEW.Server and SEW.Server.grant then
-        U.try("grant", SEW.Server.grant, self.character, self.x, self.y, self.mode)
+        U.try("grant", SEW.Server.grant, self.character, self.x, self.y, self.mode, self.z)
     else
         U.warnOnce("noServer", "SEWClimb completed where SEW.Server is not loaded")
     end
@@ -201,7 +205,7 @@ function SEWMine:new(character, x, y, dx, dy)
 end
 
 function SEWMine:isValid()
-    return S.below(self.character) and S.mineTool(self.character) ~= nil
+    return S.levelOf(self.character) ~= nil and S.mineTool(self.character) ~= nil
         and S.within(self.character, self.x, self.y, C.Reach)
 end
 

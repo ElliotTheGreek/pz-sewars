@@ -7,6 +7,7 @@
 require "SEW/SEW_Config"
 require "SEW/SEW_Util"
 require "SEW/SEW_Index"
+require "SEW/SEW_Place"
 
 SEW = SEW or {}
 local C = SEW.Config
@@ -15,19 +16,112 @@ local U = SEW.Util
 local S = {}
 SEW.Sewer = S
 
---- The shaft under the manhole at x, y, or nil.
-function S.shaftAt(x, y)
-    return SEW.Index and SEW.Index.shafts[math.floor(x) .. "," .. math.floor(y)] or nil
+--- True for a level there can be sewer at (C.Levels).
+function S.isLevel(z)
+    if z == nil then return false end
+    for _, l in ipairs(C.Levels) do
+        if l == z then return true end
+    end
+    return false
 end
+
+--- What a shaft is kept under: "x,y" for one whose foot is at the sewers'
+--- own level -- every one the generator made, as saves and the index name
+--- them -- and "x,y,z" for an admin's shaft down to a deeper one.
+function S.shaftKey(x, y, z)
+    x, y = math.floor(x), math.floor(y)
+    if z == nil or math.floor(z + 0.5) == C.Z then return x .. "," .. y end
+    return x .. "," .. y .. "," .. math.floor(z + 0.5)
+end
+
+-- The ways down an admin has put in (SEW_Works): key -> a shaft like the
+-- index's, with `custom` and the level of its foot, `z`. On a server and in
+-- single player this is the saved state's own table (SEW_Build.state); a
+-- client's is what the server sent (SEW_Admin).
+S.custom = {}
+
+--- The shaft whose top is the cover at x, y and whose foot is at level z
+--- (the sewers' own when not said): an admin's, or the generator's. Or nil.
+function S.shaftAt(x, y, z)
+    local key = S.shaftKey(x, y, z)
+    local own = S.custom[key]
+    if own then return own end
+    if z ~= nil and math.floor(z + 0.5) ~= C.Z then return nil end
+    return SEW.Index and SEW.Index.shafts[key] or nil
+end
+
+--- The town whose sheet of the map x, y is on: the one it is in, else the
+--- nearest. For an admin's shaft, which is nobody's.
+function S.townAt(x, y)
+    local best, bestD = nil, 1e18
+    for tid, t in pairs(SEW.Index and SEW.Index.towns or {}) do
+        local dx = (x < t.x0) and (t.x0 - x) or (x > t.x1) and (x - t.x1) or 0
+        local dy = (y < t.y0) and (t.y0 - y) or (y > t.y1) and (y - t.y1) or 0
+        local d = dx * dx + dy * dy
+        -- Never by the order of pairs: the smaller id breaks a tie.
+        if d < bestD or (d == bestD and tid < best) then best, bestD = tid, d end
+    end
+    return best
+end
+
+--- A Sewars sandbox option, 1..n, the same answer on every machine (a
+--- client has the server's sandbox); `default` when the save has none (a
+--- world made before the option existed) or it is out of range.
+function S.option(name, default, n)
+    local v = SandboxVars and SandboxVars.Sewars and SandboxVars.Sewars[name]
+    v = tonumber(v)
+    if not v or v < 1 or v > n then return default end
+    return math.floor(v)
+end
+
+--- True for somebody who may open and close the ways into the sewers
+--- (0.8.1). On a server or a client: a role with any of the admin's tools,
+--- which is what vanilla shows its admin button by (ISEquippedItem:
+--- chr:getRole():hasAdminTool()) -- a moderator or a game master counts,
+--- where the global isAdmin() is the one default admin role and nobody
+--- else. In single player there are no roles: the dev build (until its
+--- menu's *Be a player* is chosen, to see a closed cover as one), or -debug.
+function S.isAdmin(player)
+    if not isClient() and not isServer() then
+        return (SEW.Dev == true and SEW.DevPlayer ~= true)
+            or (isDebugEnabled ~= nil and isDebugEnabled() == true)
+    end
+    if player == nil then return false end
+    local role = player:getRole()
+    return role ~= nil and role:hasAdminTool() == true
+end
+
+-- A way down's key (S.shaftKey) -> what an admin has decided for that one,
+-- whatever the sandbox says of the rest:
+--   "open"  both ways       "in"    a way in only
+--   "shut"  a way out only  "none"  closed both ways
+-- This table is a client's copy, sent by the server at the start and
+-- whenever one changes (SEW_Server: `access`); the server reads its own.
+S.access = {}
+
+--- How the way down at x, y (its foot at level z) stands for players: what
+--- an admin said of it in `marks`, or else the sandbox's Sewars.Access --
+--- Open, or Closed until an admin opens them, which is "shut": **the
+--- sandbox never closes a way out**. Only an admin's own choice for one
+--- way down does that ("in", "none"), where a server wants a pit.
+function S.accessMode(marks, x, y, z)
+    local m = marks and marks[S.shaftKey(x, y, z)]
+    if m == "open" or m == "shut" or m == "in" or m == "none" then return m end
+    return S.option("Access", 1, 2) == 1 and "open" or "shut"
+end
+
+--- May a player climb down a way that stands so? And up it?
+function S.mayEnter(mode) return mode == "open" or mode == "in" end
+function S.mayLeave(mode) return mode == "open" or mode == "shut" end
 
 --- The shaft nearest to x, y within `range`, looking at both the square under
 --- the cover and the square its ladder hangs on.
-function S.shaftNear(x, y, range)
+function S.shaftNear(x, y, range, z)
     local best, bestD = nil, (range or 2) + 0.001
     local r = math.ceil(range or 2) + 1
     for dx = -r, r do
         for dy = -r, r do
-            local s = S.shaftAt(x + dx, y + dy)
+            local s = S.shaftAt(x + dx, y + dy, z)
             if s then
                 local d = math.min(U.dist(x, y, s.x, s.y), U.dist(x, y, s.lx, s.ly))
                 if d < bestD then best, bestD = s, d end
@@ -86,6 +180,8 @@ local function shelterIndex()
     end
     return shelterChunks
 end
+-- The labyrinth's rooms are where a host put them (SEW_Place).
+SEW.Place.onMove(function() shelterChunks = nil end)
 
 --- The index (in SEW.Index.shelters) of the shelter whose floor x, y is on, or nil.
 function S.shelterAt(x, y)
@@ -107,11 +203,11 @@ end
 
 --- The manhole cover nearest to x, y at street level within `slack` squares:
 --- the square it is on, or nil.
-function S.manholeNear(x, y, slack)
+function S.manholeNear(x, y, slack, z)
     local best, bestD = nil, 1e9
     for dx = -slack, slack do
         for dy = -slack, slack do
-            local sq = U.square(x + dx, y + dy, 0, false)
+            local sq = U.square(x + dx, y + dy, z or 0, false)
             if S.isManhole(sq) then
                 local d = math.abs(dx) + math.abs(dy)
                 if d < bestD then best, bestD = sq, d end
@@ -150,9 +246,26 @@ end
 --- on a square of ours. For what belongs to the place and to nowhere else
 --- at that level -- its sounds, and whether the street hears.
 function S.inSewer(player)
-    if not S.below(player) then return false end
+    return S.levelOf(player) ~= nil and S.onOurs(player)
+end
+
+--- True when the player's own square has something of ours on it.
+function S.onOurs(player)
     local sq = U.try("inSewer.sq", function() return player:getCurrentSquare() end)
     return sq ~= nil and S.ours(sq)
+end
+
+--- The level of sewer a player is at: C.Z anywhere at the sewers' own level
+--- (S.below), and a deeper one only on a square of ours -- the map's
+--- bunkers are down there too, and are nobody's business (DEV_GUIDE, *Below
+--- ground is not all ours*). nil anywhere else.
+function S.levelOf(player)
+    if player == nil then return nil end
+    local z = U.try("getZ", function() return player:getZ() end) or 0
+    local l = math.floor(z + 0.5)
+    if l == C.Z then return S.below(player) and l or nil end
+    if not S.isLevel(l) or z < l - 0.5 then return nil end
+    return S.onOurs(player) and l or nil
 end
 
 --- True when x, y is the labyrinth's: any of its squares, or the rock for

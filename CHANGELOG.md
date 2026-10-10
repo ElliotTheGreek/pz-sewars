@@ -8,6 +8,116 @@ below ground moves; new parts appear as you walk into them.
 
 ---
 
+## 0.9.0 (10 October 2026)
+
+**New: the labyrinth**
+
+- Somewhere in the deep woods west of Muldraugh there is a trapdoor under
+  the weeds. Under it is a brick labyrinth 256 squares a side: no light,
+  one way through, and a great many ways that are not. It is a long walk
+  even if you never take a wrong turn. Bring a torch, water and a weapon.
+- Everybody who went in before you is still in there.
+- In its dead ends you will find what they carried: torches, batteries,
+  water, tins. Here and there is a small room with a steel door that
+  shuts, a bedroll and a couple of crates, to rest in. These are stocked
+  whatever your sandbox's loot setting.
+- At the heart of it: crates of the best things in the mod, and a ladder.
+  The ladder comes up inside a small brick hut in the woods. That hut is
+  the way out and only the way out: its hatch has no handle on top, and
+  will not open from above.
+- Your sewer map draws the labyrinth's walls as you walk them, a little at
+  a time, and nothing ahead of you.
+- Nothing in the labyrinth can be dug or blasted through. *Dig* is not on
+  the menu there.
+- A third kind of annotated map now turns up in the game's loot, showing
+  the way to its trapdoor.
+- You can turn back: the trapdoor you came down is also a way out, if you
+  can find it again.
+
+**New: 26 more languages**
+
+- The mod now speaks every language the game does: Spanish (Spain,
+  Argentina, Chile and Mexico), Portuguese (Portugal and Brazil), French,
+  German, Italian, Dutch, Catalan, Russian, Ukrainian, Polish, Czech,
+  Hungarian, Romanian, Danish, Norwegian, Finnish, Turkish, Indonesian,
+  Thai, Korean, Japanese and Chinese (Simplified and Traditional). Menus,
+  tooltips, messages, the sandbox page, item names, the journals and the
+  handwriting on the annotated maps. You see your own game language;
+  nothing needs setting.
+- What is painted on the walls (EXIT, the graffiti) is a picture and stays
+  as it is. Street names are the game's own.
+- If a line reads wrong in your language, say so in the comments: they
+  were not all written by native speakers.
+
+**New: for servers, an admin's tools**
+
+Everything here is on one menu: as an admin (a moderator or game master
+counts), right-click and choose *Sewers (admin)*. `SERVERS.md`, in the
+mod's own folder, explains each one, with settings to copy.
+
+- **Who may use a way down.** Any manhole cover, trapdoor or grate can be
+  open both ways, a way in only, a way out only, or closed both ways.
+  Players see one they may not use greyed out.
+- **A way down wherever you want one.** Right-click a square of street:
+  a manhole cover, a trapdoor or a storm-drain grate goes in there, with a
+  ladder under it and a passage dug to the nearest tunnel.
+- **Tunnels drawn on the sewer map.** One, three or five squares wide,
+  joined to the tunnels they meet or walled off from them. Click where it
+  starts and where it ends.
+- **Two more levels.** A shaft from any tunnel goes down to level 2, and
+  from there to level 3, for tunnels of your own. The sewer map has a
+  button for each level, and each has its own colour.
+- **Rooms.** Set down a copy of a maintenance room, a pump station, a squat
+  or a last stand behind any tunnel wall, furnished, stocked and occupied.
+  Or build a room of your own anywhere, keep it with a kind of stock
+  (medical, military, guns, police, survival, food, tools, car parts,
+  electronics, laboratory), and set copies of that down.
+- **Indoors.** Mark a basement or a bunker somebody built below ground,
+  or a stretch of tunnel, as indoors: by the room, or by a box. The game
+  then treats it as a room: no rain, indoor air, indoor sounds. On a
+  server it takes effect at the next restart.
+- **And:** the whole sewer map with no fog, a rebuild of the tunnel round
+  you, and a check of what the game makes of a square.
+- What an admin makes is kept exactly as what a player digs: nothing in
+  any later update moves it.
+
+**New: for players**
+
+- What you dig with a pick now shows on your sewer map.
+- Standing at the foot of a ladder, your Interact key (E) climbs it. The
+  right-click menu still does too.
+- On a server with deeper levels, a pickaxe and a bomb work down there too.
+
+**New: sandbox settings**
+
+- **Ways into the sewers**: open, or closed until an admin opens them. A
+  setting never closes a way *out*: a ladder always takes a player back up
+  unless an admin made that one cover no way out on purpose.
+- *Trapdoors in houses*: yes or no. No: a player's house never gets a
+  trapdoor into the sewers.
+- *Storm-drain outfalls*: yes or no.
+- *The rats' nest*: open or sealed. Sealed, its false wall will not come
+  away until you say so.
+- *Rodents of unusual size*: weak, normal, tough or monstrous. Normal is
+  the fight as it was.
+- *The dead in the temple* and *The dead in the labyrinth*: none, a few,
+  half or all. The labyrinth's thousand can be thinned for a busy server.
+- *The labyrinth*: yes or no. No: its trapdoor is not put in and its map
+  is not handed out.
+- *Longest passage to a new way down*: 20, 40 or 80 squares.
+- *The labyrinth's place*, east and south: if another mod has something in
+  the woods the labyrinth is under, these two numbers put the labyrinth
+  somewhere else, all of it, map and hut included. Set them before the
+  world is made. `SERVERS.md` has where everything of the mod's is.
+- Every one of them is as it was unless you change it.
+
+**For an existing save or server**
+
+- Safe to add. The labyrinth is in ground no sewer used, and it is built
+  as somebody walks into it. Nothing you have already found moves.
+- Nothing else changes until you change a setting. A world from before
+  this update has every way down open and everything else as it was.
+
 ## 0.7.6 (9 October 2026)
 
 **Changed, from your comments (thank you)**

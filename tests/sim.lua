@@ -436,6 +436,9 @@ function SquareMT:isInARoom() return self:getRoom() ~= nil end
 function SquareMT:setRoomID(id)
     if type(id) ~= "number" then error("setRoomID(" .. tostring(id) .. ")") end
     self.roomId = id
+    -- For an id that is not -1 the engine looks the room up again
+    -- (IsoMetaGrid.getRoomByID): a declared room, or nothing at all.
+    if id ~= -1 then self.room = SIM.isoRoom(id) end
 end
 function SquareMT:getRoomID() return self.roomId or (self.room and 1 or -1) end
 
@@ -591,7 +594,143 @@ function climate:getAirTemperatureForCharacter(p, wind)
     return cell:getHeatSourceHighestTemperature(air, sq.x, sq.y, sq.z)
 end
 function getClimateManager() return climate end
+-- IsoChunkMap.calculateZExtentsForChunkMap: counted, so a test can ask
+-- whether a client arriving at a new lowest level had it worked out.
+SIM.zExtents = 0
+function cell:getChunkMap(i)
+    return { calculateZExtentsForChunkMap = function() SIM.zExtents = SIM.zExtents + 1 end }
+end
 function getCell() return cell end
+
+---------------------------------------------------------------------------
+-- Rooms: the meta grid's, and the rooms editor that adds to them
+-- (zombie.buildingRooms.BuildingRoomsEditor, as the bytecode has it --
+-- DEV_GUIDE, *A room is declared once*). Its traps are here on purpose:
+--   * declaring a building over one that is there clears the old one's
+--     rooms (IsoRoom.clear: building = nil), and the squares go on pointing
+--     at them;
+--   * the region pass (SIM.regionPass: single player and a client, whenever
+--     anybody builds) clears every building still marked user-defined;
+--   * applyChanges(false) re-reads loaded squares only where there is a
+--     chunk map with a player in it: never on a server;
+--   * applyChanges(true) leaves the editor's list as it was, so the next
+--     applyChanges declares the same buildings again.
+---------------------------------------------------------------------------
+SIM.roomDefs = {}        -- every RoomDef in the meta grid
+SIM.isoRooms = {}        -- id -> IsoRoom
+SIM.roomsBlanked = 0
+local nextRoomId = 5000
+
+local function roomDefAt(x, y, z)
+    for _, def in ipairs(SIM.roomDefs) do
+        if def.z == z then
+            for _, r in ipairs(def.rects) do
+                if x >= r[1] and x < r[1] + r[3] and y >= r[2] and y < r[2] + r[4] then return def end
+            end
+        end
+    end
+    return nil
+end
+SIM.roomDefAt = roomDefAt
+
+--- IsoMetaGrid.getRoomByID: the one place an IsoRoom is made, always with a building.
+function SIM.isoRoom(id)
+    local room = SIM.isoRooms[id]
+    if room then return room end
+    for _, def in ipairs(SIM.roomDefs) do
+        if def.id == id then
+            room = { def = def, building = def.building, getBuilding = function(self) return self.building end }
+            SIM.isoRooms[id] = room
+            return room
+        end
+    end
+    return nil
+end
+
+--- IsoRoom.clear, and the def out of the meta grid.
+local function blank(def)
+    local room = SIM.isoRooms[def.id]
+    if room then room.building, room.def = nil, nil end
+    for i, d in ipairs(SIM.roomDefs) do
+        if d == def then table.remove(SIM.roomDefs, i) break end
+    end
+    SIM.roomsBlanked = SIM.roomsBlanked + 1
+end
+
+--- WorldRegionToMetaGrid.clientProcessBuildings: every user-defined
+--- building goes, whoever made it. Never on a server.
+function SIM.regionPass()
+    if SIM.role == "server" then return 0 end
+    local doomed = {}
+    for _, def in ipairs(SIM.roomDefs) do
+        if def.building.userDefined then doomed[#doomed + 1] = def end
+    end
+    for _, def in ipairs(doomed) do blank(def) end
+    return #doomed
+end
+
+--- What a chunk's load does: each square takes the meta grid's room.
+function SIM.assignRooms()
+    local n = 0
+    for _, sq in pairs(SIM.squares) do
+        local def = roomDefAt(sq.x, sq.y, sq.z)
+        if def and sq.roomId ~= def.id then
+            sq:setRoomID(def.id)
+            n = n + 1
+        end
+    end
+    return n
+end
+
+local editor = { buildings = {} }
+function editor:createBuilding()
+    local b = { rooms = {} }
+    function b:createRoom(z)
+        local r = { z = z, rects = {}, name = "" }
+        function r:addRectangle(x, y, w, h) self.rects[#self.rects + 1] = { x, y, w, h } end
+        function r:setName(n) self.name = n end
+        self.rooms[#self.rooms + 1] = r
+        return r
+    end
+    self.buildings[#self.buildings + 1] = b
+    return b
+end
+function editor:removeBuilding(b)
+    for i, v in ipairs(self.buildings) do
+        if v == b then table.remove(self.buildings, i) return end
+    end
+end
+function editor:applyChanges(loading)
+    for _, b in ipairs(self.buildings) do
+        if #b.rooms == 0 then error("BuildingRoomsEditor: a building with no room") end
+        local building = { userDefined = true }
+        function building:setUserDefined(v) self.userDefined = v end
+        function building:isUserDefined() return self.userDefined end
+        for _, r in ipairs(b.rooms) do
+            if #r.rects == 0 then error("BuildingRoomsEditor: a room with no rectangle") end
+            -- One already at its first rectangle is replaced: cleared.
+            local old = roomDefAt(r.rects[1][1], r.rects[1][2], r.z)
+            if old then blank(old) end
+            nextRoomId = nextRoomId + 1
+            local def = { id = nextRoomId, z = r.z, rects = r.rects, name = r.name, building = building }
+            function def:getID() return self.id end
+            function def:getBuilding() return self.building end
+            SIM.roomDefs[#SIM.roomDefs + 1] = def
+        end
+    end
+    if not loading then
+        if SIM.role ~= "server" then SIM.assignRooms() end
+        self.buildings = {}
+    end
+end
+BuildingRoomsEditor = { getInstance = function() return editor end }
+SIM.editor = editor
+
+function getWorld()
+    return { getMetaGrid = function()
+        return { getRoomAt = function(_, x, y, z) return roomDefAt(x, y, z) end }
+    end }
+end
 
 ---------------------------------------------------------------------------
 -- Players
@@ -609,6 +748,14 @@ function PlayerMT:setLastX(v) end
 function PlayerMT:setLastY(v) end
 function PlayerMT:setLastZ(v) end
 function PlayerMT:getUsername() return self.name end
+-- A role, as a server gives every player one: `admin` set on the player is
+-- a role with the admin's tools (Role.hasAdminTool); anybody else has none
+-- of them. Roles are a server's: the mod must not ask in single player.
+function PlayerMT:getRole()
+    if SIM.role == "sp" then error("getRole asked in single player: there are no roles") end
+    local p = self
+    return { hasAdminTool = function() return p.admin == true end }
+end
 function PlayerMT:getPrimaryHandItem() return self.primary end
 function PlayerMT:getForwardDirection()
     local p = self
@@ -1093,6 +1240,13 @@ function ISBaseTimedAction:getJobDelta() return 1 end
 SIM.draws = {}
 SIM.ui = {}
 UIFont = { Small = "Small", Medium = "Medium", Large = "Large" }
+-- Text is measured at 6 px a character, near enough vanilla's small font.
+function getTextManager()
+    return { MeasureStringX = function(_, _, s) return #tostring(s) * 6 end }
+end
+-- -debug: off, as for a player, unless a test says so.
+SIM.debug = false
+function isDebugEnabled() return SIM.debug end
 Keyboard = { KEY_N = 49, KEY_M = 50, KEY_K = 37 }
 Joypad = { AButton = 0, BButton = 1, XButton = 2, YButton = 3, LBumper = 4, RBumper = 5 }
 JoypadState = { players = {} }
@@ -1135,7 +1289,10 @@ function getJoypadMovementAxisY() return 0 end
 function isJoypadLTPressed() return false end
 function isJoypadRTPressed() return false end
 function setJoypadFocus() end
-function getCore() return { getScreenWidth = function() return 1920 end, getScreenHeight = function() return 1080 end } end
+-- The game's key bindings: KeybindId.INTERACT is E unless a test says otherwise.
+KeybindId = { INTERACT = "Interact" }
+SIM.keys = { Interact = 18 }
+function getCore() return { isKey = function(_, id, key) return SIM.keys[id] == key end, getScreenWidth = function() return 1920 end, getScreenHeight = function() return 1080 end } end
 
 --- A texture only if the file is really there, as getTexture answers nil for a
 --- path nothing is at.

@@ -53,7 +53,10 @@ function SU.page(idx)
     if not j then return nil end
     local street = (j.street and j.street ~= "") and j.street or getText("IGUI_SEW_UnderUnknown")
     local title = getText("IGUI_SEW_J_" .. j.text .. "_Title")
-    local body = getText("IGUI_SEW_J_" .. j.text .. "_Body", street, j.dir)
+    -- The generator wrote the direction in English ("north-east"): the
+    -- reader's own word for it goes into the page.
+    local dir = j.dir and getText("IGUI_SEW_Dir_" .. (string.gsub(j.dir, "-", "_"))) or ""
+    local body = getText("IGUI_SEW_J_" .. j.text .. "_Body", street, dir)
     local lines = {}
     for line in string.gmatch(body .. "\n", "([^\n]*)\n") do lines[#lines + 1] = line end
     return title, lines
@@ -169,7 +172,15 @@ function SU.open(player, idx)
     if SU.window then SU.window:close() end
     local title, lines = SU.page(idx)
     if not title then return nil end
+    -- As wide as its widest line: a page is drawn line by line, and a
+    -- translation's lines are not the English's length.
     local w = 520
+    for _, line in ipairs(lines) do
+        local lw = U.try("journal.measure", function()
+            return getTextManager():MeasureStringX(UIFont.Small, line)
+        end) or 0
+        if lw + 44 > w then w = lw + 44 end
+    end
     local h = 30 + #lines * 18 + 40
     local sw = U.try("sw", function() return getCore():getScreenWidth() end) or 1280
     local sh = U.try("sh", function() return getCore():getScreenHeight() end) or 720

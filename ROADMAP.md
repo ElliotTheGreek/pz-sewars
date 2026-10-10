@@ -223,7 +223,7 @@ Six of the ten are faults or asks in the mod; the other four are questions, answ
 
 ## 0.8 -- the labyrinth (2026-10-09)
 
-Asked for by the author; DESIGN.md 7g. Not released: the version is still 0.7.6.
+Asked for by the author; DESIGN.md 7g. Version 0.8.0.
 
 - [x] **The labyrinth**: one in the world, under the deep woods west of Muldraugh (trapdoor at 8922,10322), far from everything (nothing built, wet, paved or dug within 40 squares), a town of its own in 1,089 chunks no town has. 128 by 128 cells of two squares: 65,536 squares of flagstone between thin brick walls. `tools/gen_labyrinth.py`, called by `gen_sewers` after the temple; `python tools/gen_labyrinth.py out.png` runs the maze alone in ten seconds. First built 40 cells a side; the author asked for ten times that
 - [x] **One way to the heart**: about 3,700 squares of walking from the gate to the heart's door (a straight line is 264), the best of forty mazes; 1,525 dead ends, one in sixteen opened into a loop
@@ -242,7 +242,49 @@ Asked for by the author; DESIGN.md 7g. Not released: the version is still 0.7.6.
 - [ ] **(game)** *Go to the labyrinth's way out*: the hut; right-click its hatch: greyed, *no handle on this side*. **Unproven**: brick walls and a door frame put up at street level at runtime (the mod has only ever built below, and laid covers flat on the ground) -- how they draw, cut away and block, and what the door frame's opening does to a zombie's path
 - [ ] **(game)** the sewer map below: black but for where you have walked, and there the walls in ink, readable at the closer zooms; a rest's door is a brown mark
 - [ ] **(game)** *Give me the annotated maps*: three now; the third shows the woods west of Muldraugh with an X and a circle
-- [ ] Before release: the full mutation run, `layout_diff` against 0.7.6 (expected: squares added, none changed), version 0.8.0, CHANGELOG, the Workshop description
+- [x] The trapdoor is in the heart: the site search put it on the game's own Easter egg in those woods (a heart and BRIAN cut in the grass). The author: leave it there
+- [x] `layout_diff` against 0.7.6: 66,048 squares added, 0 removed, 0 changed; one town new; shafts, shelters, journals, plans, caves, the nest and every older piece of furniture identical
+
+## 0.9 -- an admin's works (2026-10-10)
+
+Asked for by the author; DESIGN.md 7i, SERVERS.md. Version 0.9.0, which is
+0.8.1 and this together: 0.8.1 never went up by itself.
+
+- [x] **A way down stands four ways** (`S.accessMode`: open, in, shut, none): the sandbox says open or shut (a way out only), an admin's menu says any of the four for one cover; a way in only and closed both ways are the admin's alone, never a setting's
+- [x] **A way down anywhere** (`Works.entrance`): cover, trapdoor or grate on a street square; the shortest way through the rock to plain walkway within `Sewars.Passage` (20 / 40 / 80), by the records, then each square looked at; a ladder at its foot; taken away again (`Works.remove`)
+- [x] **Levels -2 and -3** (`C.Levels`, `s.deep`, `B.deeper`, `Mi.with`, `S.levelOf`): a shaft from a tunnel (`Works.shaft`), the climb between levels (`SEWClimb` and `Server.grant` take the foot's level), the pick and the bomb at the level they are used at, the builder's pass, the rooms guard, the weather's flag and the wind at every level
+- [x] **Tunnels drawn on the map** (`Works.tunnel`, the pen in `SEW_Map`): 1 / 3 / 5 wide, concrete or brick, joined or apart, up to 200 squares, through ground not loaded (`s.unbuilt`: a first build's look for somebody else's when it loads)
+- [x] **Rooms** (`Works.shelter`, `capture`, `place`): the mod's four copied from the generator's own data with door, furniture and dead; an admin's own kept by picture with one of ten kinds of stock (`C.Loot.template_*`)
+- [x] **Indoors** (`SEW_Indoors`, `Works.indoor`): marked ground declared to the engine as a real room by its own rooms editor; once, never removed under a running world, not user-defined where regions are worked out; a server at its next start
+- [x] **The map**: a level button, what was dug and drawn in each level's ink (`Works.bits`, sent a few chunks a message to whoever has walked them), an admin's whole map
+- [x] **Rebuild** and **check** on the admin's menu; `Sewars.Passage`
+- [x] **The labyrinth where a host puts it** (`SEW_Place`; sandbox `MazeX`, `MazeY`: the square of its trapdoor), for a server whose other mods are in the same ground: index, records, lights, map sheet and annotated map moved together by whole chunks as a world starts; refused on or within 24 squares of a town; a client is told by the server; a world that had one forgets the stamps under both places. `place_test` runs all of `labyrinth_test` at the new place; 12 mutations (`tests/mutate.py place`). SERVERS.md, *If another mod is in the way*
+- [ ] **(game)** a new world with the two numbers changed: the trapdoor, the maze, the hut and the annotated map at the new place (DEV_GUIDE, the 0.9 checklist, step 10)
+- [x] What a player digs is on their map now (it never was)
+- [x] `test_flow`: single player (the dev build as admin) and a server with a client and a restarted server; `tests/sim.lua` has the rooms editor with its traps in it. `tests/mutate.py 0.9`: 68 mutations, and 43 older ones re-pointed (`moved`)
+- [ ] **(game)** the checklist in DEV_GUIDE, *The 0.9 checklist*
+- [ ] **(game, a server)** every tool as a real admin; a mark made, the server restarted, `[SEW] indoors: mark ... declared` in its log, and nobody frozen
+- [ ] Not done: a room turned; the generator's tunnels declared as rooms; sound between the levels below (the street's is handled, 0.7.4)
+
+## 0.8.1 -- languages, and what a server wants (2026-10-10)
+
+Asked for by the author (2026-10-10): Spanish and every other language
+the game has, admin control of the covers, and whatever else a roleplay
+server would want of the nest, the temple and the labyrinth. `SERVERS.md`
+is the host's guide.
+
+- [x] **26 languages**: every folder the game has (`tests/test_translations.py`: `LANGS`), 250 texts each; the dev build's lines stay English and fall back by themselves (`Translator.forLanguageStack`: the language, its base, the default). AR and ES_CL are ES_MX's text: the game gives them no base language to fall back to
+- [x] A journal's direction is the reader's word for it (`IGUI_SEW_Dir_*`, eight of them), where the generator's English went straight into the page; the page is as wide as its widest line
+- [x] `tests/test_translations.py`, in `dev.py check`: every language against the English -- its folder one of the game's, only EN's files and keys, every key a player sees and none of the dev build's, EN's placeholders, no literal percent, a journal's line breaks
+- [x] **Ways down, opened and closed** (`Sewars.Access`, `SEW_Server.setAccess`, `S.accessOpen`): the sandbox opens or closes them all; an admin's right-click decides one; only what differs from the sandbox is kept, in the server's state; sent whole to a client at its start and to everybody when one changes. Down only: a ladder takes anybody up. Not the labyrinth's way out
+- [x] An admin is a role with any admin tool (`Role.hasAdminTool`, vanilla's own test for its admin button), asked of the server's copy; in single player the dev build or `-debug`
+- [x] **Seven more settings**, each at a point where nothing built is changed: `Hatches`, `Outfalls`, `Labyrinth` (whether `B.hatch` / `B.cover` put the thing in; never written down, so Yes later works), `Nest` (the false wall refuses, and is not offered), `Rous` (blows and bullets times `C.Rous.tough`), `CultDead`, `MazeDead` (`B.keepDead`: a share of a set piece's dead, by where each stands)
+- [x] Not done, on purpose: a switch for the temple or the caves. Both join the tunnels through breaches that are hull in a town's records; a setting that walled them would, turned off again, be a revision that unwalls what players built against (DEV_GUIDE, *A setting may decide what is put in, never what a record means*)
+- [x] `test_flow`: 39 more checks (single player with the dev build as admin; a server and a client, where a client that only says it is an admin opens nothing). `tests/mutate.py 0.8.1`: 33 mutations
+- [x] The dev build's menu: *Be a player, not an admin (again: admin)*, to see a closed cover as a player does
+- [ ] **(game)** the checklist in DEV_GUIDE, *The 0.8.1 checklist*
+- [ ] **(game, a server)** an admin's entry on a cover; a second player sees it greyed at once; a moderator's role counts
+- [x] Asked for by servers, and done in 0.9 above: tunnels an admin draws, room templates, levels -2 and -3, ground made a real room
 
 ## Art (FlowDot: Gemini paints materials, the generator does geometry)
 
@@ -260,6 +302,9 @@ Asked for by the author; DESIGN.md 7g. Not released: the version is still 0.7.6.
 
 - [x] First Workshop upload: 0.3.1, item **3810188405**, public (2026-09-29); `WORKSHOP_ID` set
 - [x] 0.3.2 folded into 0.5.0 (never uploaded on its own)
+- [~] **0.9.0 update**: an admin's works on top of 0.8.1 (0.9 above; one upload); version bumped (mod.info, `C.Version`), CHANGELOG, README, SERVERS.md and the Workshop description; every static test; the 68 new mutations and the 43 re-pointed ones. **The full mutation set is to be run once more, alone, before uploading**
+- [x] **0.8.1**, folded into 0.9.0: languages and the server settings (0.8.1 above); version bumped (mod.info, `C.Version`), CHANGELOG, README, SERVERS.md and the Workshop description; every static test; the 33 new mutations caught. **Not run: the full mutation set** (the 0.8.0 run was stopped part way and left its wind mutation in `SEW_Wind.lua`, found and put back here: see DEV_GUIDE, *Current state*). Run `python tools/dev.py mutate` alone before uploading
+- [~] **0.8.0 update**: the labyrinth (0.8 above); version bumped (mod.info, `C.Version`), CHANGELOG, README and the Workshop description updated; `layout_diff` against 0.7.6 clean; every static test; RELEASE_MUTATIONS. The author has seen it in game (the trapdoor, the map); the 0.8 **(game)** lines are otherwise open
 - [~] **0.7.6 update**: the sounds off unless ticked, the map's key gone, no wind chill below (0.7.6 above); version bumped (mod.info, `C.Version`), CHANGELOG, README and the Workshop description updated; every static test and all 306 mutations (one run, alone); deployed as SewarsDev and staged for the uploader (`package --install`, 2026-10-09, compared file by file with the source). **Unplayed**: the three **(game)** lines above are open
 - [~] **0.7.5 update**: six fixes from the Workshop's comments (0.7.5 above); version bumped (mod.info, `C.Version`), CHANGELOG, README and the Workshop description updated, every static test run, all 292 mutations in one run on its own after the last change (2026-10-06), deployed as SewarsDev, staged with `package --install` and compared with the source file by file. The ROUS fight is played; the other 0.7.5 **(game)** lines are not, at the author's call. Upload from the game's Workshop screen
 - [~] **0.7.4 update**: the street and the sewer out of earshot both ways, a chase dropped at the cover; version bumped, description and sandbox tooltip updated, every static test and all 220 mutations (one run, alone), staged and compared with the source (2026-10-03); the author's play-test of the 0.7.4 **(game)** line, then upload

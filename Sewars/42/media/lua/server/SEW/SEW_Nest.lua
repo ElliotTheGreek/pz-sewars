@@ -452,7 +452,9 @@ end
 --- (found in play, twice).
 function N.lossOf(weapon)
     local ranged = U.try("swing.ranged", function() return weapon:isRanged() end) == true
-    return 1 / (ranged and C.Rous.shotHits or C.Rous.hits) + 0.001
+    local tough = C.Rous.tough[B.option("Rous", 2, #C.Rous.tough)]
+    local hits = math.max(1, math.floor((ranged and C.Rous.shotHits or C.Rous.hits) * tough + 0.5))
+    return 1 / hits + 0.001
 end
 
 --- A hit on a ROUS: ours to decide, whoever landed it. Health off, and it
@@ -666,6 +668,8 @@ function N.pry(player, which)
     end
     local st = B.state().lair
     if st.open[which] then return refuse(player, "open") end
+    -- The sandbox's Sewars.Nest, Sealed: the false wall is a wall.
+    if which == "wall" and B.option("Nest", 1, 2) == 2 then return refuse(player, "solid") end
     local L = lair()
     if which == "gate" and (not N.allSpawned() or #N.living(L.x, L.y, C.Rous.range) > 0) then
         return refuse(player, "rous")

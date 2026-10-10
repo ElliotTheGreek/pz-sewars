@@ -51,6 +51,22 @@ local B = SEW.Build
 local Mi = {}
 SEW.Mine = Mi
 
+-- The level being worked at. Everything below asks the records and the
+-- squares of this level: the sewers' own unless a dig, a blast or an
+-- admin's work (SEW_Works) is at a deeper one, for as long as it takes
+-- (Mi.with). One thing is done at a time: Lua is one thread.
+Mi.z = C.Z
+
+--- Runs fn at level z, and puts the level back whatever happens.
+function Mi.with(z, fn, ...)
+    local was = Mi.z
+    Mi.z = z or C.Z
+    local ok, a = pcall(fn, ...)
+    Mi.z = was
+    if not ok then error(a, 0) end
+    return a
+end
+
 local N4 = { { 0, -1 }, { -1, 0 }, { 1, 0 }, { 0, 1 } }
 local SOFT = { c = true, b = true, e = true }      -- walls that give
 local FLOOR, NORTH, WEST, FIX, DRESS = 3, 4, 5, 6, 7
@@ -69,7 +85,7 @@ end
 
 --- The floor code of x, y as the builder has it: "." where nothing is.
 function Mi.floor(x, y)
-    local r = B.recordAt(x, y)
+    local r = B.recordAt(x, y, Mi.z)
     return r and r:sub(FLOOR, FLOOR) or "."
 end
 
@@ -87,14 +103,14 @@ end
 
 function Mi.edgeCode(ax, ay, bx, by)
     local hx, hy, col = edge(ax, ay, bx, by)
-    local r = B.recordAt(hx, hy)
+    local r = B.recordAt(hx, hy, Mi.z)
     return r and r:sub(col, col) or "."
 end
 
 --- True when the wall on this edge has a ladder hanging on it.
 local function ladderOn(ax, ay, bx, by)
     local hx, hy, col = edge(ax, ay, bx, by)
-    local r = B.recordAt(hx, hy)
+    local r = B.recordAt(hx, hy, Mi.z)
     local fix = r and r:sub(FIX, FIX) or "."
     return (col == NORTH and fix == "L") or (col == WEST and fix == "l")
 end
@@ -102,22 +118,24 @@ end
 --- May the wall between two squares come down? The hoard is shut from every
 --- side until the nest's own wall into it has been opened.
 local function gives(ax, ay, bx, by)
-    if S.inLabyrinth(ax, ay) or S.inLabyrinth(bx, by) then return false end
+    -- The labyrinth is at the sewers' own level; under it is ordinary rock.
+    if Mi.z == C.Z and (S.inLabyrinth(ax, ay) or S.inLabyrinth(bx, by)) then return false end
     if not SOFT[Mi.edgeCode(ax, ay, bx, by)] or ladderOn(ax, ay, bx, by) then return false end
     if (Mi.floor(ax, ay) == "v" or Mi.floor(bx, by) == "v") and not B.gateOpen("gate") then return false end
     return true
 end
+Mi.gives = gives
 
 --- May the rock at x, y be dug out? "ok", or why not.
 function Mi.rock(x, y)
     if Mi.isSpace(x, y) then return "space" end
-    if S.inLabyrinth(x, y) then return "hard" end
+    if Mi.z == C.Z and S.inLabyrinth(x, y) then return "hard" end
     if not U.chunkLoaded(x, y) then return "unready" end
-    local sq = U.square(x, y, C.Z, true)
+    local sq = U.square(x, y, Mi.z, true)
     if not sq then return "unready" end
     if B.foreign(sq) then return "foreign" end
     -- A ladder hangs on a wall this square holds: the rock behind it stays.
-    local r = B.recordAt(x, y)
+    local r = B.recordAt(x, y, Mi.z)
     local fix = r and r:sub(FIX, FIX) or "."
     if fix == "L" or fix == "l" then return "solid" end
     return "ok"
@@ -131,7 +149,7 @@ local function at(plan, x, y)
     local k = x .. "," .. y
     local e = plan[k]
     if not e then
-        e = { x = x, y = y, rec = B.recordAt(x, y) or blank(x, y) }
+        e = { x = x, y = y, rec = B.recordAt(x, y, Mi.z) or blank(x, y) }
         plan[k] = e
         plan.order[#plan.order + 1] = e
     end
@@ -147,13 +165,16 @@ local function setEdge(plan, ax, ay, bx, by, ch)
 end
 
 --- Opens the rock squares in `dig` ({x, y} each), and takes down the walls
---- on `through` ({ax, ay, bx, by} each). Returns the plan.
-local function plan(dig, through)
+--- on `through` ({ax, ay, bx, by} each). Returns the plan. `style`: what it
+--- is made of -- { floor, wall } -- when not a digger's earth (an admin's
+--- tunnel is concrete or brick: SEW_Works).
+local function plan(dig, through, style)
     local p = { order = {} }
     local opened = {}
+    local floor, wall = style and style.floor or "m", style and style.wall or "e"
     for _, d in ipairs(dig) do
         local e = at(p, d[1], d[2])
-        e.rec = with(with(with(e.rec, FLOOR, "m"), FIX, "."), DRESS, ".")
+        e.rec = with(with(with(e.rec, FLOOR, floor), FIX, "."), DRESS, ".")
         e.opened = true
         opened[d[1] .. "," .. d[2]] = true
     end
@@ -166,25 +187,34 @@ local function plan(dig, through)
             if opened[nx .. "," .. ny] then
                 setEdge(p, d[1], d[2], nx, ny, ".")
             elseif not Mi.isSpace(nx, ny) then
-                setEdge(p, d[1], d[2], nx, ny, "e")
+                setEdge(p, d[1], d[2], nx, ny, wall)
             end
         end
     end
     for _, t in ipairs(through) do setEdge(p, t[1], t[2], t[3], t[4], ".") end
     return p
 end
+-- The planner is the one thing that knows how a record changes: an admin's
+-- works use it too (SEW_Works), so there is one way a wall is stood or taken.
+Mi.plan, Mi.planAt, Mi.planEdge = plan, at, setEdge
 
 --- Writes a plan into the records and builds it. Returns how many squares
 --- were opened.
 local function carry(p)
     local opened = 0
-    for _, e in ipairs(p.order) do B.setRecord(e.x, e.y, e.rec) end
+    local keys = {}
     for _, e in ipairs(p.order) do
-        local how = B.square(e.x, e.y, e.rec, false, false)
+        B.setRecord(e.x, e.y, e.rec, Mi.z)
+        keys[math.floor(e.x / 8) .. "," .. math.floor(e.y / 8)] = true
+    end
+    -- What is dug is on the map of whoever has walked there (SEW_Works.changed).
+    if SEW.Works then U.try("mine.map", SEW.Works.changed, Mi.z, keys) end
+    for _, e in ipairs(p.order) do
+        local how = B.square(e.x, e.y, e.rec, false, false, Mi.z)
         if how == "built" and e.opened then
             opened = opened + 1
             -- What came down: stones on the floor, and a few to pick up.
-            local sq = U.square(e.x, e.y, C.Z, false)
+            local sq = U.square(e.x, e.y, Mi.z, false)
             local roll = U.rng(U.hash(e.x, e.y, 53))
             if sq and roll(3) == 1 then B.put(sq, C.Sprites.stones[roll(#C.Sprites.stones)]) end
             if sq then
@@ -203,7 +233,7 @@ local function ready(squares)
     for _, q in ipairs(squares) do
         local key = math.floor(q[1] / 8) .. "," .. math.floor(q[2] / 8)
         if not U.chunkLoaded(q[1], q[2]) then return false end
-        if B.townOf(key) and not B.isCurrent(key) and not B.chunk(key) then return false end
+        if Mi.z == C.Z and B.townOf(key) and not B.isCurrent(key) and not B.chunk(key) then return false end
     end
     return true
 end
@@ -230,16 +260,23 @@ end
 --- A player digging from the square ax, ay towards dx, dy. Called from
 --- SEWMine:complete().
 function Mi.dig(player, ax, ay, dx, dy)
+    -- At the digger's own level: the sewers', or under it in an admin's works.
+    local z = S.levelOf(player)
+    if z ~= nil and z ~= C.Z then return Mi.with(z, Mi.digHere, player, ax, ay, dx, dy) end
+    return Mi.digHere(player, ax, ay, dx, dy)
+end
+
+function Mi.digHere(player, ax, ay, dx, dy)
     ax, ay = math.floor(tonumber(ax) or 0), math.floor(tonumber(ay) or 0)
     dx, dy = tonumber(dx) or 0, tonumber(dy) or 0
     if math.abs(dx) + math.abs(dy) ~= 1 then return refuse(player, "mode") end
     if Mi.level() < 2 then return refuse(player, "off") end
-    if not S.below(player) then return refuse(player, "level") end
+    if S.levelOf(player) ~= Mi.z then return refuse(player, "level") end
     if not S.within(player, ax, ay, C.Reach) then return refuse(player, "reach") end
     if not Mi.tool(player) then return refuse(player, "tool") end
     local bx, by = ax + dx, ay + dy
     if not ready({ { ax, ay }, { bx, by }, { bx + 1, by }, { bx, by + 1 } }) then return refuse(player, "unready") end
-    local here = U.square(ax, ay, C.Z, false)
+    local here = U.square(ax, ay, Mi.z, false)
     if not here or not U.floorOf(here) then return refuse(player, "level") end
 
     local p, what
@@ -258,7 +295,7 @@ function Mi.dig(player, ax, ay, dx, dy)
         p, what = plan({ { bx, by } }, { { ax, ay, bx, by } }), "dig"
     end
     carry(p)
-    U.try("mine.noise", function() addSound(player, ax, ay, C.Z, C.Mine.noise[1], C.Mine.noise[2]) end)
+    U.try("mine.noise", function() addSound(player, ax, ay, Mi.z, C.Mine.noise[1], C.Mine.noise[2]) end)
     U.try("mine.xp", function() addXp(player, Perks.Masonry, C.Mine.xp) end)
     U.log("%s %s at %d,%d", nameOf(player), what == "dig" and "dug out" or "broke through to", bx, by)
     Net.toClient(player, "mined", { what = what })
@@ -271,7 +308,12 @@ end
 --- A bomb has gone off at x, y below ground: every square of rock within
 --- C.Mine.blast of it is opened, and our walls inside that round come down.
 --- Returns how many squares of rock were opened.
-function Mi.blast(x, y)
+function Mi.blast(x, y, z)
+    if z ~= nil and z ~= C.Z then return Mi.with(z, Mi.blastHere, x, y) end
+    return Mi.blastHere(x, y)
+end
+
+function Mi.blastHere(x, y)
     x, y = math.floor(x), math.floor(y)
     if Mi.level() < 3 then return 0 end
     local r = C.Mine.blast
@@ -308,7 +350,7 @@ function Mi.blast(x, y)
     local opened = carry(plan(dig, through))
     U.log("a blast at %d,%d: %d squares of rock opened, %d walls down", x, y, opened, #through)
     for _, p in ipairs(U.players()) do
-        if S.below(p) and U.dist(p:getX(), p:getY(), x, y) <= 30 then Net.toClient(p, "mined", { what = "blast" }) end
+        if S.levelOf(p) == Mi.z and U.dist(p:getX(), p:getY(), x, y) <= 30 then Net.toClient(p, "mined", { what = "blast" }) end
     end
     return opened
 end
@@ -327,8 +369,10 @@ function Mi.onExplode(trap, square)
     if range <= 0 then return false end
     local sq = square or U.try("trap.square", function() return trap:getSquare() end)
     local z = sq and U.try("trap.z", function() return sq:getZ() end)
-    if z ~= C.Z then return false end
-    Mi.pending[#Mi.pending + 1] = { x = sq:getX(), y = sq:getY(), at = ticks + C.Mine.blastDelay }
+    -- The sewers' own level; or under it, on a square of ours and nowhere
+    -- else (the map's bunkers are down there too).
+    if z ~= C.Z and not (S.isLevel(z) and S.ours(sq)) then return false end
+    Mi.pending[#Mi.pending + 1] = { x = sq:getX(), y = sq:getY(), z = z, at = ticks + C.Mine.blastDelay }
     return true
 end
 
@@ -338,7 +382,7 @@ Events.OnTick.Add(function()
     if #Mi.pending == 0 then return end
     local later = {}
     for _, b in ipairs(Mi.pending) do
-        if ticks >= b.at then U.try("mine.blast", Mi.blast, b.x, b.y) else later[#later + 1] = b end
+        if ticks >= b.at then U.try("mine.blast", Mi.blast, b.x, b.y, b.z) else later[#later + 1] = b end
     end
     Mi.pending = later
 end)

@@ -9,7 +9,7 @@ SEW = SEW or {}
 SEW.Config = SEW.Config or {}
 local C = SEW.Config
 
-C.Version = "0.7.6"
+C.Version = "0.9.0"
 C.ModPrefix = "[SEW]"
 C.Debug = false
 
@@ -26,6 +26,9 @@ C.BuildRev = 6   -- 2: the sludge swapped for our floor-level tile; 3: caves;
 -- (bci 400-428) draws nothing above ceil(z) + 1 for a camera player below zero,
 -- so from down here the town above is simply not drawn (DESIGN.md 3).
 C.Z = -1
+-- The levels there can be sewer at: the sewers' own, and two more under it
+-- that only an admin's works reach (0.9; SEW_Works, DESIGN.md 7i).
+C.Levels = { -1, -2, -3 }
 
 -- The way in: the round cast-iron cover vanilla paints on its streets. Checked
 -- by eye on design/art/vanilla_street_tiles.png and counted on the real map by
@@ -38,6 +41,9 @@ C.ManholeSprite = "street_decoration_01_15"
 C.Reach = 1.6
 -- How far from the square that was clicked the menu looks for a cover or a shaft.
 C.ClickSlack = 1
+-- How near a ladder's square (or its shaft's) somebody must stand for the
+-- game's Interact key to be the climb out (SEW_Client.interact).
+C.LadderKeyReach = 0.9
 
 -- Timed actions, in ticks.
 C.LiftTicks = 110          -- prising the cover up and climbing down
@@ -55,6 +61,9 @@ C.LiftTools = { "Base.Crowbar", "Base.PipeWrench" }
 -- it and never touches anything that does not -- which, down here, is the
 -- player's (pz_trekship BUILDING.md).
 C.Tag = "sew"
+-- And on what was set down from an admin's room template: ours, and never
+-- taken by a revision for a wall of the builder's own (SEW_Build.unwall).
+C.TemplateTag = "sewt"
 
 -- Server mod data: which chunks are built at which revision. Never
 -- transmitted: it is a list that grows with every chunk anybody walks into
@@ -345,12 +354,63 @@ C.Loot.labyrinthRest = { "Base.WaterBottle", "Base.WaterBottle", "Base.TinnedSou
                          "Base.TinOpener", "Base.HandTorch", "Base.Battery", "Base.Bandage", "Base.Disinfectant",
                          "Base.Sheet", "Base.Pillow", "Base.Lighter" }
 C.Labyrinth = { cache = { 2, 3 }, light = { 0.90, 0.56, 0.24, 4 }, lightRange = 24 }
+-- Where a host may put it (sandbox Sewars.MazeX, MazeY; SEW_Place): no
+-- nearer than this many squares to any town's sheet of the map.
+C.Place = { clear = 24 }
 
 -- How many picks a crate or shelf is stocked with (U.fill), fewest and most,
 -- by the sandbox's Sewars.Loot (None / Scarce / Normal / Plenty); never past
 -- this share of its capacity by weight. Journals and plans go in whatever
 -- this is (SEW_Build.furnish).
 C.LootCount = { { 0, 0 }, { 1, 2 }, { 2, 4 }, { 4, 7 } }
+
+-- What an admin's room template is stocked with, by the kind it was kept as
+-- (SEW_Works.capture): each container a few picks, by the sandbox's supplies.
+C.Loot.template_medical = { "Base.Bandage", "Base.Bandage", "Base.AlcoholWipes", "Base.Antibiotics", "Base.Pills",
+                            "Base.PillsBeta", "Base.PillsAntiDep", "Base.Disinfectant", "Base.SutureNeedle",
+                            "Base.Tweezers", "Base.FirstAidKit", "Base.Splint", "Base.AlcoholBandage",
+                            "Base.CottonBalls", "Base.PillsVitamins", "Base.Scalpel" }
+C.Loot.template_military = { "Base.AssaultRifle", "Base.AssaultRifle2", "Base.556Box", "Base.556Box", "Base.556Clip",
+                             "Base.Hat_Army", "Base.Vest_BulletArmy", "Base.Bag_ALICEpack_Army", "Base.Canteen",
+                             "Base.x2Scope", "Base.Shoes_ArmyBoots", "Base.Hat_BeretArmy", "Base.CanteenMilitary" }
+C.Loot.template_gunstore = { "Base.Pistol", "Base.Pistol2", "Base.Pistol3", "Base.Revolver", "Base.Shotgun",
+                             "Base.HuntingRifle", "Base.Bullets9mmBox", "Base.Bullets45Box", "Base.Bullets38Box",
+                             "Base.ShotgunShellsBox", "Base.308Box", "Base.9mmClip", "Base.45Clip", "Base.Bullets44Box" }
+C.Loot.template_police = { "Base.Nightstick", "Base.Vest_BulletPolice", "Base.Hat_Police", "Base.WalkieTalkie4",
+                           "Base.Pistol", "Base.HandTorch", "Base.Bullets9mmBox", "Base.Shirt_PoliceBlue",
+                           "Base.WalkieTalkie3", "Base.HolsterSimple", "Base.9mmClip" }
+C.Loot.template_survival = { "Base.HandTorch", "Base.Battery", "Base.Battery", "Base.Lighter", "Base.Matches",
+                             "Base.Candle", "Base.Tarp", "Base.WaterBottle", "Base.Rope", "Base.Bag_Schoolbag",
+                             "Base.HuntingKnife", "Base.FishingRod", "Base.Bag_NormalHikingBag", "Base.P38",
+                             "Base.Twine", "Base.Whetstone" }
+C.Loot.template_food = { "Base.TinnedBeans", "Base.CannedChili", "Base.CannedCorn", "Base.TinnedSoup",
+                         "Base.CannedCarrots2", "Base.CannedTomato2", "Base.TunaTin", "Base.Rice", "Base.Pasta",
+                         "Base.WaterBottle", "Base.Crisps", "Base.PeanutButter", "Base.CannedPeas",
+                         "Base.CannedPotato2", "Base.CannedSardines", "Base.Cereal" }
+C.Loot.template_tools = { "Base.Hammer", "Base.Screwdriver", "Base.Saw", "Base.Wrench", "Base.Crowbar", "Base.NailsBox",
+                          "Base.Toolbox", "Base.DuctTape", "Base.Woodglue", "Base.Axe", "Base.Sledgehammer",
+                          "Base.HandAxe", "Base.Shovel", "Base.BlowTorch", "Base.PipeWrench", "Base.GardenSaw",
+                          "Base.ScrewsBox", "Base.ClubHammer" }
+C.Loot.template_mechanics = { "Base.Jack", "Base.LugWrench", "Base.TirePump", "Base.Wrench", "Base.CarBattery1",
+                              "Base.PetrolCan", "Base.Screwdriver", "Base.TireIron", "Base.EngineParts",
+                              "Base.CarBatteryCharger" }
+C.Loot.template_electronics = { "Base.ElectronicsScrap", "Base.ElectronicsScrap", "Base.ElectricWire", "Base.Battery",
+                                "Base.RadioReceiver", "Base.Amplifier", "Base.LightBulb", "Base.Screwdriver",
+                                "Base.TriggerCrafted", "Base.Speaker", "Base.Receiver", "Base.RemoteCraftedV1",
+                                "Base.HamRadio1", "Base.WalkieTalkie2", "Base.Aluminum", "Base.MotionSensor",
+                                "Base.TimerCrafted" }
+C.Loot.template_laboratory = { "Base.Hat_SurgicalMask", "Base.Gloves_Surgical", "Base.Scalpel", "Base.Tweezers",
+                               "Base.Disinfectant", "Base.Hat_GasMask", "Base.GasmaskFilter", "Base.HazmatSuit",
+                               "Base.Paperwork", "Base.Clipboard", "Base.JacketLong_Doctor", "Base.Notebook",
+                               "Base.Pen" }
+
+-- An admin's works (SEW_Works). The longest run a tunnel may be drawn in one
+-- go and the biggest box a room template or an indoor mark may be, in
+-- squares; how many chunks of the map go in one message to a client; how
+-- far round the admin *Rebuild* looks, in chunks; the longest passage dug
+-- from a new way down to the nearest tunnel, by the sandbox's Sewars.Passage;
+-- the most squares one indoor mark may hold.
+C.Works = { maxRun = 200, maxRoom = 16, batch = 40, rebuild = 2, passage = { 20, 40, 80 }, maxIndoor = 600 }
 C.FillFraction = 0.45
 
 -- Light down here, for addLamppost: r, g, b, radius. The engine lights a
@@ -465,6 +525,11 @@ C.RatBreeds = { "grey", "grey", "grey", "grey", "white" }
 -- Rodents of unusual size (0.5), in the nest under Louisville only: an animal
 -- of our own, `rous`, on vanilla's rat (SEW_Rats.lua). The engine cannot make
 -- a rat bite, so the chase and the bite are the server's (SEW_Nest.hunt).
+-- The share of a set piece's dead that is put down, by the sandbox's
+-- Sewars.CultDead (the temple's) and Sewars.MazeDead (the labyrinth's):
+-- None / A few / Half / All.
+C.SetDead = { 0, 0.25, 0.5, 1 }
+
 C.Rous = {
     type = "rous", breed = "grey",
     size = 2.8,                 -- vanilla's rat is 0.7..1.0
@@ -482,6 +547,10 @@ C.Rous = {
     windup = 90,                -- ticks from reaching a player to its first bite: time to strike first
     hits = 3,                   -- weapon hits that kill one, whatever the weapon and however tired the arm
     shotHits = 2,               -- bullets that do
+    -- Both, times this, by the sandbox's Sewars.Rous (Weak / Normal / Tough /
+    -- Monstrous) and rounded: 2 and 1, 3 and 2, 6 and 4, 12 and 8. Normal is
+    -- the fight as the author left it (0.7.5: "balanced well, keep it as is").
+    tough = { 0.67, 1, 2, 4 },
     stagger = 60,               -- ticks a hit stops one where it stands, biting nothing
     shove = 150,                -- ticks a shove or a stomp does, and
     shovePush = 1.0,            --   squares it is thrown back

@@ -3,7 +3,10 @@
 Orientation for anyone -- human or agent -- picking this up in a new session.
 
 `README.md` says what the mod does. `DESIGN.md` says how the sewers work and
-why. `CHANGELOG.md` says what changed in each release, for players. **This
+why. `CHANGELOG.md` says what changed in each release, for players.
+`SERVERS.md` is a host's guide: every sandbox setting, the admin's menu,
+the languages -- **when a setting is added or changes what it does, it
+changes with it.** **This
 file says how to build, test and update it without breaking it.**
 
 This mod is a descendant of the Star Trek shuttle in
@@ -62,7 +65,10 @@ media/lua/server/SEW/SEW_Nest.lua          rats on first build, the leash, the R
 media/lua/server/SEW/SEW_Gas.lua           sewer gas: the haze and placards, who is in it, the dose, the mask
 media/lua/server/SEW/SEW_Keys.lua          the county's maintenance keys: in its rooms, on its dead, the grilles' latch
 media/lua/server/SEW/SEW_Mine.lua          digging and blasting: the records a pick or a bomb changes, and the refusals
-media/lua/server/SEW/SEW_Rooms.lua         a server only: no square of ours keeps a room (the softlock)
+media/lua/server/SEW/SEW_Rooms.lua         a server only: no square of ours keeps a room (the softlock) -- but one an admin marked
+media/lua/server/SEW/SEW_Works.lua         an admin's works: ways down, shafts, tunnels, rooms, marks, rebuild, check (0.9)
+media/lua/shared/SEW/SEW_Indoors.lua       marked ground declared to the engine as a real room: once, never removed, not user-defined
+media/lua/client/SEW/SEW_Admin.lua         the admin's menu, and what the server says back
 media/lua/server/SEW/SEW_Fire.lua          fire does not cross the street's floor: one that came through it is put out
 media/lua/server/SEW/SEW_Maps.lua          annotated maps to the temple and the nest: made, and handed out four ways
 media/lua/shared/StashDescriptions/SewarsStashDesc.lua   what is drawn on them (vanilla's stash descriptions, no building)
@@ -80,11 +86,13 @@ media/lua/client/SEW/SEW_Map.lua           the sewer map: panel, fog, markers (n
 media/lua/client/SEW/SEW_Street.lua        the street and the sewer do not hear each other: a zombie going to, or after, a player across the street's floor is stopped
 media/lua/client/SEW/SEW_Weather.lua       no snow below: the outdoors flag off the squares of ours round the player (not a door's)
 media/lua/client/SEW/SEW_StoryUI.lua       the Read menu on plans and journals, and the journal's page
-media/lua/shared/Translate/EN/*.json       ContextMenu, Tooltip, IG_UI, Sandbox, ItemName -- one file per category
+media/lua/shared/Translate/EN/*.json       ContextMenu, Tooltip, IG_UI, Sandbox, ItemName, Stash -- one file per category
+media/lua/shared/Translate/<LANG>/*.json   the same six, in each of the game's 26 other languages (0.8.1)
 media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 72 tiles
 media/scripts/sewars_items.txt             our items: the sewer plan, the journal, the maintenance key
 media/scripts/sewars_sounds.txt, sound/SEW_*.wav   the sounds (wavs generated)
-media/sandbox-options.txt                  zombie density, their outfits, shelter supplies, rats, sewer gas, digging, the street's hearing, EXIT stencils
+media/sandbox-options.txt                  zombie density, their outfits, shelter supplies, rats, sewer gas, digging, the street's hearing, EXIT stencils;
+                                           and a server's (0.8.1): ways down open or closed, houses' trapdoors, outfalls, the nest, the rodents, the temple's dead, the labyrinth and its dead
 
 tools/dev.py              THE ENTRY POINT: build, check, mutate, deploy, run, log, package
 tools/gen_sewers.py       the map -> the tunnels (Data/ and SEW_Index.lua), and plans in design/art/plans/
@@ -111,6 +119,7 @@ tests/sim.lua             the simulated engine and network, as unkind as the rea
 tests/test_flow.py        the whole loop: single player, then a server and a client
 tests/test_layout.py      every generated town read back and walked from its ladders
 tests/test_assets.py      every sprite, item, outfit, sound and text key against the game
+tests/test_translations.py   every language against the English: keys, placeholders, a journal's line breaks
 tests/mutate.py           breaks each guard on purpose; every one must be caught
 
 design/art/               raws (cult/: the image model's, for the temple), review sheets, renders, plans,
@@ -209,6 +218,25 @@ Look it up first -- `python tools/pzcatalog.py sprites name location_sewer` or
 `python tools/pzcatalog.py items Crowbar` -- because a wrong name fails
 silently. `test_assets.py` then keeps it honest (sprites, items, obsolete
 items, outfits in both lists, sounds declared both ways, text keys both ways).
+
+### Adding or changing a text
+
+English first, in `Translate/EN/<category>.json`. Then every other
+language: `python tests/test_translations.py` fails until each of the 26
+has the key (the dev build's own, `ContextMenu_SEW_Dev*` and
+`IGUI_SEW_Dev*`, are English only and must *not* be translated).
+`python tests/test_translations.py --source` prints what a translator is
+given. A changed English line is not caught by the test: change the others
+in the same commit, or they go on saying the old thing.
+
+### Adding a sandbox setting
+
+`media/sandbox-options.txt`, its words in `Sandbox.json` (every language),
+read through `B.option` on the server or `S.option` where a client needs it
+too -- always with the default a save from before the setting must get, and
+a test that unsets it. **Then `SERVERS.md`**: its table row, its default,
+and when it takes effect. Read *A setting may decide what is put in* below
+before choosing what it switches.
 
 ### Releasing to the Workshop
 
@@ -440,6 +468,12 @@ mutations were missed at first:
 
 `python tools/dev.py mutate`: sixteen mutations, each asserted to have
 changed the file, all caught.
+
+**And again in 0.8.1, and left to stand.** Only the dev build or `-debug`
+is an admin in single player, and the test turns each on by turns. So
+`SEW.Dev == true` alone is covered by the debug check, and the debug check
+by the dev one: neither has a mutation of its own (the pair has: *no roles
+in single player*).
 
 ### Kahlua is not Lua 5.4, and the simulation has to say so
 
@@ -1514,6 +1548,227 @@ blockhouse is the first thing the mod stands up at street level (brick
 walls and a door frame, `SEW_Build.blockhouse`). Everything known about how
 our walls draw, cut away and block was learned at z -1.
 
+### A setting may decide what is put in, never what a record means
+
+**New in this mod (0.8.1, the server settings).** Asked for switches on the
+caves and the temple, the obvious way was to read their breaches as walls
+while the setting was off. A breach is hull, in a town's records, and
+*a revision puts back floors, walls, ladders and door frames that are
+missing* -- and takes away our wall pieces the record no longer asks for
+(`B.unwall`). So a record whose meaning turns on a setting is a wall that
+appears across a cave players live in the day a host changes their mind and
+the layout's revision next moves; and `SEW_Mine` reads the same records to
+decide what gives. Every one of 0.8.1's settings acts instead at a point
+where the server *decides to put something down or to let something be
+done*, and nowhere else:
+
+```
+Hatches, Outfalls, Labyrinth   B.hatch / B.cover return nil: the thing is not put in, and
+                               NOT written down, so Yes later puts it in
+Nest                           N.pry refuses "wall"; the client does not offer it
+Rous                           N.lossOf: the count of blows, times C.Rous.tough
+CultDead, MazeDead             B.keepDead, where a chunk's first build puts a set piece's dead down
+Access                         Server.grant, mode "down" only
+```
+
+The temple and the caves have no switch, and SERVERS.md says why. What
+generalises: **before a setting changes what the builder builds, ask what
+the next revision pass does to a world built with the setting the other
+way.**
+
+### An admin is a role with a tool, asked of the server's copy
+
+**New in this mod (0.8.1; the bytecode, not yet a server).**
+
+```
+GlobalObject.isAdmin()       GameClient.client and connection.getRole() == Roles.getDefaultForAdmin():
+                             the ONE default admin role, on a client only. A moderator is not; a
+                             server asking it gets false
+IsoPlayer.getRole()          the field; public; vanilla Lua calls it on its own player outside any
+                             admin panel (ISChat, ISEquippedItem)
+Role.hasAdminTool()          hasAdminPower() or any of the tools' capabilities: what vanilla shows
+                             its admin button by (ISEquippedItem:147: chr:getRole():hasAdminTool())
+```
+
+So `S.isAdmin(player)` is `player:getRole():hasAdminTool()` on a client
+(for the menu) and on a server (for the decision: `Server.setAccess`,
+`Server.grant`), and never the global. In single player there are no roles
+and it is not asked: the dev build or `-debug` (`tests/sim.lua` throws if
+`getRole` is called in single player). **Unproven on a server**: that the
+server's copy of a player has its role by the time a command arrives
+(`ISEquippedItem` reads it on a client). If an admin is refused with
+`admin` in the server's log, that is where to look.
+
+### A language falls back key by key, so leave out what nobody reads
+
+**New in this mod (0.8.1; the bytecode).** `Translator.forLanguageStack`
+walks the player's language, then its `base` from `language.json` (while
+it has one), then the default (EN), and each file read fills only keys not
+yet filled. So a language folder need not be complete: the dev build's
+sixty lines are in EN alone. Two things it does not do:
+
+- **AR, ES_CL and ES_MX have no `base`** in the game's own
+  `language.json`: an Argentinian with no AR folder reads English, not
+  ES. The three hold the same Latin American text, copied.
+- **It does not know a text changed.** A key present in a language wins,
+  however stale. `test_translations.py` holds the keys, the placeholders
+  and a journal's line breaks; it cannot hold the meaning.
+
+And what a translation cannot reach is whatever the Lua wrote in English
+before `getText` saw it: a journal's `%2` was the generator's
+`"north-east"`, pasted into every language's sentence. It is looked up now
+(`IGUI_SEW_Dir_*`). Street names are the map's and stay. **The server's
+language names two things for everybody**: the maintenance key
+(`SEW_Keys.make`) and the rodents (`N.spawnRous`), both `getText` on the
+server. Known and left.
+
+### A work is a plan, and the planner is the pick's
+
+**New in this mod (0.9, an admin's works).** Eight tools were asked for and
+the first design of each built something: a passage's floors, a room's
+walls. *Digging changes the records, not the objects* already says why
+not, and the same answer covered all eight: `SEW_Mine.plan` (what is
+opened, the walls stood where rock is exposed, the walls taken down), the
+players' own records, `B.square`. `SEW_Works` adds no way of making a
+tunnel; it adds ways of choosing squares. What had to change for it:
+
+```
+Mi.z, Mi.with(z, fn)         the level being worked at: every helper in SEW_Mine reads it
+plan(dig, through, style)    { floor, wall }: a digger's earth, a culvert's concrete, a trunk's brick
+B.recordAt / setRecord / square / furnish / spawn (..., z)
+                             a level, last and optional: nil is the sewers' own, and no old call changed
+s.deep["-2"], s.deep["-3"]   records under the sewers' own level, as s.dug is at it (B.dugOf)
+s.unbuilt["z:chunk"]         written where the ground was not loaded: B.square(..., anew) looks for
+                             somebody else's underground on its first build, as a generator's square does
+s.shafts                     an admin's ways down; S.custom IS this table on a server and in single player
+                             (B.state links it each call), and a copy of it on a client
+```
+
+Three things it cost, each with a test now:
+
+- **Lua 5.4 writes `10741.0` where Kahlua writes `10741`.** A run's half
+  width was `(width - 1) / 2`, a float in the tests' Lua, and every record
+  of the run was kept under `"10741.0,10320.0"`: written, and never found
+  again. Kahlua has one number type and would not have shown it; the tests
+  did, by failing everything after. `math.floor` what becomes a key.
+- **`U.try(label, fn, a, nil, c)` loses `c`.** It passes its arguments on
+  through a table, and a nil in the middle ends the list. The admin's menu
+  was handed no shaft on any street. Never a nil before the last argument.
+- **A wall is on the southern or eastern square of its edge** (the old
+  rule), so a copied room's door on its south or east side is held by a
+  square that was there already, which gets no first build and so no door.
+  `Works.shelter` hangs those itself (`B.putDoor`).
+
+### A room is declared once, never removed, and not user-defined
+
+**New in this mod (0.9; the bytecode, by an agent set to read it and
+nothing else -- its evidence is in the session's research notes, class by
+class; not yet the game).** *A square of ours keeps no room on a server*
+ended with the cause unknown. It is still not known which mod or which
+path blanked that server's room, but every way the engine itself can is
+now read, and they are three:
+
+```
+IsoGridSquare.getIsoWorldRegion 0-8      z < 0: null. No regions below the street, on any side: a player's
+                                         own walled, roofed room is never a "player room" down there
+IsoCell.checkHaveRoof                    z 31 down to 0: nothing below is ever roofed
+  -> below level 0, isInARoom is true for a real IsoRoom and for nothing else
+
+zombie.buildingRooms.BuildingRoomsEditor   exposed (Exposer.exposeAll 6763); its only vanilla Lua is a tool
+  createBuilding / createRoom(z) / addRectangle    nothing reaches (server/BuildingRooms/..._ToolAddRect.lua:21-23)
+  BRERoom.<init>                         RoomDef.explored = true, doneSpawn = true: inert by design
+  applyChanges(loading)                  adds the defs to the lot headers and the meta grid; when not loading,
+                                         re-reads loaded squares -- of a chunk map with a player in it, so
+                                         never on a server -- and empties its list. When loading: neither
+  not saved, not sent                    every process declares its own, at every start
+
+How a room is blanked (IsoRoom.clear: building = nil), and nothing else calls it:
+  1. applyChanges 179-246                a building already at that first rectangle is REPLACED: the old one
+                                         cleared. On a server the squares are not re-read: they keep it.
+                                         That is getRoom().building == null, exactly
+  2. WorldRegionToMetaGrid.removeUserDefinedBuildingsFromCell 98-148
+                                         single player and a client, whenever anybody builds in that 256x256
+                                         cell: every BuildingDef.isUserDefined() goes, whoever made it
+  3. BuildingRoomsEditor.init / load     never called by us
+```
+
+So `SEW_Indoors.declare`: only where `getRoomAt` has nothing, and once a
+process (two guards that would cover each other; the test asks each alone,
+with the other out of the way); `setUserDefined(false)` in the same call on
+anything that is not a server; nothing is ever removed -- a mark taken away
+is gone at the next start. **A server declares at `OnLoadMapZones`** (after
+the saved state is read, before the meta grid and any chunk), with
+`applyChanges(true)` and each building taken out of the editor's list
+after, or the next `applyChanges` would declare it twice. A mark made while
+a server runs waits for the restart: `applyChanges(false)` rewrites the
+cell's tables on the main thread while a loader thread may read them, and
+vanilla never does that on a server. `SEW_Rooms` leaves a marked square's
+room alone while it has a building, and takes off one that has none
+whoever's square it is on.
+
+`tests/sim.lua` has the editor with all three traps in it
+(`SIM.regionPass`, a replaced building, the list left full), which is what
+the mutations break against. **Unplayed, all of it**, and the first thing
+to look at on a server after a restart with a mark is its log:
+`[SEW] indoors: mark ... declared`, and no WARN.
+
+What generalises: **when the engine has a mechanism and it once bit, read
+every caller of the thing that bit** (`IsoRoom.clear` has two), and build
+the three rules into the simulation before the code.
+
+### A level under the sewers is somebody's bunker until a record says otherwise
+
+**New in this mod (0.9).** *Below ground is not all ours* made the sewer
+one level. Two more are an admin's now, and the rule that keeps a bunker
+out is the same one, one level down: `S.below` is still the sewers' own
+level and nothing else, and `S.levelOf` answers a deeper level only for a
+player on a square of ours. The server, which builds the floor that makes
+a square ours, asks its records instead (`Server.under`: something of that
+level in or beside the player's chunk). From the bytecode, for levels -2
+and -3:
+
+```
+IsoChunk.setSquare 64-94          min and max level widen for any level; nothing treats -1 specially
+FBORenderCell.renderInternal      below 0 the top level drawn is the camera's own
+IsoChunkMap.minHeight             worked out when a chunk is swapped in, at init, in SpawnBasement --
+  calculateZExtentsForChunkMap    NOT when a square is made. A new lowest level in loaded chunks may not
+                                  draw until then: the client calls it on arriving below the sewers
+                                  (Client.lowest; public, exposed, no vanilla Lua call site)
+IsoGameCharacter.getHeightAboveFloor 178-210
+                                  a floorless square holds a character only at the chunk's own lowest
+                                  level; with a level under it in that chunk, they fall towards it
+```
+
+Not done: the street's hearing fix (`SEW_Street`) is the street and the
+sewers' own level; between the levels below, a level is still three
+squares of distance to a zombie's ears, as the engine has it.
+
+**New in this mod (0.9): where the labyrinth is, is asked, never kept.**
+A host may move it (`SEW_Place`; sandbox `MazeX`, `MazeY`), and it is
+moved by changing the generated tables in place, once, at
+`OnInitGlobalModData` -- after the sandbox is loaded and before
+`StashSystem.init` reads `StashDescriptions`, before `OnLoadMapZones` and
+before a chunk is loaded (`IsoWorld.init`, in that order). So:
+
+- **Read `SEW.Index.labyrinth`, a shaft or a town's bounds when the answer
+  is wanted.** A number copied out of the index while a file loads is the
+  mod's own place for ever. A cache made from the index says so to
+  `SEW.Place.onMove` (the builder's chunk tables, the rooms' index, the
+  list of covers, the map's fog).
+- **It moves by whole chunks.** The records are kept by chunk with each
+  square's place in its chunk in the record; eight squares at a time,
+  nothing inside a record changes.
+- **Whatever the generator gives the labyrinth, `SEW_Place.move` has to
+  know.** Today: its town, its rooms, its two shafts, `Index.labyrinth`,
+  and every table of its data. `place_test` fails if a journal, a plan, a
+  cave, a stretch of gas or a gate is ever the labyrinth's.
+- **A client's sandbox is not the last word.** It moves by its own at its
+  start, then by the server's `place` message, which comes first of what
+  the server says at a client's start.
+- **Lua 5.4 is not Kahlua here either**: `mx / 8` is a float in the tests,
+  and a chunk key made of it would be `"1215.0,1228.0"`. Floor what
+  becomes a key.
+
 ### One mutation run at a time, and nothing staged while one runs
 
 **Done wrong releasing 0.7.3.** `tests/mutate.py` edits the source in place
@@ -1625,8 +1880,9 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 | `tools/luacheck.py` | Lua syntax, generated data included |
 | `tests/test_assets.py` (183 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
 | `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (513 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled; and 0.7.5's: a loot event with no container, fire through the street's floor put out both ways and a fire of the tunnel's own left to burn, the outdoors flag off the sewer's squares and kept on a door's, a swing and a shot at a ROUS judged by the server (reach, facing, walls, the engine's own hit), a climb with no walk, asked again by command, made anyway when out and unanswered, refused with where the server had the player, EXIT stencils by the sandbox; and 0.7.6's: the sounds unticked and quiet, ticked and rare, no key for the map, the wind's chill below as the engine has it and then as we leave it (one square, following, in step with the air, none in a car, a room, a cellar or on a warm day, none left behind); no WARN, no unknown sprite or text key |
-| `tests/mutate.py` (`dev.py mutate`) | 317 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so, `labyrinth` the 13 of 0.8; `0.7.5` the 72 before, `0.7.6` the 17 newest) |
+| `tests/test_flow.py` (513 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled; and 0.7.5's: a loot event with no container, fire through the street's floor put out both ways and a fire of the tunnel's own left to burn, the outdoors flag off the sewer's squares and kept on a door's, a swing and a shot at a ROUS judged by the server (reach, facing, walls, the engine's own hit), a climb with no walk, asked again by command, made anyway when out and unanswered, refused with where the server had the player, EXIT stencils by the sandbox; and 0.7.6's: the sounds unticked and quiet, ticked and rare, no key for the map, the wind's chill below as the engine has it and then as we leave it (one square, following, in step with the air, none in a car, a room, a cellar or on a warm day, none left behind); and 0.8.1's: a way down closed by the sandbox or by an admin (greyed, refused by the server, never the way up, an admin down it anyway, only what differs kept, the labyrinth's way out nobody's), a client that only says it is an admin, a client told at its start and when one changes, the dev build as a player, the seven settings each on and off and unset, a journal's direction looked up; and 0.9's: a way down's four ways, an admin's way down with its passage and taken away again, a shaft and the climb between levels, the pick at the level it is swung at, a tunnel drawn on the map (straight, three widths, joined and apart, through somebody's cellar, where nothing is loaded), a copied shelter with its door, stock and dead, a template kept, set down and forgotten, ground marked as indoors and the engine's three ways of blanking a room, a server's restart with a mark saved, the rebuild, the check, the map's levels and an admin's whole map; no WARN, no unknown sprite or text key |
+| `tests/test_translations.py` | each of the 26 other languages against the English: the folder one of the game's, only EN's files and keys, every key a player sees and none of the dev build's, nothing empty, EN's placeholders, no literal percent, a journal's line breaks |
+| `tests/mutate.py` (`dev.py mutate`) | 416 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so, `labyrinth` the 13 of 0.8; `0.7.5` the 72 before, `0.7.6` the 17 after, `0.8.1` 33, `0.9` the 68 newest; `moved` the 43 re-pointed in `MOVED` when 0.9 moved the lines they break) |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -1665,7 +1921,8 @@ test's walk back. A new character gets the kit and stays where the game put
 it; the four places it was ever started at are stops -- *Go to the temple's
 trapdoor*, *Go to the outfall*, *Go to the cover over a cave*, *Go to the
 hatch by the rats' nest* -- with the others. 0.8 added three for the
-labyrinth (its trapdoor, its heart, its way out). Since 0.7.5 there are also three for the weather and the
+labyrinth (its trapdoor, its heart, its way out), and 0.8.1 *Be a player, not an
+admin* (the dev build is single player's admin; again: admin). Since 0.7.5 there are also three for the weather and the
 fight: *Give me a pistol and bullets*, *Light the street here* (a few
 squares of street over the tunnel, by vanilla's own `IsoFireManager.StartFire`)
 and *Make it snow* (holds `IsoCell.setSnowTarget(100)` until chosen again;
@@ -1717,9 +1974,153 @@ gets verified.
 
 ## Current state
 
-Version **0.7.6**, build revision **6**, layout from `tools/gen_sewers.py`.
+Version **0.9.0**, build revision **6**, layout from `tools/gen_sewers.py`.
+
+**0.9.0: an admin's works (DESIGN.md 7i, ROADMAP 0.9, SERVERS.md), on top
+of 0.8.1's languages and settings: one release, 0.8.1 never went up.** A
+way down stands four ways; ways down put anywhere with their passage;
+levels -2 and -3; tunnels drawn on the map; the mod's rooms and an admin's
+own set down; ground marked as indoors as a real room of the engine's; the
+whole map, a rebuild, a check. Built, every static test passing (`test_flow`
+657 checks, 26 languages of 316 texts), the 68 new mutations and the 43
+re-pointed ones each caught (six of them only after the tests were
+tightened); deployed as SewarsDev. **Not
+played. Not staged. Run the full mutation set once more, alone, before
+uploading** (`python tools/dev.py mutate`, then `git diff` the Lua tree,
+then `package --install`).
+
+What is read and not yet seen, in the order it matters:
+
+1. `BuildingRoomsEditor` from Lua at all (*A room is declared once*): no
+   vanilla Lua reaches it. The first refusal sets `In.broken` and logs one
+   WARN; nothing else is touched.
+2. A server's start with a mark saved: `OnLoadMapZones`, `applyChanges(true)`.
+3. A new lowest level drawing on a client (`calculateZExtentsForChunkMap`).
+4. `Role.hasAdminTool` on the server's copy of a player (0.8.1's, still open).
+
+**The 0.9 checklist** (every step a click; a **new world** with Sewers
+[DEV]; the dev build is single player's admin):
+
+1. **Who may use a cover.** On a street, right-click a manhole cover,
+   *Sewers (admin)*, *This way down is*: four entries, *Open both ways*
+   greyed. Choose *A way in only*. *Sewers (dev)*, *Be a player, not an
+   admin*. Climb down the cover; at its ladder *Climb out* is greyed,
+   *Sealed from above*. *Be a player* again (admin), climb out, and put
+   the cover back to *Open both ways*.
+2. **A way down of your own.** Walk a dozen squares from the cover, on the
+   road or the grass. Right-click the ground, *Sewers (admin)*, *Put a way
+   down here*, *A manhole cover*: a cover is on that square and you are
+   told how many squares of passage. Climb down: a ladder's foot, a narrow
+   concrete passage, and the sewer at the end of it. Too far from any
+   tunnel it says *No tunnel near enough*.
+3. **A deeper level.** In the tunnel, right-click, *Sewers (admin)*, *Put
+   a shaft down to the next level where I stand*: a cover is in the floor
+   under you. Right-click it: *Climb down into the sewer*. You are in one
+   square of concrete with a ladder. **Look**: is it drawn, lit, walled?
+   Up the ladder again.
+4. **A tunnel on the map.** Down in that square, right-click, *Sewer map*.
+   At the foot: *Level 2*, *Draw*, *Joined*. Click *Draw* until it says *3
+   wide*. Click on the map a few squares east of the red dot that is you,
+   then twenty squares further east. Close the map: the tunnel is there,
+   three wide, joined to where you stand. Open the map: it is drawn in red.
+   Click the level button: *Level 3* (empty), *Level 1* (the sewers).
+5. **A room.** Stand against the tunnel's north wall. *Sewers (admin)*,
+   *Set a room down behind the wall to the*, *north*, *Last stand*: a
+   steel door is in the wall, and behind it the room with its crates. Walk
+   off twenty squares and back: its dead have come.
+6. **A room of your own.** On the street, build or find three squares by
+   three with something in them (a crate, a wall). Right-click one corner:
+   *Mark a corner here*. Right-click the opposite corner: *Keep the box
+   from the corner to here as a room, stocked with*, *Food*. Below again,
+   against a wall: *Set a room down ...*, the way, *Food 1*. It is there,
+   and its crate has tins in it.
+7. **Indoors.** In the tunnel you drew: *Sewers (admin)*, *Is this square
+   indoors?*: *The sewer's: outdoors to the game*. Then *Count this room as
+   indoors*: *N squares count as indoors now.* *Is this square indoors?*:
+   *the game has a room here*. **Look and listen**: do the walls still cut
+   away as they did, does the sound change, does anything stutter? Then
+   `python tools/dev.py log`: `[SEW] indoors: mark ... declared`, no WARN.
+   Save, quit, load: still indoors.
+8. **The whole map, and a rebuild.** *Sewers (admin)*, *Open the whole
+   sewer map*: no fog on Level 1, every ladder. *Rebuild the sewer round
+   here*: a count, and nothing looks different.
+9. **A server** (`sewtest`): all of it as its admin with a second player
+   watching; mark a place indoors, restart the server, and both go down.
+   `server-console.txt`: `[SEW] indoors: mark ... declared`. Nobody frozen.
+10. **The labyrinth somewhere else.** A **new world**, custom sandbox, the
+    *Sewers* page, the last two boxes: *The labyrinth's place: east* 9722,
+    *south* 9826. Load it with Sewers [DEV]. *Sewers (dev)*, the
+    labyrinth's stop: you are set down in different ground from before,
+    with a trapdoor at your feet. Climb down: flagstones, brick, the crate
+    by the ladder. *Sewer map*: the deep woods' sheet, with you on it.
+    *Sewers (dev)*, the blockhouse's stop: the brick hut, three squares a
+    side. Then `python tools/dev.py log`: `[SEW] place: the labyrinth's
+    trapdoor is at 9722,9826 by the sandbox`, and no WARN. **Look**: is
+    anything of the map's standing where the trapdoor or the hut went in?
+
+**0.8.1, as it was written up before 0.9 (it ships inside 0.9.0):**
 **Workshop:** item **3810188405**, public since 0.3.1 (2026-09-29);
 `WORKSHOP_ID` is set in `tools/package_workshop.py`.
+
+**0.8.1: languages, and what a server decides (DESIGN.md 7h, ROADMAP
+0.8.1, SERVERS.md).** Asked for by the author for roleplay servers: every
+language the game has, admin control of the covers, and seven more
+settings. Built,
+every static test passing (`test_flow` 551 checks, `test_translations` 26
+languages of 250 texts), the 33 new mutations caught, deployed as
+SewarsDev. **Not played. Not staged for upload. The full mutation set has
+not been run**, and it is owed twice over:
+
+- **0.8.0's run was stopped part way and left a mutation in the tree**:
+  `SEW_Wind.lua` had lost `or sq:isInARoom()` (mutate.py's *wind: not in a
+  room*), uncommitted, and `test_flow` failed on it. Put back with
+  `git checkout` on 2026-10-10. The deployed and staged copies did not have
+  it. `RELEASE_MUTATIONS` in the 0.8.0 paragraph below and in ROADMAP is
+  that run's unfilled placeholder: *One mutation run at a time*, met again.
+- 0.8.1 adds 33. Before uploading: `python tools/dev.py mutate`, alone,
+  then `git diff` the Lua tree, then `package --install`.
+
+The translations were written by the model, a language at a time, against
+the game's own vocabulary; none has been read by a native speaker. The
+Workshop's comments are the proof-reading.
+
+**The 0.8.1 checklist** (every step a click; a **new world** with Sewers
+[DEV], so the sandbox page can be looked at):
+
+1. **The sandbox page.** Making the world, the *Sewers* page: sixteen
+   settings, the last eight new (*Ways into the sewers* ... *The dead in
+   the labyrinth*), each with a tooltip. Leave them as they are.
+2. **An admin's menu.** On a street, right-click a manhole cover: *Climb
+   down into the sewer*, and above it *Admin: close this way into the
+   sewers to players* (the dev build is single player's admin). Choose it:
+   *Closed: only an admin can climb down here now.* Right-click again: it
+   offers *open* now, and you can still climb down.
+3. **As a player.** Right-click, *Sewers (dev)*, *Be a player, not an
+   admin*. Right-click the same cover: *Climb down* is greyed, the tooltip
+   *Sealed shut. On this server, this way into the sewers is closed.*, and
+   no admin entry. Another cover: open as ever.
+4. **Never shut in.** *Be a player* again (admin), climb down the closed
+   cover, *Be a player* once more, and at its ladder *Climb out*: you come
+   up. Closed stops nobody leaving.
+5. **A language.** Main menu, Options, Display (or Game), Language:
+   Español. Load the world: the right-click entries, the tooltips and the
+   notes are Spanish; a journal from a shelter reads in Spanish with a
+   Spanish direction in it (*al norte de aquí*), and its page is wide
+   enough for its lines. EXIT on the walls is still EXIT. Then one of
+   Russian, Japanese or Thai: the letters draw (no boxes).
+6. **A setting or two** (each its own new world, or change it in the
+   sandbox of a debug world): *Trapdoors in houses* No, then *Sewers
+   (dev)*, *Go to the hatch by the rats' nest*: no trapdoor appears in the
+   house's floor. *The rats' nest* Sealed, *Go to the nest's false wall*:
+   pulling at the bricks is not offered. *Rodents of unusual size* Weak:
+   two blows of the crowbar. *The labyrinth* No, *Go to the labyrinth's
+   trapdoor*: no trapdoor in the grass.
+7. **A server** (`sewtest`): as its admin the same entry is on a cover; a
+   second player sees it greyed the moment it is closed; with *Ways into
+   the sewers* on Closed every cover is greyed for them until you open
+   one. `server-console.txt` has `[SEW] <you> opened the way down at ...`.
+   If you are refused with `admin`: DEV_GUIDE, *An admin is a role with a
+   tool*.
 
 **0.7.6 is built, passes every static test and all 306 mutations (one run,
 alone), is deployed as SewarsDev and is staged for the uploader
@@ -1738,14 +2139,13 @@ and all 304 mutations (one run, alone); deployed as SewarsDev and staged
 again (`package --install`, compared file by file with the source). That
 second staging is the one to upload.
 
-**After 0.7.6, not released: the labyrinth (0.8, DESIGN.md 7g; ROADMAP 0.8
-has its checklist).** Built, every static test passing, its thirteen
-mutations caught; the full run of 317 not repeated; deployed as SewarsDev;
-**not played**. The layout's revision changed, so a save's built chunks are
-revisited once (hull only), as after any regeneration; nothing a save
-holds moved (every other town's data is byte for byte the same). The
-staged 0.7.6 package does not have it: do not restage until 0.8 is
-meant to go up.
+**0.8.0: the labyrinth (DESIGN.md 7g; ROADMAP 0.8 has its checklist).**
+Built, every static test passing; RELEASE_MUTATIONS. The author has loaded
+it (the trapdoor, in the game's own heart in the grass, and the map); the
+rest of its checklist is open, the blockhouse at street level first. The
+layout's revision changed, so a save's built chunks are revisited once
+(hull only), as after any regeneration; `layout_diff` against 0.7.6 says
+nothing a save holds moved (66,048 squares added, none changed).
 
 **The 0.7.6 checklist** (every step a click; any world with Sewers [DEV]):
 

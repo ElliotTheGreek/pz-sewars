@@ -94,6 +94,8 @@ def main():
     if BUILD.exists():
         shutil.rmtree(BUILD)
     shutil.copytree(MOD, BUILD / "Contents" / "mods" / "Sewars")
+    # The host's guide goes up with the mod: the Workshop page points at it.
+    shutil.copy(ROOT / "SERVERS.md", BUILD / "Contents" / "mods" / "Sewars" / "SERVERS.md")
     (BUILD / "workshop.txt").write_text(workshop_text(), encoding="utf-8")
     shutil.copy(ROOT / "workshop" / "preview.png", BUILD / "preview.png")
     validate(BUILD)

@@ -372,6 +372,10 @@ def main():
           % (len(texts), len(kinds)))
     for t in texts:
         used |= {"IGUI_SEW_J_%s_Title" % t, "IGUI_SEW_J_%s_Body" % t}
+    # A journal's direction: "IGUI_SEW_Dir_" .. the generator's word for it.
+    dirs = set(re.findall(r'J\[#J\+1\]=\{[^}]*dir="([\w-]+)"', index))
+    check(len(dirs) == 8, "the eight directions a journal points in read from the index (%s)" % sorted(dirs))
+    used |= {"IGUI_SEW_Dir_%s" % d.replace("-", "_") for d in dirs}
     # The dev build's menu: "ContextMenu_SEW_Dev_" .. each stop it lists.
     client = src[os.path.join(LUA, "client", "SEW", "SEW_Client.lua")]
     stops = re.search(r'for _, what in ipairs\(\{([^}]*)\}\) do\s*sub:addOption', client)
@@ -385,6 +389,22 @@ def main():
     if ways:
         used |= {"ContextMenu_SEW_%s_%s" % (k, w) for k in ("Dig", "Break") for w in re.findall(r'"([NESW])"', ways.group(1))}
     gen = open(os.path.join(ROOT, "tools", "gen_sewers.py"), encoding="utf-8").read()
+    # The admin's menu (SEW_Admin): keys assembled from its own lists.
+    adm = src[os.path.join(LUA, "client", "SEW", "SEW_Admin.lua")]
+
+    def admin_list(var):
+        m = re.search(r"A\.%s = \{(.*?)\}\n" % var, adm, re.S)
+        got = re.findall(r'"(\w+)"', m.group(1)) if m else []
+        check(len(got) >= 3, "the admin menu's %s read from SEW_Admin (%d)" % (var, len(got)))
+        return got
+    used |= {"ContextMenu_SEW_AdmWay_%s" % v for v in admin_list("MODES")}
+    used |= {"ContextMenu_SEW_AdmPut_%s" % v for v in admin_list("KINDS")}
+    used |= {"ContextMenu_SEW_Loot_%s" % v for v in admin_list("LOOT")}
+    used |= {"IGUI_SEW_Shelter_%s" % v for v in admin_list("ROOMS")}
+    worked = re.search(r"local WORKED = \{(.*?)\}", adm, re.S)
+    done = re.findall(r"(\w+) = true", worked.group(1)) if worked else []
+    check(len(done) >= 10, "what a work says back read from SEW_Admin (%d)" % len(done))
+    used |= {"IGUI_SEW_Wk_%s" % v for v in done}
     variants = dict(re.findall(r'"(\w+)": (\d+)', re.search(r"JOURNAL_VARIANTS = \{([^}]*)\}", gen).group(1)))
     for kind, n in variants.items():
         for v in range(1, int(n) + 1):
@@ -401,6 +421,14 @@ def main():
         for i in range(1, int(n) + 1):
             check("Sandbox_%s_option%d" % (opt, i) in allkeys, "sandbox %s option %d has words" % (opt, i))
         check("Sandbox_%s" % opt in allkeys and "Sandbox_%s_tooltip" % opt in allkeys, "sandbox %s has a name and a tooltip" % opt)
+    # The two that are numbers (SEW_Place): where the labyrinth's trapdoor is.
+    numbers = re.findall(r"option\s+([\w.]+)\s*=\s*\{\s*type\s*=\s*integer,\s*min\s*=\s*(\d+),\s*max\s*=\s*(\d+),\s*default\s*=\s*(\d+)", sb)
+    check([o for o, _, _, _ in numbers] == ["Sewars.MazeX", "Sewars.MazeY"], "the sandbox's two numbers are the labyrinth's place (%s)" % numbers)
+    for opt, lo, hi, dflt in numbers:
+        check("Sandbox_%s" % opt in allkeys and "Sandbox_%s_tooltip" % opt in allkeys, "sandbox %s has a name and a tooltip" % opt)
+        check(int(lo) <= int(dflt) <= int(hi), "sandbox %s: its default is in its range" % opt)
+    every = re.findall(r"option\s+([\w.]+)\s*=", sb)
+    check(len(every) == len(numbers) + len(re.findall(r"type\s*=\s*enum", sb)), "every sandbox option is a choice or one of those numbers (%d)" % len(every))
 
     # Guards on line one.
     for f, s in lua_sources(skip_data=False).items():

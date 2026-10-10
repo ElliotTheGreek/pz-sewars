@@ -60,7 +60,59 @@ M.ZOOMS = { 0.5, 0.75, 1, 1.5, 2, 3, 4, 6 }
 ---------------------------------------------------------------------------
 M.state = { c = {}, s = {}, l = {}, m = {}, g = {} }
 M.version = 0          -- bumped on every change; the fog cache keys on it
+SEW.Place.onMove(function() M.version = M.version + 1 end)
 M.asked = false
+
+-- What has been dug and drawn (0.9): "level:cx,cy" -> 64 characters, a row
+-- at a time, "1" where the players' own records make somewhere to stand
+-- (SEW_Works.bits). The plans are pictures made with the layout and know
+-- nothing of a pick or of an admin's works, so these are drawn over them:
+-- the chunks this player has walked, or all of them for an admin who asked.
+M.works = {}
+M.worksVersion = 0
+-- An admin's whole map: no fog, and every ladder there is.
+M.all = false
+-- Each level's ink: the sewers' own blue, then red, then yellow.
+M.LEVEL = { [-1] = { 0.16, 0.38, 0.78 }, [-2] = { 0.78, 0.18, 0.14 }, [-3] = { 0.80, 0.64, 0.08 } }
+M.WIDTHS = { 1, 3, 5 }
+
+Net.onClient("works", function(args)
+    for _, e in ipairs(args.list or {}) do
+        if e.b == nil or e.b == "" then M.works[e.k] = nil else M.works[e.k] = e.b end
+    end
+    M.worksVersion = M.worksVersion + 1
+end)
+
+-- The works as rectangles to draw, by level: { { x, y, w }, ... } in squares,
+-- one for each run of a row. Made again only when the works change.
+local runsCache = { v = -1, by = {} }
+function M.runs(level)
+    if runsCache.v ~= M.worksVersion then
+        local by = {}
+        for k, bits in pairs(M.works) do
+            local z, cx, cy = k:match("^(-?%d+):(-?%d+),(-?%d+)$")
+            z, cx, cy = tonumber(z), tonumber(cx), tonumber(cy)
+            if z then
+                by[z] = by[z] or {}
+                local list = by[z]
+                for row = 0, 7 do
+                    local start = nil
+                    for col = 0, 8 do
+                        local on = col < 8 and bits:sub(row * 8 + col + 1, row * 8 + col + 1) == "1"
+                        if on and not start then
+                            start = col
+                        elseif not on and start then
+                            list[#list + 1] = { cx * 8 + start, cy * 8 + row, col - start }
+                            start = nil
+                        end
+                    end
+                end
+            end
+        end
+        runsCache = { v = M.worksVersion, by = by }
+    end
+    return runsCache.by[level] or {}
+end
 
 local function setFrom(list)
     local t = {}
@@ -167,6 +219,8 @@ end
 --- -- runs of unwalked chunks per row. Cached per town and state version.
 local fogCache = {}
 function M.fog(tid)
+    -- An admin's whole map has none.
+    if M.all then return {} end
     local cached = fogCache[tid]
     if cached and cached.v == M.version then return cached.rects end
     local t = SEW.Index.towns[tid]
@@ -226,6 +280,10 @@ function SEWMapWindow:new(x, y, w, h, player, tid)
     if px < t.x0 or px > t.x1 or py < t.y0 or py > t.y1 then px, py = (t.x0 + t.x1) / 2, (t.y0 + t.y1) / 2 end
     o.cx, o.cy = px, py
     o.title = getText("IGUI_SEW_MapTitle", t.name)
+    -- The level shown: the one the player is at, the sewers' own from the street.
+    o.level = S.levelOf(player) or C.Z
+    -- An admin drawing a tunnel: { width, join, from = { x, y } } (SEW_Works.tunnel).
+    o.draw = nil
     return o
 end
 
@@ -245,6 +303,81 @@ function SEWMapWindow:createChildren()
     self.nextBtn:initialise()
     self:addChild(self.nextBtn)
     self:insertNewLineOfButtons(self.prevBtn, self.nextBtn)
+    -- Along the foot, at the right: the level shown; and for an admin, the pen.
+    local fy = self.height - FOOT - self:resizeWidgetHeight() + 2
+    self.levelBtn = ISButton:new(self.width - 96, fy, 90, FOOT - 4, "", self, SEWMapWindow.nextLevel)
+    self.levelBtn.anchorLeft, self.levelBtn.anchorRight = false, true
+    self.levelBtn.anchorTop, self.levelBtn.anchorBottom = false, true
+    self.levelBtn:initialise()
+    self:addChild(self.levelBtn)
+    if S.isAdmin(self.player) then
+        self.drawBtn = ISButton:new(self.width - 196, fy, 96, FOOT - 4, "", self, SEWMapWindow.nextPen)
+        self.drawBtn.anchorLeft, self.drawBtn.anchorRight = false, true
+        self.drawBtn.anchorTop, self.drawBtn.anchorBottom = false, true
+        self.drawBtn:initialise()
+        self:addChild(self.drawBtn)
+        self.joinBtn = ISButton:new(self.width - 276, fy, 76, FOOT - 4, "", self, SEWMapWindow.flipJoin)
+        self.joinBtn.anchorLeft, self.joinBtn.anchorRight = false, true
+        self.joinBtn.anchorTop, self.joinBtn.anchorBottom = false, true
+        self.joinBtn:initialise()
+        self:addChild(self.joinBtn)
+    end
+    self:labels()
+end
+
+--- What the buttons along the foot say, as things stand.
+function SEWMapWindow:labels()
+    if self.levelBtn then self.levelBtn.title = getText("IGUI_SEW_MapLevel", tostring(-self.level)) end
+    if self.drawBtn then
+        self.drawBtn.title = self.draw and (getText("IGUI_SEW_MapDraw") .. ": "
+            .. getText("IGUI_SEW_MapWidth", tostring(self.draw.width))) or getText("IGUI_SEW_MapDraw")
+    end
+    if self.joinBtn then
+        self.joinBtn.title = getText((not self.draw or self.draw.join) and "IGUI_SEW_MapJoin" or "IGUI_SEW_MapApart")
+    end
+end
+
+--- The next level down, and round again.
+function SEWMapWindow:nextLevel()
+    local at = 1
+    for i, l in ipairs(C.Levels) do if l == self.level then at = i end end
+    self.level = C.Levels[at % #C.Levels + 1]
+    if self.draw then self.draw.from = nil end
+    self:labels()
+end
+
+--- The admin's pen: off, then each width in turn, then off again.
+function SEWMapWindow:nextPen()
+    if not self.draw then
+        self.draw = { width = M.WIDTHS[1], join = true }
+    else
+        local at = 0
+        for i, w in ipairs(M.WIDTHS) do if w == self.draw.width then at = i end end
+        if at >= #M.WIDTHS then self.draw = nil else self.draw.width, self.draw.from = M.WIDTHS[at + 1], nil end
+    end
+    self:labels()
+end
+
+function SEWMapWindow:flipJoin()
+    if self.draw then self.draw.join = not self.draw.join end
+    self:labels()
+end
+
+--- A click on the map with the pen down: where the tunnel starts, and then
+--- where it ends -- asked of the server, which draws it or says why not.
+function SEWMapWindow:penClick(sx, sy)
+    local d = self.draw
+    if not d then return false end
+    local wx, wy = self:toWorld(sx, sy)
+    wx, wy = math.floor(wx), math.floor(wy)
+    if not d.from then
+        d.from = { wx, wy }
+        return false
+    end
+    Net.send(self.player, "works", { what = "tunnel", x0 = d.from[1], y0 = d.from[2], x1 = wx, y1 = wy,
+                                     width = d.width, z = self.level, join = d.join })
+    d.from = nil
+    return true
 end
 
 function SEWMapWindow:scale() return M.ZOOMS[self.zoomIdx] end
@@ -290,9 +423,10 @@ function SEWMapWindow:drawMap(t)
     local top, bottom = self:view()
     self:setStencilRect(0, top, self.width, bottom - top)
 
-    -- The plan, the tiles on screen only.
+    local own = self.level == C.Z
+    -- The plan, the tiles on screen only. It is the sewers' own level's.
     local size = M.TILE * s
-    for i = 0, (t.tw or 1) - 1 do
+    for i = 0, (own and (t.tw or 1) or 0) - 1 do
         for j = 0, (t.th or 1) - 1 do
             local sx, sy = self:toScreen(t.x0 + i * M.TILE, t.y0 + j * M.TILE)
             if sx < self.width and sy < bottom and sx + size > 0 and sy + size > top then
@@ -305,7 +439,7 @@ function SEWMapWindow:drawMap(t)
     -- The fog.
     local F = M.FOG
     local cs = 8 * s
-    for _, r in ipairs(M.fog(self.tid)) do
+    for _, r in ipairs(own and M.fog(self.tid) or {}) do
         local sx, sy = self:toScreen(r[1] * 8, r[2] * 8)
         local rw = (r[3] - r[1] + 1) * cs
         if sx < self.width and sy < bottom and sx + rw > 0 and sy + cs > top then
@@ -313,9 +447,28 @@ function SEWMapWindow:drawMap(t)
         end
     end
 
+    -- What was dug and drawn at this level, in the level's ink.
+    local K = M.LEVEL[self.level] or M.INK
+    for _, r in ipairs(M.runs(self.level)) do
+        local sx, sy = self:toScreen(r[1], r[2])
+        if sx < self.width and sy < bottom and sx + r[3] * s > 0 and sy + s > top then
+            self:drawRect(sx, sy, r[3] * s, s + 0.5, 0.9, K[1], K[2], K[3])
+        end
+    end
+    -- The pen: where the tunnel starts, and the line to the mouse.
+    if self.draw and self.draw.from then
+        local fx, fy = self:toScreen(self.draw.from[1], self.draw.from[2])
+        local wx, wy = self:toWorld(self:getMouseX(), self:getMouseY())
+        local ex, ey = math.floor(wx), math.floor(wy)
+        if math.abs(ex - self.draw.from[1]) >= math.abs(ey - self.draw.from[2]) then ey = self.draw.from[2] else ex = self.draw.from[1] end
+        local tx, ty = self:toScreen(ex, ey)
+        local w = self.draw.width * s
+        self:drawRect(math.min(fx, tx), math.min(fy, ty), math.abs(tx - fx) + w, math.abs(ty - fy) + w, 0.55, K[1], K[2], K[3])
+    end
+
     -- Sewer gas this player knows of: a sickly ring at each stretch's middle,
     -- named when zoomed in.
-    for i in pairs(M.state.g) do
+    for i in pairs(own and M.state.g or {}) do
         local g = SEW.Index.gas and SEW.Index.gas[tonumber(i) or i]
         if g and g.town == self.tid then
             local sx, sy = self:toScreen(g.x + 0.5, g.y + 0.5)
@@ -331,9 +484,11 @@ function SEWMapWindow:drawMap(t)
     -- Markers.
     local I = M.INK
     local mk = math.max(3, math.floor(3 * s))
-    for key in pairs(M.state.l) do
-        local sh = SEW.Index.shafts[key]
-        if sh and sh.town == self.tid then
+    for key in pairs(M.ladders()) do
+        local sh = S.custom[key] or SEW.Index.shafts[key]
+        -- A ladder is on the level of its foot, and of the cover over it.
+        local foot = sh and (sh.z or C.Z)
+        if sh and sh.town == self.tid and (foot == self.level or foot + 1 == self.level) then
             local sx, sy = self:toScreen(sh.x + 0.5, sh.y + 0.5)
             -- An outfall in the river's blue, a ladder to the street in gold.
             if sh.outfall then
@@ -348,7 +503,7 @@ function SEWMapWindow:drawMap(t)
             end
         end
     end
-    for i in pairs(M.state.s) do
+    for i in pairs(own and M.state.s or {}) do
         local h = SEW.Index.shelters[tonumber(i) or i]
         if h and h.town == self.tid then
             local sx, sy = self:toScreen(h.x, h.y)
@@ -359,7 +514,7 @@ function SEWMapWindow:drawMap(t)
             end
         end
     end
-    for _, m in pairs(M.state.m) do
+    for _, m in pairs(own and M.state.m or {}) do
         if type(m) == "table" and m.x and M.townAt(m.x, m.y) == self.tid then
             local sx, sy = self:toScreen(m.x + 0.5, m.y + 0.5)
             self:drawText("X", sx - 4, sy - 8, 0.70, 0.12, 0.10, 1, UIFont.Medium)
@@ -380,8 +535,19 @@ function SEWMapWindow:drawMap(t)
     local pct = total > 0 and math.floor(100 * found / total) or 0
     -- One chunk of a town of eighteen hundred is "0%", which reads as broken.
     local shown = (pct == 0 and found > 0) and "<1%" or (tostring(pct) .. "%")
-    self:drawText(getText("IGUI_SEW_MapFooter", shown, nShelters), 8, bottom + 3,
-                  0.92, 0.88, 0.78, 1, UIFont.Small)
+    -- With the pen down the foot says how to use it.
+    self:drawText(self.draw and getText("IGUI_SEW_MapDrawTip") or getText("IGUI_SEW_MapFooter", shown, nShelters),
+                  8, bottom + 3, 0.92, 0.88, 0.78, 1, UIFont.Small)
+end
+
+--- The ladders to show: the ones this player has used; for an admin's whole
+--- map, every one there is.
+function M.ladders()
+    if not M.all then return M.state.l end
+    local out = {}
+    for key in pairs(SEW.Index.shafts) do out[key] = 1 end
+    for key in pairs(S.custom) do out[key] = 1 end
+    return out
 end
 
 function SEWMapWindow:zoomBy(dir, sx, sy)
@@ -411,6 +577,12 @@ function SEWMapWindow:onMouseDown(x, y)
     return true
 end
 
+--- With the pen down, a click that was not a drag is a point of the tunnel.
+function SEWMapWindow:penUp(x, y)
+    local d = self.dragging
+    if self.draw and d and math.abs(x - d.x) < 4 and math.abs(y - d.y) < 4 then self:penClick(x, y) end
+end
+
 function SEWMapWindow:onMouseMove(dx, dy)
     if self.dragging then
         local d = self.dragging
@@ -428,6 +600,7 @@ function SEWMapWindow:onMouseMoveOutside(dx, dy)
 end
 
 function SEWMapWindow:onMouseUp(x, y)
+    self:penUp(x, y)
     self.dragging = nil
     ISCollapsableWindowJoypad.onMouseUp(self, x, y)
 end
@@ -443,7 +616,13 @@ function SEWMapWindow:isKeyConsumed(key)
 end
 
 function SEWMapWindow:onKeyRelease(key)
-    if key == Keyboard.KEY_ESCAPE and self:isVisible() then self:close() end
+    if key ~= Keyboard.KEY_ESCAPE or not self:isVisible() then return end
+    -- A tunnel half drawn: Escape lets go of it first.
+    if self.draw and self.draw.from then
+        self.draw.from = nil
+        return
+    end
+    self:close()
 end
 
 function SEWMapWindow:switchTown(dir)
@@ -512,6 +691,8 @@ function SEWMapWindow:onLoseJoypadFocus(joypadData)
 end
 
 function SEWMapWindow:close()
+    -- An admin's whole map is asked for each time (SEW_Admin.showAll).
+    M.all = false
     -- Where it was and how big, for the next time it opens this session.
     M.layout = { x = self:getX(), y = self:getY(), w = self:getWidth(), h = self:getHeight(), zoom = self.zoomIdx }
     M.window = nil

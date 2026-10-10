@@ -40,6 +40,7 @@ if isClient() then return end
 require "SEW/SEW_Config"
 require "SEW/SEW_Util"
 require "SEW/SEW_Sewer"
+require "SEW/SEW_Indoors"
 
 SEW = SEW or {}
 local C = SEW.Config
@@ -61,9 +62,17 @@ end
 --- there was one. No U.try in here: it runs for every square a server
 --- loads, and each caller's one pcall is the guard.
 function Rooms.clear(sq)
-    if sq == nil or sq:getZ() ~= C.Z then return false end
-    if sq:getRoom() == nil then return false end
-    if not S.ours(sq) then return false end
+    if sq == nil or not S.isLevel(sq:getZ()) then return false end
+    local room = sq:getRoom()
+    if room == nil then return false end
+    -- Ground an admin marked as indoors has a room on purpose (SEW_Indoors),
+    -- and keeps it while it is whole: a room with a building. One with none
+    -- is the room that stops a server, and comes off whoever's square it is.
+    if SEW.Indoors and SEW.Indoors.at(sq:getX(), sq:getY(), sq:getZ()) then
+        if room:getBuilding() ~= nil then return false end
+    elseif not S.ours(sq) then
+        return false
+    end
     sq:setRoomID(-1)
     Rooms.cleared = Rooms.cleared + 1
     local n = Rooms.cleared
@@ -75,13 +84,13 @@ function Rooms.clear(sq)
 end
 
 --- Every square of ours within `r` of x, y. Returns how many had a room.
-function Rooms.around(x, y, r)
+function Rooms.around(x, y, r, z)
     if not Rooms.on() then return 0 end
     local n = 0
     x, y = math.floor(x), math.floor(y)
     for dx = -r, r do
         for dy = -r, r do
-            local sq = U.square(x + dx, y + dy, C.Z, false)
+            local sq = U.square(x + dx, y + dy, z or C.Z, false)
             if sq and Rooms.clear(sq) then n = n + 1 end
         end
     end
@@ -105,7 +114,8 @@ end
 function Rooms.walk()
     if not Rooms.on() then return end
     for _, p in ipairs(U.players()) do
-        if S.below(p) then Rooms.around(p:getX(), p:getY(), C.Rooms.reach) end
+        local z = S.levelOf(p)
+        if z then Rooms.around(p:getX(), p:getY(), C.Rooms.reach, z) end
     end
 end
 

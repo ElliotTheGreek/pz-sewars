@@ -51,6 +51,9 @@ function D.record(p)
         all[name] = r
     end
     r.g = r.g or {}
+    -- "level:chunk" of every chunk walked that holds something dug or drawn
+    -- (SEW_Works.seen): what the map shows of a digger's and an admin's work.
+    r.w = r.w or {}
     return r
 end
 
@@ -67,6 +70,11 @@ function D.look(p)
     local r = D.record(p)
     local n = 0
     local key = math.floor(px / 8) .. "," .. math.floor(py / 8)
+    local z = math.floor((U.try("pz", function() return p:getZ() end) or C.Z) + 0.5)
+    -- What was dug or drawn here, at the level walked.
+    if SEW.Works and S.isLevel(z) and SEW.Works.seen(p, z, key) then n = n + 1 end
+    -- The rest is the sewers' own level's.
+    if z ~= C.Z then return n end
     if not r.c[key] and SEW.Build and SEW.Build.townOf(key) then
         r.c[key] = 1
         tell(p, "c", key)
@@ -82,9 +90,9 @@ function D.look(p)
     return n
 end
 
-function D.ladder(p, x, y)
+function D.ladder(p, x, y, z)
     local r = D.record(p)
-    local key = math.floor(x) .. "," .. math.floor(y)
+    local key = S.shaftKey(x, y, z)
     if r.l[key] then return false end
     r.l[key] = 1
     tell(p, "l", key)
@@ -136,6 +144,8 @@ Net.onServer("mapState", function(p)
     for k in pairs(r.l) do l[#l + 1] = k end
     for k in pairs(r.g) do g[#g + 1] = k end
     Net.toClient(p, "mapState", { c = c, s = s, l = l, m = r.m, g = g })
+    -- And what this player has seen of what was dug and drawn, a few chunks a message.
+    if SEW.Works then SEW.Works.sendSeen(p, false) end
 end)
 
 return D

@@ -149,8 +149,15 @@ Digging and blasting both leave these alone:
   there, and a bomb moves nothing. It is a labyrinth; walk it.
 - **Anything a player built.** The mod only ever removes its own walls.
 
-And it only goes sideways: the sewers are one level. You cannot dig up to
-the street or down to a second level.
+And it only goes sideways. You cannot dig up to the street or down to
+another level.
+
+**On a server with deeper levels** (0.9): an admin can put shafts down to
+two more levels under the sewers. A pickaxe, a sledgehammer and a bomb work
+down there exactly as they do in the sewers, by the same rules and the same
+sandbox setting, and what you dig shows on that level's sheet of your sewer
+map. You still cannot dig from one level to another: only an admin's shaft
+joins them.
 
 ---
 
