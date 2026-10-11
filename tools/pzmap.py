@@ -138,7 +138,10 @@ def census():
         raw = open(h, "rb").read()
         _, lo, hi = header(cx, cy)
         levels[lo] += 1
-        if MANHOLE.encode() not in raw and b"location_sewer_01" not in raw:
+        # (Until 0.9.1 a cell with drains and no cover was skipped, and the
+        # count of drains was 584 of 653.)
+        if (MANHOLE.encode() not in raw and b"location_sewer_01" not in raw
+                and not any(d.encode() in raw for d in DRAINS)):
             continue
         for z in range(lo, hi + 1):
             for (x, y), ts in cell_squares(cx, cy, z).items():

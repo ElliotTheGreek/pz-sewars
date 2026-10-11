@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "갉아먹힌 벽 허물기",
     "ContextMenu_SEW_OutfallDown": "우수관으로 들어가기",
     "ContextMenu_SEW_OutfallUp": "강둑으로 나가기",
+    "ContextMenu_SEW_DrainDown": "빗물받이로 비집고 내려가기",
+    "ContextMenu_SEW_DrainUp": "빗물받이로 비집고 나가기",
     "ContextMenu_SEW_Mine": "파기",
     "ContextMenu_SEW_Dig_N": "북쪽 암반 파기",
     "ContextMenu_SEW_Dig_E": "동쪽 암반 파기",

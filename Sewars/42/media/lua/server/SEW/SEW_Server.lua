@@ -115,6 +115,14 @@ function Server.grant(player, x, y, mode, z)
         -- server whose sandbox closes them all.
         if not S.mayEnter(access) and not S.isAdmin(player) then return refuse(player, "closed") end
         if not S.within(player, x, y, C.Reach + 1.0) then return refuse(player, "reach") end
+        -- A kerb drain: not where the sandbox bolts them down (an admin's
+        -- own way in still), and not for anybody too big for it or carrying
+        -- too much, admin or not (S.fits; DESIGN.md 7j).
+        if shaft.drain then
+            if not S.drainsOpen() and not S.isAdmin(player) then return refuse(player, "drainoff") end
+            local why = S.fits(player, "down")
+            if why then return refuse(player, why) end
+        end
         local done, left = B.around(x, y, C.EntryRadiusChunks)
         if not B.isCurrent(math.floor(x / 8) .. "," .. math.floor(y / 8)) then
             return refuse(player, "unready")
@@ -127,7 +135,7 @@ function Server.grant(player, x, y, mode, z)
         Server.granted[nameOf(player)] = { x = x, y = y, z = z, mode = mode, at = ticks }
         Net.toClient(player, "go", { x = x, y = y, z = z, street = shaft.street or "", mode = "down",
                                      hatch = shaft.hatch ~= nil or shaft.trapdoor == true,
-                                     outfall = shaft.outfall == true })
+                                     outfall = shaft.outfall == true, drain = shaft.drain == true })
         return true
     elseif mode == "up" then
         if not Server.at(player, z) then return refuse(player, "level") end
@@ -138,12 +146,19 @@ function Server.grant(player, x, y, mode, z)
                 or S.within(player, shaft.lx, shaft.ly, C.Reach + 1.0)) then
             return refuse(player, "reach")
         end
+        -- Up a kerb drain's ladder only what is carried counts: it can be
+        -- put down. Never the body, and never the sandbox's Drains: a
+        -- setting closes no way out.
+        if shaft.drain then
+            local why = S.fits(player, "up")
+            if why then return refuse(player, why) end
+        end
         SEW.Discovery.ladder(player, x, y, z)
         U.log("%s climbs out at %d,%d to level %d (%s)", nameOf(player), x, y, z + 1, shaft.town)
         Server.granted[nameOf(player)] = { x = x, y = y, z = z, mode = mode, at = ticks }
         Net.toClient(player, "go", { x = x, y = y, z = z + 1, street = shaft.street or "", mode = "up",
                                      hatch = shaft.hatch ~= nil or shaft.trapdoor == true,
-                                     outfall = shaft.outfall == true })
+                                     outfall = shaft.outfall == true, drain = shaft.drain == true })
         return true
     end
     return refuse(player, "mode")

@@ -142,6 +142,22 @@ function Client.offer(playerObj, x, y)
         if hs then return "hatch", h end
         return nil
     end
+    -- A kerb storm drain: a squeeze, where it leads anywhere. `where` is
+    -- the square over its shaft, which for a grate two squares long may be
+    -- the one beside the square clicked.
+    -- Not where a way down of another kind is on the same square (an
+    -- admin's cover put on a drain): that one is what was clicked.
+    local other = S.shaftAt(sq:getX(), sq:getY())
+    if S.isDrain(sq) and not (other and not other.drain) then
+        local d = S.drainShaft(sq:getX(), sq:getY())
+        if not d then return "choked", sq end
+        local over = U.square(d.x, d.y, 0, false) or sq
+        if Client.closed(playerObj, d) then return "closed", over, "drain" end
+        if not S.drainsOpen() and not S.isAdmin(playerObj) then return "drainoff", over end
+        local why = S.fits(playerObj, "down")
+        if why then return "tight", over, why end
+        return "drain", over
+    end
     local shaft = S.shaftAt(sq:getX(), sq:getY())
     if shaft and Client.closed(playerObj, shaft) then return "closed", sq, shaft.outfall and "outfall" or "down" end
     if shaft and shaft.outfall then return "outfall", sq end
@@ -465,6 +481,14 @@ function Client.devGo(p, what)
         Client.vault(p)
         U.note(p, getText("IGUI_SEW_DevOutfall"), 200, 190, 150)
         return true
+    elseif what == "drain" then
+        -- On the street, a square south of a kerb drain that has a shaft.
+        local d = Client.devDrain()
+        if not d then return false end
+        U.teleport(p, d.x, d.y + 1, 0)
+        Client.vault(p)
+        U.note(p, getText("IGUI_SEW_DevDrain"), 200, 190, 150)
+        return true
     elseif what == "cave" then
         -- The street, not the tunnel: the cover is a climb and a short walk
         -- from the cave's breach.
@@ -527,7 +551,7 @@ function Client.devMenu(playerObj, context)
     context:addSubMenu(top, sub)
     for _, what in ipairs({ "admin", "dig", "gun", "fire", "snow", "wind", "maps", "temple", "breach", "trapdoor", "nest", "warren",
                             "labyrinth", "heart", "blockhouse",
-                            "hatch", "cave", "outfall", "gas", "poison", "gate", "key" }) do
+                            "hatch", "cave", "outfall", "drain", "gas", "poison", "gate", "key" }) do
         sub:addOption(getText("ContextMenu_SEW_Dev_" .. what), playerObj, Client.devGo, what)
     end
 end
@@ -553,7 +577,8 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
         local shaft = nil
         if what == "up" or what == "noexit" then
             shaft = where
-        elseif what == "down" or what == "outfall" or what == "hatch" or what == "closed" then
+        elseif what == "down" or what == "outfall" or what == "hatch" or what == "closed"
+                or what == "drain" or what == "drainoff" or what == "tight" then
             shaft = S.shaftAt(where:getX(), where:getY(), at - 1)
         end
         -- (No nil in the middle of what U.try passes on: it would end the list.)
@@ -564,6 +589,7 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
     if what == "noexit" then
         local opt = context:addOption(getText((where.hatch or where.trapdoor) and "ContextMenu_SEW_HatchUp"
                                               or where.outfall and "ContextMenu_SEW_OutfallUp"
+                                              or where.drain and "ContextMenu_SEW_DrainUp"
                                               or "ContextMenu_SEW_Exit"), nil, nil)
         opt.notAvailable = true
         local tip = ISWorldObjectContextMenu.addToolTip()
@@ -572,10 +598,25 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
     elseif what == "closed" then
         local opt = context:addOption(getText(kind == "hatch" and "ContextMenu_SEW_HatchDown"
                                               or kind == "outfall" and "ContextMenu_SEW_OutfallDown"
+                                              or kind == "drain" and "ContextMenu_SEW_DrainDown"
                                               or "ContextMenu_SEW_Enter"), nil, nil)
         opt.notAvailable = true
         local tip = ISWorldObjectContextMenu.addToolTip()
         tip.description = getText("Tooltip_SEW_Closed")
+        opt.toolTip = tip
+    elseif what == "drain" then
+        local opt = context:addOption(getText("ContextMenu_SEW_DrainDown"), playerObj, Client.climbDown, where)
+        local tip = ISWorldObjectContextMenu.addToolTip()
+        tip.description = getText("Tooltip_SEW_Drain")
+        opt.toolTip = tip
+    elseif what == "tight" or what == "drainoff" or what == "choked" then
+        -- A kerb drain nobody is going down: too big for it or carrying too
+        -- much (`kind`: S.fits), bolted down by the sandbox, or over nothing.
+        local opt = context:addOption(getText("ContextMenu_SEW_DrainDown"), nil, nil)
+        opt.notAvailable = true
+        local tip = ISWorldObjectContextMenu.addToolTip()
+        tip.description = getText(what == "choked" and "Tooltip_SEW_DrainShut" or what == "drainoff" and "Tooltip_SEW_DrainOff"
+                                  or kind == "big" and "Tooltip_SEW_DrainBig" or "Tooltip_SEW_DrainLoad")
         opt.toolTip = tip
     elseif what == "down" then
         local opt = context:addOption(getText("ContextMenu_SEW_Enter"), playerObj, Client.climbDown, where)
@@ -616,9 +657,21 @@ function Client.fillMenu(playerIndex, context, worldobjects, test)
         opt.toolTip = tip
     elseif what == "up" then
         local label = (where.hatch or where.trapdoor) and "ContextMenu_SEW_HatchUp"
-            or where.outfall and "ContextMenu_SEW_OutfallUp" or "ContextMenu_SEW_Exit"
-        local opt = context:addOption(getText(label), playerObj, Client.climbUp, where)
-        if where.outfall then
+            or where.outfall and "ContextMenu_SEW_OutfallUp" or where.drain and "ContextMenu_SEW_DrainUp"
+            or "ContextMenu_SEW_Exit"
+        -- Up a kerb drain only what is carried counts (S.fits).
+        local load = where.drain and S.fits(playerObj, "up")
+        local opt = context:addOption(getText(label), playerObj, (not load) and Client.climbUp or nil, where)
+        if load then
+            opt.notAvailable = true
+            local tip = ISWorldObjectContextMenu.addToolTip()
+            tip.description = getText("Tooltip_SEW_DrainLoad")
+            opt.toolTip = tip
+        elseif where.drain then
+            local tip = ISWorldObjectContextMenu.addToolTip()
+            tip.description = getText("Tooltip_SEW_DrainUp")
+            opt.toolTip = tip
+        elseif where.outfall then
             local tip = ISWorldObjectContextMenu.addToolTip()
             tip.description = getText("Tooltip_SEW_OutfallUp")
             opt.toolTip = tip
@@ -672,7 +725,7 @@ Net.onClient("go", function(args)
     awaited = nil
     answered = { x = args.x, y = args.y, mode = args.mode, at = Client.now }
     pending = { x = args.x, y = args.y, z = args.z, street = args.street, mode = args.mode, hatch = args.hatch,
-                outfall = args.outfall, waited = 0 }
+                outfall = args.outfall, drain = args.drain, waited = 0 }
 end)
 
 local REFUSED = { shut = "IGUI_SEW_Shut", reach = "IGUI_SEW_Reach", level = "IGUI_SEW_Level",
@@ -680,6 +733,7 @@ local REFUSED = { shut = "IGUI_SEW_Shut", reach = "IGUI_SEW_Reach", level = "IGU
                   solid = "IGUI_SEW_MineSolid", foreign = "IGUI_SEW_MineForeign", tool = "IGUI_SEW_MineTool",
                   off = "IGUI_SEW_MineOff", hard = "IGUI_SEW_MineHard", sealed = "IGUI_SEW_Sealed",
                   closed = "IGUI_SEW_Closed", admin = "IGUI_SEW_AdminOnly", noexit = "IGUI_SEW_NoExit",
+                  big = "IGUI_SEW_DrainBig", load = "IGUI_SEW_DrainLoad", drainoff = "IGUI_SEW_DrainOff",
                   taken = "IGUI_SEW_Wk_taken", far = "IGUI_SEW_Wk_far", long = "IGUI_SEW_Wk_long",
                   apart = "IGUI_SEW_Wk_apart", nothing = "IGUI_SEW_Wk_nothing", noroom = "IGUI_SEW_Wk_noroom" }
 
@@ -729,11 +783,14 @@ function Client.unanswered(p)
         awaited = nil
         local s = S.shaftAt(a.x, a.y, a.z)
         -- Never past an admin's word that this is no way out.
+        -- Nor up a kerb drain with more than fits through it (S.fits).
         if a.mode == "up" and s and S.levelOf(p) == a.z and not Client.noExit(p, s)
+                and not (s.drain and S.fits(p, "up"))
                 and (S.within(p, s.x, s.y, C.Reach + 0.8) or S.within(p, s.lx, s.ly, C.Reach + 0.8)) then
             U.log("WARN the server never answered the climb out at %d,%d; climbing out anyway", a.x, a.y)
             pending = { x = a.x, y = a.y, z = a.z + 1, street = s.street or "", mode = "up",
-                        hatch = s.hatch ~= nil or s.trapdoor == true, outfall = s.outfall == true, waited = 0 }
+                        hatch = s.hatch ~= nil or s.trapdoor == true, outfall = s.outfall == true,
+                        drain = s.drain == true, waited = 0 }
         else
             U.log("WARN the server never answered the climb %s at %d,%d", a.mode, a.x, a.y)
             U.note(p, getText("IGUI_SEW_Unready"), 220, 170, 120)
@@ -818,7 +875,9 @@ function Client.arrive(p)
     if m.z < C.Z then Client.lowest(p) end
     if m.mode == "down" then
         U.try("sound", function() p:playSound("SEW_Ladder") end)
-        if m.outfall then
+        if m.drain then
+            U.note(p, getText("IGUI_SEW_DownDrain"), 190, 200, 170)
+        elseif m.outfall then
             U.note(p, getText("IGUI_SEW_DownOutfall"), 190, 200, 170)
         elseif m.street and m.street ~= "" then
             U.note(p, getText("IGUI_SEW_DownUnder", m.street), 190, 200, 170)
@@ -826,8 +885,10 @@ function Client.arrive(p)
             U.note(p, getText("IGUI_SEW_Down"), 190, 200, 170)
         end
     elseif m.mode == "up" then
-        U.try("sound", function() p:playSound((m.hatch or m.outfall) and "SEW_Ladder" or "SEW_Lid") end)
-        if m.outfall then
+        U.try("sound", function() p:playSound((m.hatch or m.outfall or m.drain) and "SEW_Ladder" or "SEW_Lid") end)
+        if m.drain then
+            U.note(p, getText("IGUI_SEW_UpDrain"), 200, 200, 170)
+        elseif m.outfall then
             U.note(p, getText("IGUI_SEW_UpOutfall"), 200, 200, 170)
         elseif m.street and m.street ~= "" then
             U.note(p, getText("IGUI_SEW_UpOnto", m.street), 200, 200, 170)
@@ -1121,6 +1182,17 @@ function Client.devCave()
         if v.town == C.DevStartTown then
             local d = math.abs(v.bx - v.sx) + math.abs(v.by - v.sy)
             if not bd or d < bd then best, bd = v, d end
+        end
+    end
+    return best
+end
+
+--- The dev menu's kerb drain: the first of C.DevStartTown's, by position, or nil.
+function Client.devDrain()
+    local best = nil
+    for _, s in pairs(SEW.Index.shafts) do
+        if s.drain and s.town == C.DevStartTown and (not best or s.x < best.x or (s.x == best.x and s.y < best.y)) then
+            best = s
         end
     end
     return best

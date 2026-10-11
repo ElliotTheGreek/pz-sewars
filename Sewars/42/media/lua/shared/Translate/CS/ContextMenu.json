@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Probourat se ohlodanou zdí",
     "ContextMenu_SEW_OutfallDown": "Slézt do dešťové stoky",
     "ContextMenu_SEW_OutfallUp": "Vylézt na břeh",
+    "ContextMenu_SEW_DrainDown": "Protáhnout se dolů dešťovou vpustí",
+    "ContextMenu_SEW_DrainUp": "Protáhnout se ven dešťovou vpustí",
     "ContextMenu_SEW_Mine": "Kopat",
     "ContextMenu_SEW_Dig_N": "Kopat do skály na sever",
     "ContextMenu_SEW_Dig_E": "Kopat do skály na východ",

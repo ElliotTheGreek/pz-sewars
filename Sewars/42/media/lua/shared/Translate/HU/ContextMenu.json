@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "A megrágott fal áttörése",
     "ContextMenu_SEW_OutfallDown": "Bemászás az esővízcsatornába",
     "ContextMenu_SEW_OutfallUp": "Kimászás a partra",
+    "ContextMenu_SEW_DrainDown": "Lebújás a víznyelőn át",
+    "ContextMenu_SEW_DrainUp": "Kibújás a víznyelőn át",
     "ContextMenu_SEW_Mine": "Ásás",
     "ContextMenu_SEW_Dig_N": "Ásás a sziklába észak felé",
     "ContextMenu_SEW_Dig_E": "Ásás a sziklába kelet felé",

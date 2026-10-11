@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Défoncer le mur rongé",
     "ContextMenu_SEW_OutfallDown": "Descendre dans le collecteur pluvial",
     "ContextMenu_SEW_OutfallUp": "Remonter sur la berge",
+    "ContextMenu_SEW_DrainDown": "Se faufiler dans l'avaloir",
+    "ContextMenu_SEW_DrainUp": "Se faufiler hors de l'avaloir",
     "ContextMenu_SEW_Mine": "Creuser",
     "ContextMenu_SEW_Dig_N": "Creuser la roche au nord",
     "ContextMenu_SEW_Dig_E": "Creuser la roche à l'est",

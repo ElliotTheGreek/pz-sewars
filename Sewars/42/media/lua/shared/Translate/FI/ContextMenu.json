@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Murtaudu jyrsityn muurin läpi",
     "ContextMenu_SEW_OutfallDown": "Kiipeä hulevesiviemäriin",
     "ContextMenu_SEW_OutfallUp": "Kiipeä ulos rantatörmälle",
+    "ContextMenu_SEW_DrainDown": "Ahtaudu alas sadevesikaivosta",
+    "ContextMenu_SEW_DrainUp": "Ahtaudu ulos sadevesikaivosta",
     "ContextMenu_SEW_Mine": "Kaiva",
     "ContextMenu_SEW_Dig_N": "Kaiva kallioon pohjoiseen päin",
     "ContextMenu_SEW_Dig_E": "Kaiva kallioon itään päin",

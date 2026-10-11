@@ -46,6 +46,7 @@ Sewars = {
     Zombies = 3, Outfits = 2, Loot = 3, Rats = 3, Gas = 3,
     Digging = 3, StreetHears = 1, ExitSigns = 3,
     Access = 1, Hatches = 1, Outfalls = 1,
+    Drains = 1, DrainFit = 2,
     Nest = 1, Rous = 2, CultDead = 4,
     Labyrinth = 1, MazeDead = 4,
     Passage = 2,
@@ -63,6 +64,21 @@ A world from before a setting existed uses its default.
 | `Passage` *Longest passage to a new way down* | 1 20 squares, 2 40, 3 80 | 2 | How far the nearest tunnel may be from a way down an admin puts on a street. |
 | `Hatches` *Trapdoors in houses* | 1 Yes, 2 No | 1 | Some garages, kitchens and storerooms get a trapdoor in the floor with a ladder to the sewer. No: no house gets one from now on. A trapdoor already in a floor stays. |
 | `Outfalls` *Storm-drain outfalls* | 1 Yes, 2 No | 1 | The iron grates in riverbanks and lakeshores. No: none is put in from now on. One already in a bank stays. |
+
+| `Drains` *Kerb storm drains* | 1 Yes, 2 No | 1 | The iron grates at the kerbs of the game's own streets, 378 of which have a ladder and a short culvert to the sewers under them. Yes: a player squeezes down one. No: they are bolted down, and nobody but an admin goes down one. A ladder under one takes a player up whatever this says. At once, both ways. |
+| `DrainFit` *Who fits through a kerb drain* | 1 Anybody, 2 Not the overweight or overloaded, 3 Only the slim and lightly loaded | 2 | A kerb drain is narrow. 2: a character at or over the game's weight for its High Weight trait (85; Very High Weight is 100) does not go down one, and nobody carrying more than they can carry (the Weighed Down moodle) goes down or comes up one. 3: the same, and nobody carrying more than half of what they can carry. 1: no limit. At once. |
+
+**Kerb drains, and what the size limit never does.** It is asked of the
+server's own copy of the player, and the player's menu says which of the
+two it is (*too big*, or *carrying too much*). On the way **up** only what
+is carried counts: it can be put down at the foot of the ladder, so the
+limit shuts nobody in. Every drain's culvert joins tunnels that a manhole's
+ladder serves. Manhole covers, trapdoors, outfalls and ways down an admin
+puts in are never limited. The grates are the map's own: nothing is put on
+the street, and the 275 that are too far from any tunnel are greyed out
+for everybody (*choked with silt and leaves*). An admin's *This way down
+is* works on a drain as on any cover; an admin goes down a bolted one, and
+fits or does not like anybody else.
 
 `Hatches = 2` is the one most roleplay servers want: a player's house never
 grows a back door into the sewers. The trapdoors are decided house by house
@@ -209,7 +225,7 @@ no roles: the menu is there with `-debug`, for trying things out.
 ### Who may use a way down
 
 A *way down* is anything a player climbs down through: a manhole cover, a
-trapdoor in a house, an outfall's grate, the temple's trapdoor, the
+kerb storm drain, a trapdoor in a house, an outfall's grate, the temple's trapdoor, the
 labyrinth's, and any you put in yourself.
 
 Right-click one, *Sewers (admin)*, **This way down is**:
@@ -432,6 +448,7 @@ Zombies = 2,
 
 ```lua
 Zombies = 4, Outfits = 1, Loot = 2, Gas = 4, Rous = 4, ExitSigns = 1,
+DrainFit = 3,     -- a kerb drain only for whoever travels light
 ```
 
 **A building server**
@@ -488,9 +505,10 @@ The mod's lines in `server-console.txt` and a client's `console.txt` start
 
 | Line | Means |
 |---|---|
-| `[SEW] Sewars 0.9.0 on a server: 33 towns` | It loaded. No such line: the mod is not on the server. |
+| `[SEW] Sewars 0.9.1 on a server: 33 towns` | It loaded. No such line: the mod is not on the server. |
 | `[SEW] refused <player>: closed (at x,y,z)` | A player asked to climb down a closed way. |
 | `[SEW] refused <player>: noexit (at x,y,z)` | A player asked to climb up a way an admin made no way out. |
+| `[SEW] refused <player>: big (at x,y,z)`, `load`, `drainoff` | A kerb storm drain: the player's character is too heavy for it (`DrainFit`), is carrying too much, or the drains are bolted down (`Drains`). If somebody who should fit is refused `big` or `load`, send the line: the server's own copy of a player's weight and load is what it was judged from. |
 | `[SEW] refused <player>: admin` | Somebody who is not an admin asked for something of an admin's. If it is you, your role has none of the game's admin tools. |
 | `[SEW] <admin> made the way down at x,y,z in (town)` | An admin's decision, with who made it. |
 | `[SEW] <admin> put a way down ...`, `ran a tunnel ...`, `set down ...`, `marked ... as indoors` | Every work, with who did it and where. |

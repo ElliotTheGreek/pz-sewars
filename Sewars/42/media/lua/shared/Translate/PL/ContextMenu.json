@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Przebij się przez nadgryziony mur",
     "ContextMenu_SEW_OutfallDown": "Zejdź do kanału burzowego",
     "ContextMenu_SEW_OutfallUp": "Wyjdź na brzeg",
+    "ContextMenu_SEW_DrainDown": "Przeciśnij się w dół przez kratkę ściekową",
+    "ContextMenu_SEW_DrainUp": "Przeciśnij się na zewnątrz przez kratkę ściekową",
     "ContextMenu_SEW_Mine": "Kop",
     "ContextMenu_SEW_Dig_N": "Kuj skałę na północ",
     "ContextMenu_SEW_Dig_E": "Kuj skałę na wschód",

@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Abrirse paso por el muro roído",
     "ContextMenu_SEW_OutfallDown": "Bajar al desagüe pluvial",
     "ContextMenu_SEW_OutfallUp": "Salir a la orilla",
+    "ContextMenu_SEW_DrainDown": "Colarse por el imbornal",
+    "ContextMenu_SEW_DrainUp": "Salir por el imbornal",
     "ContextMenu_SEW_Mine": "Cavar",
     "ContextMenu_SEW_Dig_N": "Cavar en la roca hacia el norte",
     "ContextMenu_SEW_Dig_E": "Cavar en la roca hacia el este",

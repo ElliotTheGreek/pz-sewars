@@ -33,7 +33,11 @@ WORKSHOP_ID = "3810188405"          # set after the first upload, then never cha
 VISIBILITY = "public"       # "public" once the first upload has been checked
 TITLE = "Sewers Under Every Town (Build 42)"
 DESCRIPTION = (ROOT / "workshop" / "description.txt").read_text(encoding="utf-8").splitlines()
-DESCRIPTION_LIMIT = 8000
+# Steam allows 8000, and the game's uploader adds to what it sends
+# (SteamWorkshopItem.getSubmitDescription: "Workshop ID: ", "Mod ID: " and
+# "Map Folder: " lines). 0.9.0 was staged at 7971 and refused with result 8
+# (invalid parameter) after the whole content had gone up. Keep clear of it.
+DESCRIPTION_LIMIT = 7850
 
 
 def png_dimensions(path):

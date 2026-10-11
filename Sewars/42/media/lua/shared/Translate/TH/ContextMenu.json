@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "รื้อกำแพงที่ถูกแทะ",
     "ContextMenu_SEW_OutfallDown": "ปีนลงไปในท่อระบายน้ำฝน",
     "ContextMenu_SEW_OutfallUp": "ปีนขึ้นไปบนตลิ่ง",
+    "ContextMenu_SEW_DrainDown": "เบียดตัวลงทางช่องระบายน้ำริมถนน",
+    "ContextMenu_SEW_DrainUp": "เบียดตัวออกทางช่องระบายน้ำริมถนน",
     "ContextMenu_SEW_Mine": "ขุด",
     "ContextMenu_SEW_Dig_N": "ขุดหินทางทิศเหนือ",
     "ContextMenu_SEW_Dig_E": "ขุดหินทางทิศตะวันออก",

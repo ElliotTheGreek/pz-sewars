@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Obrir-se pas pel mur rosegat",
     "ContextMenu_SEW_OutfallDown": "Baixar al desguàs pluvial",
     "ContextMenu_SEW_OutfallUp": "Sortir a la riba",
+    "ContextMenu_SEW_DrainDown": "Esmunyir-se per l'embornal",
+    "ContextMenu_SEW_DrainUp": "Sortir per l'embornal",
     "ContextMenu_SEW_Mine": "Cavar",
     "ContextMenu_SEW_Dig_N": "Cavar a la roca cap al nord",
     "ContextMenu_SEW_Dig_E": "Cavar a la roca cap a l'est",

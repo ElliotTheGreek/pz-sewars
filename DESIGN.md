@@ -14,7 +14,7 @@ Vanilla has **sewer art and no sewer system.** The facts, all from
 | | |
 |---|---|
 | Manhole covers on the streets | **446** across the map, 76 in Muldraugh. All decoration: `street_decoration_01_15`, `attachedFloor`, no properties, no hole under them |
-| Storm drains at the kerb | `street_decoration_01_13/14/30/31`, likewise decoration |
+| Storm drains at the kerb | **653**: `street_decoration_01_13/14/30/31`, likewise decoration. A way down since 0.9.1 (section 7j) |
 | The `location_sewer_01` sheet | Brick and concrete walls, doorways, a sludge floor, two outfall pipes, pipework, metal grating, and **sewer ladders** in all four facings. See `design/art/vanilla_sewer_tiles.png` |
 | Where vanilla uses that sheet | Almost all at z 0 and above, as **plain building walls**. Below ground: a handful of pipes in basements, one room named `tunnel` at z -1, and a deep bunker at around 5550,12450 that goes down to **z -17** |
 | Map cells with levels below ground | 72 of 4,065 (66 reach z -1, the deepest -17) |
@@ -228,9 +228,22 @@ server builds from the Lua. Nothing in the game reads a map file.
     `design/art/plans/labyrinth_walls.png` is its plan with the walls, the
     way, the caches and the dead: for whoever works on it, never shipped.
 
+20. **Kerb storm drains** (0.9.1, `kerb_drains`), last of all in its town
+    and from a generator of its own: section 7j. Vanilla's own grates at the
+    kerb, each within 8 squares of plain walkway given a shaft under it and
+    a culvert from its foot to the tunnel, laid as an outfall's is (through
+    rock that touches no other space, met end-on, clear of every ladder,
+    door, breach, hatch and outfall, never under a building or the map's own
+    underground) and kept 12 squares from any gas, which was laid clear of
+    every ladder and stays so. One over plain walkway needs no culvert, and
+    gets a ladder only on a wall that is there already. Two never touch: a
+    grate two squares long is one way down. No chance in it: nearest first,
+    by place. 378 of the 653, in 8 towns (West Point 174, Muldraugh 120,
+    Riverside 57). New squares, and the wall each culvert opens.
+
 `design/art/plans/<town>.png` is each town's plan over its streets (caves in
 ochre, breaches pink, hatches cyan, gas yellow-green, water blue, outfalls
-white); look at it after any change. `tools/render_sewer.py` draws a stretch with the real tiles.
+white, kerb drains light blue); look at it after any change. `tools/render_sewer.py` draws a stretch with the real tiles.
 
 ## 5. Building a stretch
 
@@ -694,6 +707,58 @@ a limitation*. `SERVERS.md` is how each is used.
   turned to face a wall; an admin's works undone; sound between the levels
   below, which the engine lets through as it did the street's.)
 
+## 7j. Kerb storm drains (0.9.1)
+
+Asked for by the author (2026-10-11), with a screenshot of one: *we need to
+incorporate this type of vanilla sewer we missed*. And, the same hour:
+*maybe we don't let you use those vents if you are overweight or otherwise
+too big and bulky*; *add this constraint to the server options so server
+owners can decide if these are usable and if there are size constraints*.
+Section 10 had it open since 0.2: *too small to use, or a crawl-in for
+later?* It is a crawl-in.
+
+- **What**: the iron grate vanilla paints at the kerb of its streets, in
+  four pictures, 653 on the map. 378 are near enough to a tunnel to lead
+  to one (section 4, 20). Right-click one: **Squeeze down through the storm
+  drain**. Under it a ladder and a short culvert to the sewer; at that
+  ladder, **Squeeze out through the storm drain**, and you are back at the
+  kerb. Slower than a cover either way (`C.DrainTicks`), and no lid to
+  scrape. Daylight falls through the grate, as through a cover's holes.
+- **Not everybody fits** (`S.fits`). By the default: nobody whose weight is
+  at or over the game's own line for its High Weight trait (85), and nobody
+  carrying more than they can carry (its Weighed Down moodle). Greyed on the menu with
+  which of the two it is; the server decides, on its own copy.
+- **The body is asked on the way down only; the load both ways.** Section 2
+  says no setting shuts anybody in. A load can be put down at the foot of
+  the ladder; a body cannot. So whoever got down gets up, once they carry
+  no more than fits. And every drain's culvert joins tunnels that a street
+  cover's ladder serves (`test_layout` walks each one from a cover that is
+  no drain): the big and the laden have always a manhole to walk to.
+- **No rescue goes to a drain's ladder** (`S.nearestShaft`), for the same
+  reason: a rescue is for whoever it finds, whatever their size.
+- **A grate that leads nowhere says so**: the 275 too far from any tunnel
+  are greyed, *choked with silt and leaves*. Better than a grate that
+  answers on one street and is deaf on the next.
+- **The sandbox** (section 7h: *a setting decides what is put in or what
+  may be done, never what a record means*): `Sewars.Drains`, Yes or No --
+  No bolts them down for players, and closes no way up; `Sewars.DrainFit`,
+  Anybody / Not the overweight or overloaded (the default) / Only the slim
+  and lightly loaded (half a load). Both asked where the server grants a
+  climb. The culverts and ladders are hull, in the records, whatever the
+  settings say. An admin's four ways (section 7i) work on a drain as on any
+  way down; an admin goes down a bolted one, and fits or does not like
+  anybody else.
+- **Nothing is put on the street.** The grate is the map's, as a cover is.
+  A map mod that paves one over leaves a ladder under plain road, which
+  still takes a player up.
+- **Saves**: new squares, and in the 2,153 of them 597 existing records
+  change: the wall each culvert opens, the pillars at its corners, the
+  dressing on the squares beside it (`layout_diff`). A chunk a save has
+  built gets the hull on the revision pass; nothing a save holds moves.
+- (**Open**: what "bulky" should count beyond weight carried -- a big pack
+  on the back, a two-handed thing in the hands; a drain's own art from
+  below; whether a zombie should ever come down one.)
+
 ## 8. Art
 
 Vanilla's `location_sewer_01` is the base, because it matches the game and
@@ -729,12 +794,13 @@ pipeline.
 | 10 | The temple of the rat cult | **built** and tested offline; waiting on the author's play-test |
 | 11 | The labyrinth | **built** and tested offline (0.8); not played |
 | 12 | Languages, a server's settings, an admin's works | **built** and tested offline (0.9); not played |
+| 13 | Kerb storm drains | **built** and tested offline (0.9.1); not played |
 
 ## 10. Open decisions for the author
 
 - **Covers**: once opened, do they stay open? Can they be closed from below?
   Can a player weld or weigh one shut?
-- **Storm drains**: too small to use, or a crawl-in for later?
+- **Storm drains**: decided 2026-10-11, a crawl-in with a size limit (section 7j). Open: what else counts as bulky.
 - **Flooding**: does rain raise the water in the channels?
 - **Depth**: one level of tunnels, or a deeper storm-relief level under the
   trunks?

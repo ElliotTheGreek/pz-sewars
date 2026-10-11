@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Derrubar a parede roída",
     "ContextMenu_SEW_OutfallDown": "Descer para a galeria pluvial",
     "ContextMenu_SEW_OutfallUp": "Sair para a margem",
+    "ContextMenu_SEW_DrainDown": "Espremer-se para baixo pela boca de lobo",
+    "ContextMenu_SEW_DrainUp": "Espremer-se para fora pela boca de lobo",
     "ContextMenu_SEW_Mine": "Cavar",
     "ContextMenu_SEW_Dig_N": "Cavar a rocha ao norte",
     "ContextMenu_SEW_Dig_E": "Cavar a rocha ao leste",

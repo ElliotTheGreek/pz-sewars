@@ -135,6 +135,9 @@ OUTFALL_MAX = 4
 # Locked gates (gate_shelters): every town's key id is this plus a hash below
 # 90,000,000 -- clear of vanilla's ids, which stay under 100,000,000.
 GATE_KEY_BASE = 1900000000
+# Kerb storm drains (kerb_drains): vanilla's own grates at the kerb, each
+# joined to the network by a culvert no longer than this.
+DRAIN_REACH = 8
 N4 =[(0, -1), (-1, 0), (1, 0), (0, 1)]
 
 
@@ -264,6 +267,26 @@ def clear_road(cx, cy):
                 clear[y - cy * CELL, x - cx * CELL] = True
     np.savez_compressed(path, clear=clear)
     return clear
+
+
+def drain_facts(cx, cy):
+    """[(x, y)] for one cell, cached: the squares at street level that hold
+    one of vanilla's kerb storm drains (pzmap.DRAINS), world coords."""
+    os.makedirs(CACHE, exist_ok=True)
+    path = os.path.join(CACHE, "drain_%d_%d.npz" % (cx, cy))
+    if os.path.exists(path):
+        return [tuple(int(v) for v in d) for d in np.load(path)["drains"]]
+    out = []
+    header = os.path.join(pzmap.MAP, "%d_%d.lotheader" % (cx, cy))
+    if os.path.exists(header):
+        raw = open(header, "rb").read()
+        if any(d.encode() in raw for d in pzmap.DRAINS):
+            for (x, y), ts in pzmap.cell_squares(cx, cy, 0).items():
+                if any(t in pzmap.DRAINS for t in ts):
+                    out.append((x, y))
+    out.sort()
+    np.savez_compressed(path, drains=np.array(out, int).reshape(-1, 2))
+    return out
 
 
 WATER_TILES = ("blends_natural_02_0", "blends_natural_02_5", "blends_natural_02_6", "blends_natural_02_7")
@@ -865,11 +888,18 @@ def lay_out(tid, holes, streets_all, district=None, forbid=frozenset()):
     # its own. New squares only, and the nest's own stay where they are.
     warren = dig_warren(tid, lair, lair_id, tunnel, keep_all, room_id, cave_id) if lair else []
 
+    # Kerb storm drains, last of all and from a generator of their own:
+    # vanilla's grates at the kerb, each over a short culvert to the network.
+    # New squares, and a ladder; nothing above moves, and the gas stays clear
+    # of every one of them.
+    drains = kerb_drains(tid, x0, y0, tunnel, channel, keep_all, room_id, rooms, cave_id, caves, hatches,
+                         lair, lair_id, outfalls, gas, shafts)
+
     # The street each shaft is under, for the note on the way down.
     street_of = {}
     if names:
         pts = np.array(list(names.keys()))
-        for x, y in shafts:
+        for x, y in list(shafts) + [d["drain"] for d in drains]:
             d = np.abs(pts[:, 0] - x) + np.abs(pts[:, 1] - y)
             i = int(d.argmin())
             if d[i] <= 20:
@@ -879,7 +909,112 @@ def lay_out(tid, holes, streets_all, district=None, forbid=frozenset()):
                 trunk=trunk, channel=channel, sk=sk, shafts=shafts, dropped=dropped,
                 rooms=rooms, room_id=room_id, junctions=placed, street_of=street_of,
                 caves=caves, cave_id=cave_id, hatches=hatches, made=bool(district), tid=tid,
-                lair=lair, lair_id=lair_id, gas=gas, outfalls=outfalls, warren=warren)
+                lair=lair, lair_id=lair_id, gas=gas, outfalls=outfalls, warren=warren, drains=drains)
+
+
+def kerb_drains(tid, x0, y0, tunnel, channel, keep, room_id, rooms, cave_id, caves, hatches, lair, lair_id,
+                outfalls, gas, shafts):
+    """Kerb storm drains (DESIGN.md 7j): vanilla paints an iron grate at the
+    kerb of its streets (pzmap.DRAINS), 653 of them. Each one near the
+    network gets a shaft under it and a culvert from its foot to plain
+    walkway, met end-on: a way down narrower than a cover's. Mutates
+    `tunnel` (the culverts join it).
+
+    Laid as an outfall's is, and shorter: at most DRAIN_REACH squares, never
+    under a building, water or anything the map has below ground, a square
+    of rock between it and every other space until it meets the tunnel, and
+    clear of every ladder, door, breach, hatch and outfall. A drain over
+    plain walkway needs no culvert (`on`); `encode` gives it a ladder only
+    where a wall is there to hang one on. Never within reach of sewer gas:
+    the gas was laid clear of every ladder, and stays so. Nearest first, by
+    place: no generator of chance, so the list is the map's own.
+    Returns [{drain, path, on}], local coords, the path from the drain to
+    the square before the tunnel.
+    """
+    H, W = tunnel.shape
+    pts = []
+    for cx in range(x0 // CELL, (x0 + W - 1) // CELL + 1):
+        for cy in range(y0 // CELL, (y0 + H - 1) // CELL + 1):
+            for wx, wy in drain_facts(cx, cy):
+                if 3 <= wx - x0 < W - 3 and 3 <= wy - y0 < H - 3:
+                    pts.append((wx - x0, wy - y0))
+    if not pts:
+        return []
+    water = water_region(x0, y0, x0 + W - 1, y0 + H - 1)[0]
+    under = ndi.binary_dilation(under_map(x0, y0, x0 + W - 1, y0 + H - 1), iterations=2)
+    others = (room_id > 0) | (cave_id > 0) | (lair_id > 0)
+    blocked = keep | water | under | ndi.binary_dilation(others, iterations=2)
+    for h in hatches:
+        for (x, y) in h["path"] + [h["hatch"]]:
+            blocked[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = True
+    for o in outfalls:
+        for (x, y) in o["path"]:
+            blocked[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = True
+    blocked[:3, :] = blocked[-3:, :] = blocked[:, :3] = blocked[:, -3:] = True
+    # The gas keeps GAS_CLEAR squares from every ladder (vent_gas): no drain's
+    # ladder comes nearer than that to a stretch already laid.
+    foul = np.zeros((H, W), bool)
+    reach = GAS_CLEAR + 2
+    for g in gas:
+        for (x, y) in g["squares"]:
+            foul[max(0, y - reach):y + reach + 1, max(0, x - reach):x + reach + 1] = True
+    # Met end-on on plain walkway, as an outfall's culvert is.
+    plain = tunnel & ~ndi.binary_dilation(channel, iterations=3) & ~foul
+    marks = list(shafts) + [r["door"] for r in rooms] + [r["inside"] for r in rooms] + [c["breach"] for c in caves]
+    marks += [o["bank"] for o in outfalls] + [h["hatch"] for h in hatches]
+    if lair:
+        marks.append(lair["entry"])
+    for (x, y) in marks:
+        plain[max(0, y - 3):y + 4, max(0, x - 3):x + 4] = False
+    near_tunnel = ndi.binary_dilation(tunnel) & ~tunnel
+    dist = np.full((H, W), -1, int)
+    prev = {}
+    q = collections.deque()
+    ys, xs = np.nonzero(near_tunnel & ~blocked)
+    for x, y in sorted(zip(xs.tolist(), ys.tolist())):
+        touch = [(x + dx, y + dy) for dx, dy in N4 if tunnel[y + dy, x + dx]]
+        if len(touch) == 1 and plain[touch[0][1], touch[0][0]]:
+            dist[y, x] = 1
+            prev[(x, y)] = None
+            q.append((x, y))
+    ok = ~blocked & ~tunnel & ~near_tunnel
+    while q:
+        x, y = q.popleft()
+        if dist[y, x] >= DRAIN_REACH:
+            continue
+        for dx, dy in N4:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < W and 0 <= ny < H and ok[ny, nx] and dist[ny, nx] < 0:
+                dist[ny, nx] = dist[y, x] + 1
+                prev[(nx, ny)] = (x, y)
+                q.append((nx, ny))
+    cands = []
+    for x, y in sorted(set(pts)):
+        if foul[y, x]:
+            continue
+        if tunnel[y, x]:
+            if plain[y, x] and not others[y, x]:
+                cands.append((0, x, y))
+        elif dist[y, x] >= 1:
+            cands.append((int(dist[y, x]), x, y))
+    cands.sort()
+    out, used = [], []
+    for d, x, y in cands:
+        path, cur = [], (x, y) if d else None
+        while cur:
+            path.append(cur)
+            cur = prev[cur]
+        mine = path or [(x, y)]
+        # Two of them never touch: a grate two squares wide is one way down
+        # (the menu finds the shaft beside the grate that was clicked).
+        if any(abs(px - qx) + abs(py - qy) <= 2 for qx, qy in used for px, py in mine):
+            continue
+        out.append(dict(drain=(x, y), path=path, on=not d))
+        used += mine
+    for o in out:
+        for x, y in o["path"]:
+            tunnel[y, x] = True
+    return out
 
 
 def dig_outfalls(tid, x0, y0, tunnel, channel, keep, room_id, rooms, cave_id, caves, hatches, lair, lair_id, shafts):
@@ -1860,6 +1995,26 @@ def encode(t):
     # An outfall's ladder: daylight through its grate, like a cover's.
     t["outfall_ladders"] = [hang(o["bank"][0], o["bank"][1], True) + (o,) for o in t.get("outfalls", [])]
 
+    # A kerb drain's ladder: daylight through its grate too. Only on a wall
+    # that is there already -- never one built for it across a tunnel, and
+    # never in place of a pillar. One with no such wall is left a grate.
+    def can_hang(sx, sy):
+        here = sq.get((x0 + sx, y0 + sy))
+        if not here:
+            return False
+        if (here[3] in "cb" or here[4] in "cb") and here[5] == ".":
+            return True
+        east, south = sq.get((x0 + sx + 1, y0 + sy)), sq.get((x0 + sx, y0 + sy + 1))
+        return bool((east and east[4] in "cb" and east[5] == ".") or (south and south[3] in "cb" and south[5] == "."))
+
+    t["drain_ladders"] = []
+    for d in t.get("drains", []):
+        sx, sy = d["drain"]
+        if can_hang(sx, sy):
+            t["drain_ladders"].append(hang(sx, sy, True) + (t["street_of"].get((sx, sy), ""), d))
+        else:
+            d["bare"] = True
+
     # Dressing, deterministic by position.
     near_shaft = set()
     for sx, sy in t["shafts"]:
@@ -2357,6 +2512,12 @@ def write_index(towns, rev, journals=(), plans=()):
         for sx, sy, lx, ly, edge, o in t.get("outfall_ladders", []):
             lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="%s",street="",made=true,outfall=true}'
                          % (sx, sy, lua_str(tid), sx, sy, lx, ly, edge))
+        # Kerb storm drains: shafts under vanilla's own grates at the kerb. The
+        # grate is the map's, as a cover is; `drain` makes it a squeeze
+        # (SEW_Sewer.fits) and names it on the menu.
+        for sx, sy, lx, ly, edge, street, _d in t.get("drain_ladders", []):
+            lines.append('S["%d,%d"]={town=%s,x=%d,y=%d,lx=%d,ly=%d,edge="%s",street=%s,drain=true}'
+                         % (sx, sy, lua_str(tid), sx, sy, lx, ly, edge, lua_str(street)))
         for r in t["rooms"]:
             rx, ry, w, h = r["rect"]
             lines.append("H[#H+1]={town=%s,kind=%s,x=%d,y=%d,w=%d,h=%d}"
@@ -2526,6 +2687,9 @@ def plan(t, path):
     for o in t.get("outfalls", []):
         x, y = o["bank"]
         im[max(0, y - 2):y + 3, max(0, x - 2):x + 3] = (255, 255, 255)
+    for d in t.get("drains", []):
+        x, y = d["drain"]
+        im[y, x] = (255, 60, 60) if d.get("bare") else (90, 200, 255)
     for a, b in t["dropped"]:
         x, y = a - t["x0"], b - t["y0"]
         im[max(0, y - 1):y + 2, max(0, x - 1):x + 2] = (255, 0, 0)
@@ -2611,9 +2775,13 @@ def main():
         totals["gas"] += len(t["gas"])
         totals["gates"] += len(t["gates"])
         totals["outfalls"] += len(t["outfalls"])
-        print("  %-18s %3d %s %7d squares %4d chunks %3d shelters %3d vaults %3d caves %3d hatches %2d gas %d outfalls%s"
+        totals["drains"] += len(t.get("drain_ladders", []))
+        totals["bare"] += sum(1 for d in t.get("drains", []) if d.get("bare"))
+        print("  %-18s %3d %s %7d squares %4d chunks %3d shelters %3d vaults %3d caves %3d hatches %2d gas %d outfalls "
+              "%3d drains%s"
               % (tid, len(ladders), "covers ours" if t["made"] else "manholes   ", squares, len(chunks),
                  len(t["rooms"]), len(t["junctions"]), len(t["caves"]), len(t["hatches"]), len(t["gas"]), len(t["outfalls"]),
+                 len(t.get("drain_ladders", [])),
                  ("  (%d over buildings, left shut)" % len(t["dropped"])) if t["dropped"] else ""))
         if a.plans:
             plan(t, os.path.join(PLANS, "%s.png" % tid))
@@ -2661,7 +2829,7 @@ def main():
     print("story: %d journals, %d plans" % (len(journals), len(plans)))
     print("total: %(squares)d squares, %(shafts)d shafts under the map's covers and %(made)d under ours, "
           "%(shelters)d shelters (%(gates)d locked), %(caves)d caves, %(hatches)d hatches, %(outfalls)d outfalls, "
-          "%(gas)d stretches of gas, "
+          "%(gas)d stretches of gas, %(drains)d kerb drains (%(bare)d more with no wall for a ladder), "
           "%(dropped)d manholes left shut" % totals)
     if totals["shafts"] + totals["dropped"] != len(holes):
         raise SystemExit("a manhole was neither given a shaft nor reported: %d + %d != %d"

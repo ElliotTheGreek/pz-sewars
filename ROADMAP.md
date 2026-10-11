@@ -266,6 +266,25 @@ Asked for by the author; DESIGN.md 7i, SERVERS.md. Version 0.9.0, which is
 - [ ] **(game, a server)** every tool as a real admin; a mark made, the server restarted, `[SEW] indoors: mark ... declared` in its log, and nobody frozen
 - [ ] Not done: a room turned; the generator's tunnels declared as rooms; sound between the levels below (the street's is handled, 0.7.4)
 
+## 0.9.1 -- kerb storm drains (2026-10-11)
+
+Asked for by the author, with a screenshot of one; DESIGN.md 7j. The open
+decision since 0.2 (*too small to use, or a crawl-in for later?*), decided.
+
+- [x] **Vanilla's kerb drains are ways down**: 653 on the map (`tools/pzmap.py census`, which now looks in every cell), 378 within 8 squares of plain walkway given a shaft and a culvert (`gen_sewers.kerb_drains`, last in each town from a generator of its own): West Point 174, Muldraugh 120, Riverside 57, Ekron 11, Muldraugh's and West Point's small networks 13, Fallas Lake 3. `drain=true` in the index; the grate is the map's own
+- [x] *Squeeze down through the storm drain* / *Squeeze out through the storm drain*: slower than a cover (`C.DrainTicks`), no lid, the drain's own notes; a grate two squares long is one way down (`S.drainShaft`); one over no tunnel is greyed, *choked*
+- [x] **Not everybody fits** (`S.fits`, asked on the menu and decided on the server): not at or over the game's own weight for its High Weight trait (85), not carrying more than can be carried. The body on the way down only, the load both ways, so no setting shuts anybody in; no rescue to a drain's ladder; the client's own climb out when a server is silent asks the same
+- [x] Sandbox **Kerb storm drains** (`Drains`: Yes / No, a way up always) and **Who fits through a kerb drain** (`DrainFit`: Anybody / Not the overweight or overloaded / Only the slim and lightly loaded); SERVERS.md
+- [x] `layout_diff` against 0.9.0: 2,153 squares added, 0 removed, 597 changed (the walls the culverts open, pillars at their corners, dressing beside them); 378 shafts new, none gone; shelters, journals, plans, caves, the nest, every piece of furniture, the temple and the labyrinth identical
+- [x] `test_layout`: every drain's shaft under a grate of the map's, a grating at its foot, walked to from a street cover that is no drain, no two touching, the gas still clear of every ladder. `test_flow` (`drain_test`): the menu, the grate beside it, a choked one, each refusal on the menu and from the server, the three settings of `DrainFit` and a world without it, `Drains` No and the way up it does not close, down and up, the notes, no rescue. `tests/mutate.py "kerb drain"`: 26 mutations (one missed at first: an admin's cover on a drain's square read as a choked drain, fixed and tested)
+- [x] 22 texts in 26 languages; the dev build's menu: *Go to a kerb storm drain* (twenty-three stops)
+- [x] **(game, 2026-10-11: "I slipped through and it worked")** *Sewers (dev)*, *Go to a kerb storm drain*: the grate a square north of you. Right-click it: *Squeeze down through the storm drain*. Down: a ladder's foot, a concrete culvert a few squares long, the sewer at its end; light under the grate. Back at the ladder: *Squeeze out*, and you are at the kerb
+- [ ] **(game)** the size limit: pick up more than you can carry (the Weighed Down moodle) and right-click the grate: greyed, *carrying too much*. Below, the same at its ladder; drop it and the way up is offered. An overweight character (a new one with the High Weight trait): greyed, *too big*
+- [ ] **(game)** a drain far from any tunnel (most of Rosewood's): greyed, *choked with silt and leaves*
+- [ ] **(game, a server)** the server's copy of a player has their weight and their load (`getNutrition():getWeight()`, `getInventoryWeight()`, `getMaxWeight()`: each has vanilla Lua that calls it on a client or in single player; on a server's copy, unproven). If a player who should fit is refused, `[SEW] refused <player>: big` or `load` in the server's log is the report
+- [ ] **(game)** an old save: walk a street whose tunnel it had built; the culvert under a drain there is dug (walls, floor, ladder) the next time you are near, and nothing else has changed
+- [ ] Not done: a big pack or a thing in both hands counting as bulky; a drain seen from below in art of its own; the unanswered climb out on a server asking who fits is written and has no test of its own
+
 ## 0.8.1 -- languages, and what a server wants (2026-10-10)
 
 Asked for by the author (2026-10-10): Spanish and every other language
@@ -302,6 +321,7 @@ is the host's guide.
 
 - [x] First Workshop upload: 0.3.1, item **3810188405**, public (2026-09-29); `WORKSHOP_ID` set
 - [x] 0.3.2 folded into 0.5.0 (never uploaded on its own)
+- [~] **0.9.1 update**: kerb storm drains (0.9.1 above); version bumped (mod.info, `C.Version`), CHANGELOG, README, SERVERS.md, DESIGN.md and the Workshop description (7,833 of the 7,850 characters it may have); every static test; the 26 new mutations and the one re-pointed; `layout_diff` against 0.9.0 clean; deployed as SewarsDev and staged with `package --install` (2026-10-11), compared with the source file by file. The climb down is played. **The full mutation set was not run, at the author's word** (DEV_GUIDE, *Current state*): owed. Upload from the game's Workshop screen
 - [~] **0.9.0 update**: an admin's works on top of 0.8.1 (0.9 above; one upload); version bumped (mod.info, `C.Version`), CHANGELOG, README, SERVERS.md and the Workshop description; every static test; the 68 new mutations and the 43 re-pointed ones. **The full mutation set is to be run once more, alone, before uploading**
 - [x] **0.8.1**, folded into 0.9.0: languages and the server settings (0.8.1 above); version bumped (mod.info, `C.Version`), CHANGELOG, README, SERVERS.md and the Workshop description; every static test; the 33 new mutations caught. **Not run: the full mutation set** (the 0.8.0 run was stopped part way and left its wind mutation in `SEW_Wind.lua`, found and put back here: see DEV_GUIDE, *Current state*). Run `python tools/dev.py mutate` alone before uploading
 - [~] **0.8.0 update**: the labyrinth (0.8 above); version bumped (mod.info, `C.Version`), CHANGELOG, README and the Workshop description updated; `layout_diff` against 0.7.6 clean; every static test; RELEASE_MUTATIONS. The author has seen it in game (the trapdoor, the map); the 0.8 **(game)** lines are otherwise open

@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Sparge zidul ros",
     "ContextMenu_SEW_OutfallDown": "Coboară în canalul pluvial",
     "ContextMenu_SEW_OutfallUp": "Ieși pe mal",
+    "ContextMenu_SEW_DrainDown": "Strecoară-te în jos prin gura de scurgere",
+    "ContextMenu_SEW_DrainUp": "Strecoară-te afară prin gura de scurgere",
     "ContextMenu_SEW_Mine": "Sapă",
     "ContextMenu_SEW_Dig_N": "Sapă în stâncă spre nord",
     "ContextMenu_SEW_Dig_E": "Sapă în stâncă spre est",

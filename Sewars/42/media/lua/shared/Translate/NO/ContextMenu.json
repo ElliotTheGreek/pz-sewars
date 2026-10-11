@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Bryt gjennom den gnagde muren",
     "ContextMenu_SEW_OutfallDown": "Klatre ned i overvannsrøret",
     "ContextMenu_SEW_OutfallUp": "Klatre opp på bredden",
+    "ContextMenu_SEW_DrainDown": "Presse deg ned gjennom gateslukket",
+    "ContextMenu_SEW_DrainUp": "Presse deg ut gjennom gateslukket",
     "ContextMenu_SEW_Mine": "Grav",
     "ContextMenu_SEW_Dig_N": "Grav inn i fjellet mot nord",
     "ContextMenu_SEW_Dig_E": "Grav inn i fjellet mot øst",

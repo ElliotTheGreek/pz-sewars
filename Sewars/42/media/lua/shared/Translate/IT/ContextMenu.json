@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Sfonda il muro rosicchiato",
     "ContextMenu_SEW_OutfallDown": "Scendi nello scarico pluviale",
     "ContextMenu_SEW_OutfallUp": "Risali sulla riva",
+    "ContextMenu_SEW_DrainDown": "Infilati giù per la caditoia",
+    "ContextMenu_SEW_DrainUp": "Sguscia fuori dalla caditoia",
     "ContextMenu_SEW_Mine": "Scava",
     "ContextMenu_SEW_Dig_N": "Scava nella roccia a nord",
     "ContextMenu_SEW_Dig_E": "Scava nella roccia a est",

@@ -126,7 +126,7 @@ def pick_shafts(L, town="muldraugh"):
     out = []
     for k in shafts.keys():
         s = shafts[k]
-        if s.town == town and not s.hatch:
+        if s.town == town and not s.hatch and not s.drain:
             out.append((s.x, s.y, s.lx, s.ly, s.street))
     return sorted(out)
 
@@ -651,7 +651,7 @@ def dev_menu_test(L, p):
         return
     sub = top[0].subMenu
     names = [n for n, _ in options(sub)]
-    check(len(names) == 22, "with its twenty-two stops (%s)" % names)
+    check(len(names) == 23, "with its twenty-three stops (%s)" % names)
 
     # As the game does it: nothing is loaded where a trip lands until the
     # player is there (found in play: every trip was rescued to a ladder).
@@ -1289,6 +1289,166 @@ def outfall_test(L, p):
         blue = [d for d in lua_list(sim.draws) if d.kind == "rect" and d.extra and abs(d.extra[1] - 0.22) < 1e-6]
         check(len(blue) >= 1, "drawn in the river's blue")
         win.close(win)
+
+
+def drain_test(L, p):
+    """Kerb storm drains (DESIGN.md 7j): vanilla's grate at the kerb is a
+    narrow way down -- not for the overweight or the overloaded, by the
+    sandbox, asked of the server -- and a way back up for anybody who has
+    put their load down."""
+    g = L.globals()
+    sim, SEW = g.SIM, g.SEW
+    out = L.execute("""
+        local out = {}
+        for _, s in pairs(SEW.Index.shafts) do
+            -- One with nothing of the index's beside it, so a second grate can be laid there.
+            if s.drain and s.town == "muldraugh" and not SEW.Sewer.shaftAt(s.x + 1, s.y) then out[#out + 1] = s end
+        end
+        table.sort(out, function(a, b) return a.x < b.x or (a.x == b.x and a.y < b.y) end)
+        local n = 0
+        for _, s in pairs(SEW.Index.shafts) do if s.drain then n = n + 1 end end
+        return out[1], n
+    """)
+    d, n = out
+    check(d is not None and n >= 300 and not d.made, "the index has kerb drains, under the map's own grates (%s)" % n)
+    if d is None:
+        return
+    dx, dy = int(d.x), int(d.y)
+    q = sim.newPlayer("kerb", dx + 0.5, dy + 1.5, 0)
+    q.hours = 50
+    sim.players = L.table(q)
+    street(L, dx, dy, 8, manhole=False)
+    T = TEXT
+    down, up = T["ContextMenu_SEW_DrainDown"], T["ContextMenu_SEW_DrainUp"]
+    check(down not in [nm for nm, _ in options(menu(L, 0, dx, dy))], "bare road over a drain's shaft offers nothing")
+    # The grate, two squares long as vanilla lays some, and a third far from any shaft.
+    L.execute("""
+        local x, y = %d, %d
+        for _, at in ipairs({ { x, y, "street_decoration_01_14" }, { x + 1, y, "street_decoration_01_13" },
+                              { x + 6, y + 6, "street_decoration_01_30" } }) do
+            local sq = getCell():getGridSquare(at[1], at[2], 0)
+            sq.objects:add(IsoObject.new(sq, at[3], ""))
+        end
+    """ % (dx, dy))
+    sim.violations = L.table()
+
+    def offered(x=dx, y=dy):
+        m = menu(L, 0, x, y)
+        o = dict(options(m)).get(down)
+        return m, o
+
+    m, o = offered()
+    names = [nm for nm, _ in options(m)]
+    check(o is not None and not o.notAvailable and T["ContextMenu_SEW_Enter"] not in names,
+          "a kerb drain offers Squeeze down, not a cover's climb (%s)" % names)
+    check(o is not None and o.toolTip.description == T["Tooltip_SEW_Drain"], "with the drain's tooltip")
+    m2, o2 = offered(dx + 2, dy)
+    check(o2 is not None and not o2.notAvailable, "the grate beside it is the same way down")
+    far = L.execute("return SEW.Sewer.drainShaft(%d, %d)" % (dx + 6, dy + 6))
+    q.x, q.y = dx + 6.5, dy + 7.5
+    m3, o3 = offered(dx + 6, dy + 6)
+    check(far is None and o3 is not None and o3.notAvailable and o3.toolTip.description == T["Tooltip_SEW_DrainShut"],
+          "a drain over no tunnel is greyed: choked")
+    # A way down of another kind on a drain's square (an admin's cover) is
+    # that way down, and no drain's shaft.
+    other = L.execute("""
+        local x, y = %d, %d
+        local key = SEW.Sewer.shaftKey(x, y)
+        SEW.Sewer.custom[key] = { town = "muldraugh", x = x, y = y, lx = x, ly = y, edge = "N", street = "",
+                                  made = true, custom = true }
+        local what = SEW.Client.offer(SIM.players[1], x, y)
+        local d = SEW.Sewer.drainShaft(x, y)
+        SEW.Sewer.custom[key] = nil
+        return what, d == nil
+    """ % (dx + 6, dy + 6))
+    check(other[0] == "down" and other[1] is True, "an admin's cover on a drain's square is a cover (%s, %s)" % tuple(other))
+    q.x, q.y = dx + 0.5, dy + 1.5
+
+    def grant(mode):
+        return L.execute("return SEW.Server.grant(SIM.players[1], %d, %d, '%s') == true" % (dx, dy, mode))
+
+    def refusal():
+        last = [s for s in lua_list(sim.log) if "refused" in str(s)]
+        return str(last[-1]) if last else ""
+
+    # Who fits (S.fits), on the menu and on the server.
+    q.weight = 90
+    m, o = offered()
+    check(o is not None and o.notAvailable and o.toolTip.description == T["Tooltip_SEW_DrainBig"],
+          "overweight: greyed, too big")
+    check(grant("down") is False and ": big" in refusal() and q.z == 0, "and the server refuses it (%s)" % refusal())
+    q.weight, q.carried = 84, 13
+    m, o = offered()
+    check(o is not None and o.notAvailable and o.toolTip.description == T["Tooltip_SEW_DrainLoad"],
+          "carrying more than can be carried: greyed, too much")
+    check(grant("down") is False and ": load" in refusal(), "and the server refuses it (%s)" % refusal())
+    q.carried = 7
+    check(not offered()[1].notAvailable, "more than half a load fits by the default")
+    L.execute("SandboxVars.Sewars.DrainFit = 3")
+    check(offered()[1].notAvailable and grant("down") is False and ": load" in refusal(),
+          "the sandbox's Only the slim and lightly loaded: more than half a load does not")
+    q.weight, q.carried = 120, 40
+    L.execute("SandboxVars.Sewars.DrainFit = 1")
+    check(not offered()[1].notAvailable, "the sandbox's Anybody: no limit")
+    L.execute("SandboxVars.Sewars.DrainFit = nil")
+    check(offered()[1].notAvailable, "a world from before the setting: not the overweight or overloaded")
+    q.weight, q.carried = None, None
+
+    # Bolted down by the sandbox.
+    L.execute("SandboxVars.Sewars.Drains = 2")
+    m, o = offered()
+    check(o is not None and o.notAvailable and o.toolTip.description == T["Tooltip_SEW_DrainOff"],
+          "the sandbox's Kerb storm drains, No: greyed, bolted down")
+    check(grant("down") is False and ": drainoff" in refusal(), "and the server refuses it (%s)" % refusal())
+    cover = L.execute("""
+        for _, s in pairs(SEW.Index.shafts) do
+            if s.town == "muldraugh" and not s.drain and not s.hatch and not s.made then return s end
+        end
+    """)
+    check(L.execute("return SEW.Sewer.drainsOpen()") is False and cover is not None
+          and L.execute("return SEW.Sewer.fits(SIM.players[1], 'down')") is None,
+          "a setting for the drains says nothing of a cover")
+    L.execute("SandboxVars.Sewars.Drains = nil")
+
+    # Down.
+    m, o = offered(dx + 2, dy)
+    before = len(lua_list(sim.notes))
+    ticks = L.execute("return SEWClimb:new(SIM.players[1], %d, %d, 'down').maxTime, SEW.Config.DrainTicks" % (dx, dy))
+    check(ticks[0] == ticks[1], "a squeeze takes its own time (%s)" % (ticks,))
+    choose(m, down)
+    sim.runActions()
+    sim.tickN(3)
+    check(abs(q.z + 1) < 1e-6 and int(q.x) == dx and int(q.y) == dy,
+          "down to the foot of its ladder, from the grate beside it (%.1f,%.1f,%.1f)" % (q.x, q.y, q.z))
+    check(any("squeeze" in nt for nt in lua_list(sim.notes)[before:]), "with the drain's note")
+    check("SEW_Lid" not in lua_list(sim.sounds)[-3:], "and no iron lid scraping")
+    lobjs = objects_at(L, int(d.lx), int(d.ly), -1)
+    check(any(x in ("sewars_01_0", "sewars_01_1") for x in lobjs), "a ladder hangs under the grate (%s)" % lobjs)
+
+    # Up: what is carried counts, the body does not, and no setting shuts anybody in.
+    def offered_up():
+        return dict(options(menu(L, 0, dx, dy))).get(up)
+
+    q.carried = 13
+    o = offered_up()
+    check(o is not None and o.notAvailable and o.toolTip.description == T["Tooltip_SEW_DrainLoad"],
+          "below with too much: Squeeze out is greyed")
+    check(grant("up") is False and ": load" in refusal() and abs(q.z + 1) < 1e-6, "and the server refuses it (%s)" % refusal())
+    q.carried, q.weight = None, 120
+    L.execute("SandboxVars.Sewars.Drains = 2")
+    o = offered_up()
+    check(o is not None and not o.notAvailable, "the load put down: offered, whatever the body and whatever the sandbox bolts")
+    before = len(lua_list(sim.notes))
+    choose(menu(L, 0, dx, dy), up)
+    sim.runActions()
+    sim.tickN(3)
+    check(q.z == 0 and int(q.x) == dx and int(q.y) == dy and any("kerb" in nt for nt in lua_list(sim.notes)[before:]),
+          "and up onto the kerb (%.1f,%.1f,%.1f)" % (q.x, q.y, q.z))
+    L.execute("SandboxVars.Sewars.Drains = nil")
+    q.weight = None
+    near = L.execute("local s = SEW.Sewer.nearestShaft(%d, %d, 400); return s ~= nil and s.drain ~= true" % (dx, dy))
+    check(near is True, "no rescue is sent to a kerb drain's ladder")
+    check(SEW.Map.state.l["%d,%d" % (dx, dy)] is not None, "the drain used is on the sewer map")
 
 
 def mine_test(L, p):
@@ -2517,7 +2677,7 @@ def rooms_test(L, p, server):
     mx, my = L.execute("""
         local keys = {}
         for k, s in pairs(SEW.Index.shafts) do
-            if s.town == "muldraugh" and not s.hatch and not s.made and not s.outfall then keys[#keys + 1] = k end
+            if s.town == "muldraugh" and not s.hatch and not s.made and not s.outfall and not s.drain then keys[#keys + 1] = k end
         end
         table.sort(keys)
         for _, k in ipairs(keys) do
@@ -3176,7 +3336,7 @@ def access_test(L, p, mx, my, lx, ly):
     other = L.execute("""
         local mx, my = ...
         for _, s in pairs(SEW.Index.shafts) do
-            if s.town == "muldraugh" and not s.hatch and not s.made and (s.x ~= mx or s.y ~= my) then
+            if s.town == "muldraugh" and not s.hatch and not s.made and not s.drain and (s.x ~= mx or s.y ~= my) then
                 return SEW.Server.open(s.x, s.y)
             end
         end
@@ -3608,7 +3768,7 @@ def works_test(L, p, mx, my):
     theirs = L.execute("""
         for _, s in pairs(SEW.Index.shafts) do
             local r = SEW.Build.recordAt(s.x, s.y)
-            if s.town == "muldraugh" and not s.hatch and (s.lx ~= s.x or s.ly ~= s.y) and r and r:sub(6, 6) == "." then
+            if s.town == "muldraugh" and not s.hatch and not s.drain and (s.lx ~= s.x or s.ly ~= s.y) and r and r:sub(6, 6) == "." then
                 return s.x, s.y
             end
         end
@@ -5162,6 +5322,8 @@ def single_player():
     gates_test(L, p)
     sim.players = L.table(p)
     outfall_test(L, p)
+    sim.players = L.table(p)
+    drain_test(L, p)
     sim.players = L.table(p)
     dev_menu_test(L, p)
     sim.players = L.table(p)

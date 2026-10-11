@@ -139,7 +139,8 @@ function S.nearestShaft(x, y, range)
         -- Never a hatch's: its ladder is under a house that may have a
         -- basement instead, and its way up may be shut. Never the
         -- labyrinth's way out: its foot is in the heart, which is earned.
-        if not s.hatch and not s.exit then
+        -- Never a kerb drain's: not everybody fits back up one (S.fits).
+        if not s.hatch and not s.exit and not s.drain then
             local d = U.dist(x, y, s.x, s.y)
             if d < bestD then best, bestD = s, d end
         end
@@ -194,11 +195,64 @@ function S.shelterAt(x, y)
     return nil
 end
 
---- Vanilla's cover, one of ours (the towns the map gives few), or an
---- outfall's grate in a riverbank.
+--- One of vanilla's kerb storm drains (DESIGN.md 7j).
+function S.isDrain(sq)
+    if sq == nil then return false end
+    for _, name in ipairs(C.DrainSprites) do
+        if U.findSprite(sq, name) ~= nil then return true end
+    end
+    return false
+end
+
+--- Vanilla's cover, one of ours (the towns the map gives few), an
+--- outfall's grate in a riverbank, or a kerb storm drain.
 function S.isManhole(sq)
     return sq ~= nil and (U.findSprite(sq, C.ManholeSprite) ~= nil or U.findSprite(sq, C.Sprites.cover) ~= nil
                           or U.findSprite(sq, C.Sprites.outfall) ~= nil)
+        or S.isDrain(sq)
+end
+
+--- The shaft under the kerb drain at x, y: its own, or the one under the
+--- grate beside it. Vanilla lays some drains two squares long, and the
+--- generator gives a pair one shaft (gen_sewers.kerb_drains). Or nil: a
+--- drain too far from any tunnel has none.
+function S.drainShaft(x, y)
+    local own = S.shaftAt(x, y)
+    if own then return own.drain and own or nil end
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            local s = S.shaftAt(x + dx, y + dy)
+            if s and s.drain then return s end
+        end
+    end
+    return nil
+end
+
+--- Are the kerb drains a way down at all? The sandbox's Sewars.Drains.
+function S.drainsOpen()
+    return S.option("Drains", 1, 2) == 1
+end
+
+--- Why a character does not fit through a kerb drain, or nil when they do:
+--- "big" (the body: the game's own weight, at or over its line for
+--- Overweight) or "load" (carrying too much). By the sandbox's
+--- Sewars.DrainFit: 1 anybody fits, 2 not the overweight or the overloaded
+--- (the default), 3 only the slim and the lightly loaded.
+--- **The body is asked on the way down only.** A load can be put down at
+--- the foot of the ladder; a body cannot, and no setting shuts anybody in
+--- (DESIGN.md 2). The same answer on a client, for its menu, and on the
+--- server, which decides (SEW_Server.grant).
+function S.fits(character, mode)
+    local fit = S.option("DrainFit", 2, 3)
+    if fit == 1 or character == nil then return nil end
+    if mode == "down" then
+        local w = U.try("fits.weight", function() return character:getNutrition():getWeight() end)
+        if w and w >= C.Drain.weight then return "big" end
+    end
+    local carried = U.try("fits.carried", function() return character:getInventoryWeight() end)
+    local most = U.try("fits.most", function() return character:getMaxWeight() end)
+    if carried and most and carried > most * (fit == 3 and C.Drain.light or C.Drain.load) then return "load" end
+    return nil
 end
 
 --- The manhole cover nearest to x, y at street level within `slack` squares:

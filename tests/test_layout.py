@@ -90,6 +90,7 @@ def read_index():
             sh["hatch"], sh["under"] = h[1], list(zip(v[0::2], v[1::2]))
         sh["made"] = ",made=true" in line
         sh["outfall"] = ",outfall=true" in line
+        sh["drain"] = ",drain=true" in line
         sh["trapdoor"] = ",trapdoor=true" in line
         sh["exit"] = ",exit=true" in line
         shafts.append(sh)
@@ -532,6 +533,7 @@ def main():
     total_walk, total_stranded = 0, 0
     caves = read_caves()
     n_caves, n_hatches, n_made, n_lairs, n_gas, n_gates, n_outfalls = 0, 0, 0, 0, 0, 0, 0
+    n_drains = 0
     lair = read_lair()
     temple = read_temple()
     world, pictures_all, dead_all = {}, [], []
@@ -660,6 +662,27 @@ def main():
             check(not bad, "%s: %d outfalls, every grate on dry ground by big water and walked to from a street "
                   "cover (%d not, e.g. %s)" % (tid, len(outfalls), len(bad), bad[:3]))
             n_outfalls += len(outfalls)
+
+        # Kerb storm drains (DESIGN.md 7j): each shaft under one of vanilla's
+        # own grates, a grating at its foot, and walked to from a street
+        # cover that is no drain -- whoever does not fit back up one always
+        # has a cover to walk to. Not everybody fits: no rescue is sent to one.
+        drains = [s for s in mine if s.get("drain")]
+        if drains:
+            covers = walk(sq, [(s["x"], s["y"]) for s in mine
+                               if "hatch" not in s and not s.get("outfall") and not s.get("drain")])
+            bad = []
+            for s in drains:
+                on_map = gen_sewers.drain_facts(s["x"] // gen_sewers.CELL, s["y"] // gen_sewers.CELL)
+                if not ((s["x"], s["y"]) in on_map and (s["x"], s["y"]) in covers
+                        and sq.get((s["x"], s["y"]), "  .")[2] == "g" and not s.get("made")):
+                    bad.append((s["x"], s["y"]))
+            near = [(a["x"], a["y"]) for a in drains for b in drains
+                    if a is not b and abs(a["x"] - b["x"]) + abs(a["y"] - b["y"]) <= 2]
+            check(not bad and not near, "%s: %d kerb drains, every shaft under a grate of the map's own and walked to "
+                  "from a street cover (%d not, e.g. %s), no two touching (%d)"
+                  % (tid, len(drains), len(bad), bad[:3], len(near)))
+            n_drains += len(drains)
 
         # No tunnel ends in a wall under a road that runs on to the network: the
         # street list has gaps the painted road does not (Harris St, Muldraugh,
@@ -848,6 +871,7 @@ def main():
           "locked gates, all towns: %d (the index lists %d); %d towns with a key, every key its own and clear of "
           "vanilla's ids" % (n_gates, len(gates_index), len(town_keys)))
     check(n_outfalls >= 10, "storm-drain outfalls, all towns (%d)" % n_outfalls)
+    check(n_drains >= 300, "kerb storm drains with a shaft, all towns (%d)" % n_drains)
     check(n_lairs == 1, "one rats' nest in the world, under %s (%d)" % (lair and lair["town"], n_lairs))
     check(n_hatches >= 30, "houses with a way down, all towns (%d)" % n_hatches)
     check(n_made >= 400, "covers of ours in the towns the map gives few (%d)" % n_made)

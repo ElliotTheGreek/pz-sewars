@@ -2,7 +2,9 @@
 
 A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
 
-> Status: **0.9.0**: every language the game speaks, and for servers an
+> Status: **0.9.1**: the storm drains at the kerb are ways down (a squeeze,
+> with a size limit the sandbox sets), on top of
+> 0.9.0: every language the game speaks, and for servers an
 > admin's tools -- who may use a way down, ways down put anywhere, tunnels
 > drawn on the map, two deeper levels, rooms set down, ground marked as
 > indoors -- and eight more sandbox settings (`SERVERS.md`), on top of
@@ -35,6 +37,12 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   network, laid out from the real map, so a main road is a main trunk and a
   cul-de-sac is a dead-end culvert. Walk under Muldraugh and come up where you
   meant to.
+- **Storm drains at the kerb.** The iron grates at the kerbs of the game's
+  own streets go somewhere too: 378 of them, mostly in West Point, Muldraugh
+  and Riverside. Right-click one: **Squeeze down through the storm drain**.
+  It is a tight fit. An overweight character does not get through, and
+  nobody does carrying more than they can carry: put some of it down, or
+  find a manhole. One that leads nowhere is greyed out, choked with silt.
 - **Ladders out.** Every manhole has a ladder under it. Right-click a ladder:
   **Climb out to the street**, and you come up through the cover above it.
   Or stand at the ladder's foot and press your Interact key (E).
@@ -125,6 +133,9 @@ A Project Zomboid build 42 mod: **every manhole in Kentucky goes somewhere.**
   mod has something in the same ground. Leave them alone otherwise.
 - **Trapdoors in houses**: yes or no.
 - **Storm-drain outfalls**: yes or no.
+- **Kerb storm drains**: yes, or no (bolted down).
+- **Who fits through a kerb drain**: anybody, not the overweight or
+  overloaded (the default), or only the slim and lightly loaded.
 - **The rats' nest**: open, or sealed (its false wall will not come away).
 - **Rodents of unusual size**: weak, normal, tough or monstrous.
 - **The dead in the temple**, **The dead in the labyrinth**: none, a few,
@@ -217,9 +228,9 @@ servers.
 ## In numbers
 
 31 towns, 1,174 manholes that open (732 of them covers the mod adds where the
-map has few, Louisville above all), 16 storm-drain outfalls, 239 shelters (47
+map has few, Louisville above all), 378 kerb storm drains, 16 storm-drain outfalls, 239 shelters (47
 behind locked gates), 152 caves, 189 houses with a way down, 97 stretches of
-sewer gas, 479,238 walkable squares of tunnel, one nest of five rooms and one
+sewer gas, 480,341 walkable squares of tunnel, one nest of five rooms and one
 temple of thirteen, laid out from the game's own street map.
 
 ## For developers

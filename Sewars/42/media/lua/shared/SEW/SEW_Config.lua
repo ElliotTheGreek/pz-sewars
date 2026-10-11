@@ -9,7 +9,7 @@ SEW = SEW or {}
 SEW.Config = SEW.Config or {}
 local C = SEW.Config
 
-C.Version = "0.9.0"
+C.Version = "0.9.1"
 C.ModPrefix = "[SEW]"
 C.Debug = false
 
@@ -34,6 +34,18 @@ C.Levels = { -1, -2, -3 }
 -- by eye on design/art/vanilla_street_tiles.png and counted on the real map by
 -- tools/pzmap.py (446 on the map). 13, 14, 30 and 31 are kerb storm drains.
 C.ManholeSprite = "street_decoration_01_15"
+-- Vanilla's kerb storm drains, in their four pictures (653 on the map,
+-- tools/pzmap.py). The generator puts a shaft under each one near a tunnel
+-- (`drain` in the index: 378 of them); DESIGN.md 7j.
+C.DrainSprites = { "street_decoration_01_13", "street_decoration_01_14",
+                   "street_decoration_01_30", "street_decoration_01_31" }
+-- A kerb drain is a squeeze (SEW_Sewer.fits; the sandbox's Sewars.DrainFit).
+--   weight   a body this heavy or heavier does not fit: the game's own line
+--            for its Overweight trait (Nutrition.applyTraitFromWeight)
+--   load     carrying more than this share of what they can carry, nobody
+--            fits: 1 is the game's Heavy Load
+--   light    the same share where the sandbox says only the lightly loaded
+C.Drain = { weight = 85, load = 1.0, light = 0.5 }
 
 -- How far a player may stand from a cover or a ladder and still use it. The
 -- right-click lands on the floor square under the cursor, not on the picture
@@ -50,6 +62,7 @@ C.LiftTicks = 110          -- prising the cover up and climbing down
 C.LiftTicksCrowbar = 60    -- with a crowbar or a pipe wrench in the inventory
 C.ClimbTicks = 80          -- climbing the ladder and shouldering the cover up
 C.HatchTicks = 50          -- a trapdoor in a house's floor: no lid to prise up
+C.DrainTicks = 150         -- a kerb drain, either way: the grate out, and a tight squeeze
 
 -- Houses with a way down: the server looks at a hatch's house when a player
 -- on the street comes this close, and opens the hatch only if nothing is

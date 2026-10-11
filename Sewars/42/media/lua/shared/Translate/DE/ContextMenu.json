@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Die angenagte Wand durchbrechen",
     "ContextMenu_SEW_OutfallDown": "In den Regenwasserkanal steigen",
     "ContextMenu_SEW_OutfallUp": "Ans Ufer hinaussteigen",
+    "ContextMenu_SEW_DrainDown": "Durch den Gully hinabzwängen",
+    "ContextMenu_SEW_DrainUp": "Durch den Gully hinauszwängen",
     "ContextMenu_SEW_Mine": "Graben",
     "ContextMenu_SEW_Dig_N": "Nach Norden in den Fels graben",
     "ContextMenu_SEW_Dig_E": "Nach Osten in den Fels graben",

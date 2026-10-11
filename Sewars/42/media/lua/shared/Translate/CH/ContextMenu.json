@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "拆穿被啃過的牆",
     "ContextMenu_SEW_OutfallDown": "爬進雨水排水道",
     "ContextMenu_SEW_OutfallUp": "爬出去，上到河岸",
+    "ContextMenu_SEW_DrainDown": "從路邊雨水口擠下去",
+    "ContextMenu_SEW_DrainUp": "從路邊雨水口擠出去",
     "ContextMenu_SEW_Mine": "挖掘",
     "ContextMenu_SEW_Dig_N": "往北挖開岩層",
     "ContextMenu_SEW_Dig_E": "往東挖開岩層",

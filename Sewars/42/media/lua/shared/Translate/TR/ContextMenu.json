@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Kemirilmiş duvarı yık",
     "ContextMenu_SEW_OutfallDown": "Yağmur suyu kanalına in",
     "ContextMenu_SEW_OutfallUp": "Kıyıya çık",
+    "ContextMenu_SEW_DrainDown": "Mazgaldan sıkışarak aşağı in",
+    "ContextMenu_SEW_DrainUp": "Mazgaldan sıkışarak dışarı çık",
     "ContextMenu_SEW_Mine": "Kaz",
     "ContextMenu_SEW_Dig_N": "Kuzeydeki kayayı kaz",
     "ContextMenu_SEW_Dig_E": "Doğudaki kayayı kaz",

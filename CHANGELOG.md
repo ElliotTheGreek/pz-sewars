@@ -8,6 +8,29 @@ below ground moves; new parts appear as you walk into them.
 
 ---
 
+## 0.9.1 (11 October 2026)
+
+**New: the storm drains at the kerb**
+
+- The iron grates at the kerbs of the game's own streets are ways into the
+  sewers now: 378 of them, most in West Point, Muldraugh and Riverside.
+  Right-click one and choose *Squeeze down through the storm drain*. Under
+  it is a ladder and a short culvert to the tunnels. At that ladder,
+  *Squeeze out through the storm drain* puts you back at the kerb.
+- It is a squeeze, and not everybody fits. A character with the High Weight or
+  Very High Weight trait does not get down one. Nobody gets down or up one carrying more
+  than they can carry (the Weighed Down moodle): put some of it down, or
+  walk to a manhole, which is wide enough for anybody. The menu tells you
+  which it is.
+- A drain with no tunnel near it is greyed out: choked with silt and leaves.
+- Two sandbox settings: *Kerb storm drains* (yes, or no: bolted down) and
+  *Who fits through a kerb drain* (anybody; not the overweight or
+  overloaded, which is the default; or only the slim and lightly loaded).
+  `SERVERS.md` has both.
+- In an existing save the culverts under the drains are dug the next time
+  you are near them. Nothing else below ground changes.
+- Asked for by the author, who walked past one.
+
 ## 0.9.0 (10 October 2026)
 
 **New: the labyrinth**

@@ -57,6 +57,16 @@ option Sewars.Outfalls = {
     page = Sewars, translation = Sewars.Outfalls, valueTranslation = Sewars.Outfalls,
 }
 
+option Sewars.Drains = {
+    type = enum, numValues = 2, default = 1,
+    page = Sewars, translation = Sewars.Drains, valueTranslation = Sewars.Drains,
+}
+
+option Sewars.DrainFit = {
+    type = enum, numValues = 3, default = 2,
+    page = Sewars, translation = Sewars.DrainFit, valueTranslation = Sewars.DrainFit,
+}
+
 option Sewars.Nest = {
     type = enum, numValues = 2, default = 1,
     page = Sewars, translation = Sewars.Nest, valueTranslation = Sewars.Nest,

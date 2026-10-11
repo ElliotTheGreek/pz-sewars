@@ -521,7 +521,7 @@ MUTATIONS = [
      '    if shaft and shaft.outfall then return "outfall", sq end\n', ""),
     ("outfalls: the note", "server/SEW/SEW_Server.lua",
      'mode = "down",\n                                     hatch = shaft.hatch ~= nil or shaft.trapdoor == true,\n'
-     '                                     outfall = shaft.outfall == true })',
+     '                                     outfall = shaft.outfall == true, drain = shaft.drain == true })',
      'mode = "down",\n                                     hatch = shaft.hatch ~= nil or shaft.trapdoor == true })'),
     ("outfalls: no lid", "shared/SEW/SEW_Actions.lua",
      "    o.outfall = shaft ~= nil and shaft.outfall == true\n", "    o.outfall = false\n"),
@@ -1042,6 +1042,54 @@ MUTATIONS += [
      '    Net.toClient(player, "place", { dx = SEW.Place.dx, dy = SEW.Place.dy })\n', ""),
     ("0.9 place: and follows", CL, "    if SEW.Place.move(dx, dy) then\n        Client.clearLamps()",
      "    if false then\n        Client.clearLamps()"),
+]
+
+# Kerb storm drains (DESIGN.md 7j). `python tests/mutate.py "kerb drain"`.
+AC = "shared/SEW/SEW_Actions.lua"
+MUTATIONS += [
+    ("kerb drain: a grate is a way down", SW, "\n        or S.isDrain(sq)", ""),
+    ("kerb drain: one over no tunnel is choked", CL, '        if not d then return "choked", sq end\n',
+     '        if not d then return nil end\n'),
+    ("kerb drain: the grate beside it", SW, "            if s and s.drain then return s end\n", ""),
+    ("kerb drain: only a drain's shaft", SW, "    if own then return own.drain and own or nil end\n",
+     "    if own then return own end\n"),
+    ("kerb drain: another way down on its square is that one", CL,
+     "    if S.isDrain(sq) and not (other and not other.drain) then", "    if S.isDrain(sq) then"),
+    ("kerb drain: greyed for who does not fit", CL, '        if why then return "tight", over, why end\n', ""),
+    ("kerb drain: greyed where the sandbox bolts them", CL,
+     '        if not S.drainsOpen() and not S.isAdmin(playerObj) then return "drainoff", over end\n', ""),
+    ("kerb drain: the server asks who fits", SV,
+     '            local why = S.fits(player, "down")\n            if why then return refuse(player, why) end\n', ""),
+    ("kerb drain: the server bolts them", SV,
+     '            if not S.drainsOpen() and not S.isAdmin(player) then return refuse(player, "drainoff") end\n', ""),
+    ("kerb drain: the load counts on the way up", SV,
+     '            local why = S.fits(player, "up")\n            if why then return refuse(player, why) end\n', ""),
+    ("kerb drain: no setting closes the way up", SV, '            local why = S.fits(player, "up")\n',
+     '            if not S.drainsOpen() then return refuse(player, "drainoff") end\n'
+     '            local why = S.fits(player, "up")\n'),
+    ("kerb drain: the body is asked on the way down only", SW, '    if mode == "down" then\n        local w = U.try("fits.weight"',
+     '    if true then\n        local w = U.try("fits.weight"'),
+    ("kerb drain: the overweight do not fit", SW, "        if w and w >= C.Drain.weight then return \"big\" end\n", ""),
+    ("kerb drain: the line is the game's own", SW, "w >= C.Drain.weight", "w > C.Drain.weight + 5"),
+    ("kerb drain: the overloaded do not fit", SW, "    if carried and most and carried > most", "    if false and carried > most"),
+    ("kerb drain: the sandbox's anybody", SW, "    if fit == 1 or character == nil then return nil end\n",
+     "    if character == nil then return nil end\n"),
+    ("kerb drain: the sandbox's lightly loaded", SW, "(fit == 3 and C.Drain.light or C.Drain.load)", "C.Drain.load"),
+    ("kerb drain: the default is a limit", SW, 'S.option("DrainFit", 2, 3)', 'S.option("DrainFit", 1, 3)'),
+    ("kerb drain: the sandbox's No", SW, '    return S.option("Drains", 1, 2) == 1\n', "    return true\n"),
+    ("kerb drain: no rescue to one", SW, "        if not s.hatch and not s.exit and not s.drain then",
+     "        if not s.hatch and not s.exit then"),
+    ("kerb drain: a squeeze takes its time", AC, "    if o.drain then\n        ticks = C.DrainTicks\n    elseif mode",
+     "    if false then\n        ticks = C.DrainTicks\n    elseif mode"),
+    ("kerb drain: no lid to scrape", AC, "\n                                             and not self.drain)", ")"),
+    ("kerb drain: its note on the way down", CL, '        if m.drain then\n            U.note(p, getText("IGUI_SEW_DownDrain")',
+     '        if false then\n            U.note(p, getText("IGUI_SEW_DownDrain")'),
+    ("kerb drain: its note on the way up", CL, '        if m.drain then\n            U.note(p, getText("IGUI_SEW_UpDrain")',
+     '        if false then\n            U.note(p, getText("IGUI_SEW_UpDrain")'),
+    ("kerb drain: Squeeze out is greyed with too much", CL, '        local load = where.drain and S.fits(playerObj, "up")\n',
+     "        local load = false\n"),
+    ("kerb drain: the server says it is one", SV, "outfall = shaft.outfall == true, drain = shaft.drain == true })",
+     "outfall = shaft.outfall == true })"),
 ]
 
 

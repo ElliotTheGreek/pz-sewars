@@ -756,6 +756,15 @@ function PlayerMT:getRole()
     local p = self
     return { hasAdminTool = function() return p.admin == true end }
 end
+-- The body and the load, as a kerb drain asks them (SEW_Sewer.fits): the
+-- game's weight (80 is a new character's; 85 and over is its Overweight),
+-- what is carried and what can be (vanilla: ISCharacterScreen, XpUpdate).
+function PlayerMT:getNutrition()
+    local p = self
+    return { getWeight = function() return p.weight or 80 end }
+end
+function PlayerMT:getInventoryWeight() return self.carried or 4 end
+function PlayerMT:getMaxWeight() return self.maxWeight or 12 end
 function PlayerMT:getPrimaryHandItem() return self.primary end
 function PlayerMT:getForwardDirection()
     local p = self

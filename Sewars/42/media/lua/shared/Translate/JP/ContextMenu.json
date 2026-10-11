@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "齧られた壁を崩す",
     "ContextMenu_SEW_OutfallDown": "雨水管へ降りる",
     "ContextMenu_SEW_OutfallUp": "川岸へ上がる",
+    "ContextMenu_SEW_DrainDown": "雨水桝に体をねじ込んで降りる",
+    "ContextMenu_SEW_DrainUp": "雨水桝から這い出る",
     "ContextMenu_SEW_Mine": "掘る",
     "ContextMenu_SEW_Dig_N": "北の岩を掘る",
     "ContextMenu_SEW_Dig_E": "東の岩を掘る",

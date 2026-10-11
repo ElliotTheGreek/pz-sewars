@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Deitar abaixo a parede roída",
     "ContextMenu_SEW_OutfallDown": "Descer para o coletor pluvial",
     "ContextMenu_SEW_OutfallUp": "Subir para a margem",
+    "ContextMenu_SEW_DrainDown": "Espremer-se pelo sumidouro abaixo",
+    "ContextMenu_SEW_DrainUp": "Espremer-se para fora pelo sumidouro",
     "ContextMenu_SEW_Mine": "Escavar",
     "ContextMenu_SEW_Dig_N": "Escavar a rocha a norte",
     "ContextMenu_SEW_Dig_E": "Escavar a rocha a leste",

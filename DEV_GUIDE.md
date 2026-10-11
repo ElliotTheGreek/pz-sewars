@@ -92,7 +92,8 @@ media/sewars.tiles, texturepacks/sewars.pack   GENERATED: our 72 tiles
 media/scripts/sewars_items.txt             our items: the sewer plan, the journal, the maintenance key
 media/scripts/sewars_sounds.txt, sound/SEW_*.wav   the sounds (wavs generated)
 media/sandbox-options.txt                  zombie density, their outfits, shelter supplies, rats, sewer gas, digging, the street's hearing, EXIT stencils;
-                                           and a server's (0.8.1): ways down open or closed, houses' trapdoors, outfalls, the nest, the rodents, the temple's dead, the labyrinth and its dead
+                                           and a server's (0.8.1): ways down open or closed, houses' trapdoors, outfalls, the nest, the rodents, the temple's dead, the labyrinth and its dead;
+                                           kerb drains and who fits through one (0.9.1)
 
 tools/dev.py              THE ENTRY POINT: build, check, mutate, deploy, run, log, package
 tools/gen_sewers.py       the map -> the tunnels (Data/ and SEW_Index.lua), and plans in design/art/plans/
@@ -1769,6 +1770,56 @@ before a chunk is loaded (`IsoWorld.init`, in that order). So:
   and a chunk key made of it would be `"1215.0,1228.0"`. Floor what
   becomes a key.
 
+### A second kind of way down is in every list of the first kind
+
+**New in this mod (0.9.1, kerb storm drains; DESIGN.md 7j).** The generator
+had known vanilla's kerb drains since 0.2 (`pzmap.DRAINS`) and kept covers
+of ours off them; the author walked past one and asked why it did nothing.
+A drain is a shaft like any other with one flag, `drain`, and what that
+cost was all in lists:
+
+- **A test that takes "the first shaft in Muldraugh" took a drain.**
+  Thirteen checks of `test_flow` failed at once, none of them about
+  drains: the helper that lists a town's covers, and four pickers, each
+  said *not a hatch* and meant *a cover*. Every picker now says what it
+  wants. The next kind of way down will do this again: grep the tests for
+  `not s.hatch` first.
+- **`pzmap.py census` counted 584 drains for five versions; there are
+  653.** It only opened cells that had a manhole or a sewer tile in their
+  header. *A check against an empty set is not a passing check*, and
+  neither is a count nobody had a reason to doubt.
+- **The gas was laid clear of every ladder, and a ladder laid later has to
+  keep clear of the gas.** `vent_gas` runs before the drains (nothing in a
+  save may move), so the rule is turned round: no drain within
+  `GAS_CLEAR + 2` of a stretch. `test_layout`'s old check (*within 10 of a
+  ladder: 0*) holds it without a line changed, because it reads every
+  shaft.
+- **A grate two squares long is one way down.** Vanilla lays some drains
+  in pairs, and two culverts side by side would be one culvert two wide
+  with a wall down it. The generator gives a pair one shaft, and the menu
+  looks beside the square clicked (`S.drainShaft`).
+- **`hang` builds a wall when it finds none.** That fallback is what keeps
+  vanilla's covers where 0.2 put them, and across a tunnel it is a wall
+  across a tunnel. A drain over walkway gets a ladder only on a wall that
+  is there already (`can_hang`); none in this layout lacked one.
+
+**The size limit is the server's, and half of it is unproven there.**
+
+```
+Nutrition.applyTraitFromWeight        weight >= 100 OBESE, >= 85 OVERWEIGHT (shown as Very High Weight, High Weight): the line S.fits uses
+IsoPlayer.getNutrition():getWeight()  vanilla Lua: ISCharacterScreen (a client, single player)
+getInventoryWeight(), getMaxWeight()  vanilla Lua: server/XpSystem/XpUpdate.lua (a `server/` file that
+                                      runs in every process: read the folder, not the name)
+```
+
+Each call has a vanilla Lua caller that is no admin panel. **What a
+server's copy of a player answers for its weight is not known** (the body
+is simulated there, *Sewer gas is poison the server gives*, so it should
+be the real one). Each is behind `U.try`: an answer that does not come is
+"fits", never a refusal. **And the body is asked on the way down only**: a
+load can be put down, a body cannot, and DESIGN.md 2 says no setting shuts
+anybody in. The mutation *the body is asked on the way down only* holds it.
+
 ### One mutation run at a time, and nothing staged while one runs
 
 **Done wrong releasing 0.7.3.** `tests/mutate.py` edits the source in place
@@ -1879,10 +1930,10 @@ cut to the 128x256 cell and added to `TILES_DEF`.
 |---|---|
 | `tools/luacheck.py` | Lua syntax, generated data included |
 | `tests/test_assets.py` (183 checks) | every sprite in the config and the generator against the catalogue and our tiledef; floors really solidfloor and sludge not; doors and frames what they claim; items exist and are not obsolete; outfits in both vanilla lists, ordinary ones with no bag and equipped ones with one; sounds declared both ways with non-empty wavs; text keys both ways, in the right category files; sandbox options have words; every file's side guard; no role-gated or debug-only call; the temple's sprites, floors and outfits, its tiles named alike by the generator, the config and the art, and nothing of ours blocking a square but the sludge, the idol and the brazier |
-| `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
-| `tests/test_flow.py` (513 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled; and 0.7.5's: a loot event with no container, fire through the street's floor put out both ways and a fire of the tunnel's own left to burn, the outdoors flag off the sewer's squares and kept on a door's, a swing and a shot at a ROUS judged by the server (reach, facing, walls, the engine's own hit), a climb with no walk, asked again by command, made anyway when out and unanswered, refused with where the server had the player, EXIT stencils by the sandbox; and 0.7.6's: the sounds unticked and quiet, ticked and rare, no key for the map, the wind's chill below as the engine has it and then as we leave it (one square, following, in step with the air, none in a car, a room, a cellar or on a warm day, none left behind); and 0.8.1's: a way down closed by the sandbox or by an admin (greyed, refused by the server, never the way up, an admin down it anyway, only what differs kept, the labyrinth's way out nobody's), a client that only says it is an admin, a client told at its start and when one changes, the dev build as a player, the seven settings each on and off and unset, a journal's direction looked up; and 0.9's: a way down's four ways, an admin's way down with its passage and taken away again, a shaft and the climb between levels, the pick at the level it is swung at, a tunnel drawn on the map (straight, three widths, joined and apart, through somebody's cellar, where nothing is loaded), a copied shelter with its door, stock and dead, a template kept, set down and forgotten, ground marked as indoors and the engine's three ways of blanking a room, a server's restart with a mark saved, the rebuild, the check, the map's levels and an admin's whole map; no WARN, no unknown sprite or text key |
+| `tests/test_layout.py` | every town read back from the shipped Lua: records well formed, every shaft a grating under its cover and a ladder where the index says, **every walkable square reachable from a ladder** (walls block, doors pass, sludge does not hold you), one door per shelter, furniture on shelter floors, nothing under a building or a basement, every cave, hatch, cover of ours and the nest; every stretch of gas on plain walkway away from the ladders with its placards; every locked gate on a county room with its town's key in an unlocked one; every outfall on a bank by big water, reached from a street cover; every kerb drain's shaft under a grate of the map's own and walked to from a cover that is no drain; the temple walked to from each of two towns' street covers and from its trapdoor and by no other way, its pictures on walls, its lights and its dead on its floors -- and a self-check that the walker really reads walls |
+| `tests/test_flow.py` (513 checks) | the real Lua on `tests/sim.lua`: single player, then a server and a client -- the menu, the walk, the action rebuilt on the server by name, the build before the grant, the client waiting for its floor, the vault switch, lamps, the slice builder finishing, no duplicates on a second pass, stocking (a few picks, not a crate full), the outfit mix by sandbox, the map key (K, not a saved N, never in a car), the dead (and none on the player), a shut cover greyed out, refusals, the rescue (and none from a bunker, a basement or its stairs, asked of the client and of the server), a click read from where it was made, a street zombie stopped on its way to a noise in the sewer and a sewer zombie on its way to one on the street, a chase across the street's floor dropped (and no other zombie, sound, level or place, and no basement's), no room left on a square of ours on a server (at load, at build, at a climb, round a player; a basement's kept; single player untouched), somebody else's underground left alone, the client editing nothing, doors reaching the client as doors, caves, hatches, covers of ours, the nest and its rodents, the gas (breathed SP and MP, masked and not, dressed once), the locked gates (keyed, latched, a handle on the inside, reaching a client), the keys in crates and on the dead, the outfalls both ways, the temple (its trapdoor, hall, dead, rats, lights and book, a breach in a chunk built before it, the dev menu's stops), the warren's dens in a chunk a save had already built, the dead owed and settled; and 0.7.5's: a loot event with no container, fire through the street's floor put out both ways and a fire of the tunnel's own left to burn, the outdoors flag off the sewer's squares and kept on a door's, a swing and a shot at a ROUS judged by the server (reach, facing, walls, the engine's own hit), a climb with no walk, asked again by command, made anyway when out and unanswered, refused with where the server had the player, EXIT stencils by the sandbox; and 0.7.6's: the sounds unticked and quiet, ticked and rare, no key for the map, the wind's chill below as the engine has it and then as we leave it (one square, following, in step with the air, none in a car, a room, a cellar or on a warm day, none left behind); and 0.8.1's: a way down closed by the sandbox or by an admin (greyed, refused by the server, never the way up, an admin down it anyway, only what differs kept, the labyrinth's way out nobody's), a client that only says it is an admin, a client told at its start and when one changes, the dev build as a player, the seven settings each on and off and unset, a journal's direction looked up; and 0.9's: a way down's four ways, an admin's way down with its passage and taken away again, a shaft and the climb between levels, the pick at the level it is swung at, a kerb drain (0.9.1: the squeeze both ways, the grate beside it, a choked one, who fits by the sandbox, bolted down and the way up it never closes, no rescue to one), a tunnel drawn on the map (straight, three widths, joined and apart, through somebody's cellar, where nothing is loaded), a copied shelter with its door, stock and dead, a template kept, set down and forgotten, ground marked as indoors and the engine's three ways of blanking a room, a server's restart with a mark saved, the rebuild, the check, the map's levels and an admin's whole map; no WARN, no unknown sprite or text key |
 | `tests/test_translations.py` | each of the 26 other languages against the English: the folder one of the game's, only EN's files and keys, every key a player sees and none of the dev build's, nothing empty, EN's placeholders, no literal percent, a journal's line breaks |
-| `tests/mutate.py` (`dev.py mutate`) | 416 guards broken one at a time; every one must be caught (`python tests/mutate.py temple` runs only those named so, `labyrinth` the 13 of 0.8; `0.7.5` the 72 before, `0.7.6` the 17 after, `0.8.1` 33, `0.9` the 68 newest; `moved` the 43 re-pointed in `MOVED` when 0.9 moved the lines they break) |
+| `tests/mutate.py` (`dev.py mutate`) | 457 guards broken one at a time (`"kerb drain"` the 26 of 0.9.1); every one must be caught (`python tests/mutate.py temple` runs only those named so, `labyrinth` the 13 of 0.8; `0.7.5` the 72 before, `0.7.6` the 17 after, `0.8.1` 33, `0.9` the 68 newest; `moved` the 43 re-pointed in `MOVED` when 0.9 moved the lines they break) |
 
 `tests/sim.lua` is as unkind as the engine where this mod leans on it: orphan
 squares throw, floors come from real tile properties, containers drop what
@@ -1974,7 +2025,63 @@ gets verified.
 
 ## Current state
 
-Version **0.9.0**, build revision **6**, layout from `tools/gen_sewers.py`.
+Version **0.9.1**, build revision **6**, layout from `tools/gen_sewers.py`.
+
+**0.9.1: kerb storm drains (DESIGN.md 7j, ROADMAP 0.9.1).** Vanilla's
+grates at the kerb are ways down, 378 of 653; a squeeze, with a size limit
+the sandbox sets (`Drains`, `DrainFit`). A layout change: `layout_diff`
+against 0.9.0 says 2,153 squares added, 597 changed, nothing a save holds
+moved, the temple and the labyrinth identical. Built, every static test
+passing, the 26 new mutations each caught, 22 texts in 26 languages,
+deployed as SewarsDev, and staged for the uploader (`package --install`,
+2026-10-11, compared file by file with the source). **Played once by the
+author (2026-10-11: "I slipped through and it worked")**: the climb down a
+drain. The size refusals, the two settings and an old save are unplayed.
+
+**The full mutation set was not run for 0.9.1, at the author's word.** It
+is 457 runs of the flow test, about two hours; one was started alone and
+stopped part way by the machine running out of memory, and it left its
+mutation in `SEW_Mine.lua` (a `B.setRecord` line gone), found by comparing
+the Lua tree with the deployed copy and put back with `git checkout`. *One
+mutation run at a time*, a third time: **after any run that did not end by
+itself, diff the tree before anything else.** What was run: the 26 new
+ones and the one older one whose line moved. What is owed, any quiet
+night: `python tools/dev.py mutate`, alone. The only way this change
+reaches the other 430 is the five places where an older test now picks a
+cover and not a drain (*A second kind of way down is in every list of the
+first kind*).
+
+**The 0.9.1 checklist** (every step a click; any world with Sewers [DEV],
+a new one is cleanest):
+
+1. **A drain.** Right-click, *Sewers (dev)*, *Go to a kerb storm drain*:
+   you are on a Muldraugh street with the grate a square north of you.
+   Right-click it: *Squeeze down through the storm drain*. It takes a
+   little longer than a cover. You arrive at a ladder's foot in a narrow
+   concrete culvert, light on the floor under the grate; a few squares
+   along, the sewer. **Look**: walls on both sides of the culvert, no gap
+   where it meets the tunnel.
+2. **Back up.** At the ladder: *Squeeze out through the storm drain*, and
+   you are at the kerb.
+3. **Too much.** Pick up things until the Weighed Down moodle shows.
+   Right-click the grate: greyed, *You are carrying too much to squeeze
+   through*. Drop some: offered again. Go down with a light load, pick
+   your load up below (carry it down a manhole first, or use what the dev
+   kit gives): at the ladder *Squeeze out* is greyed the same way.
+4. **Too big.** A new character with the High Weight trait: the grate is
+   greyed, *You are too big to fit*. A manhole takes them as ever.
+5. **The settings.** A new world, the sandbox's *Sewers* page: *Kerb storm
+   drains* and *Who fits through a kerb drain* under *Storm-drain
+   outfalls*, each with a tooltip. With *Kerb storm drains* on No and
+   *Sewers (dev)*, *Be a player, not an admin*: the grate is greyed,
+   *Bolted down*.
+6. **A choked one.** A kerb drain in Rosewood (none there is near enough
+   to a tunnel): greyed, *Choked with silt and leaves*.
+7. **An old save.** Load a world that has walked a Muldraugh street with a
+   drain on it, and go down a manhole there: the culvert is dug, with its
+   ladder. `python tools/dev.py log`: no WARN.
+
+**0.9.0, as it was written up before 0.9.1:**
 
 **0.9.0: an admin's works (DESIGN.md 7i, ROADMAP 0.9, SERVERS.md), on top
 of 0.8.1's languages and settings: one release, 0.8.1 never went up.** A

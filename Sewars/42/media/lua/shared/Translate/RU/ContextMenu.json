@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Проломить изгрызенную стену",
     "ContextMenu_SEW_OutfallDown": "Спуститься в ливневый сток",
     "ContextMenu_SEW_OutfallUp": "Вылезти на берег",
+    "ContextMenu_SEW_DrainDown": "Протиснуться вниз через дождеприёмник",
+    "ContextMenu_SEW_DrainUp": "Протиснуться наружу через дождеприёмник",
     "ContextMenu_SEW_Mine": "Копать",
     "ContextMenu_SEW_Dig_N": "Долбить породу на север",
     "ContextMenu_SEW_Dig_E": "Долбить породу на восток",

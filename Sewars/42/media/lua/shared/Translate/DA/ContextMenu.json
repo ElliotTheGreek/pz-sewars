@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Bryd gennem den gnavede mur",
     "ContextMenu_SEW_OutfallDown": "Klatr ned i regnvandsafløbet",
     "ContextMenu_SEW_OutfallUp": "Klatr op på bredden",
+    "ContextMenu_SEW_DrainDown": "Mas dig ned gennem rendestensristen",
+    "ContextMenu_SEW_DrainUp": "Mas dig ud gennem rendestensristen",
     "ContextMenu_SEW_Mine": "Grav",
     "ContextMenu_SEW_Dig_N": "Grav ind i klippen mod nord",
     "ContextMenu_SEW_Dig_E": "Grav ind i klippen mod øst",

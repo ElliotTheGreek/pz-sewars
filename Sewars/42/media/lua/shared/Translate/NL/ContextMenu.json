@@ -10,6 +10,8 @@
     "ContextMenu_SEW_PryGate": "Door de aangevreten muur breken",
     "ContextMenu_SEW_OutfallDown": "In het regenwaterriool klimmen",
     "ContextMenu_SEW_OutfallUp": "De oever op klimmen",
+    "ContextMenu_SEW_DrainDown": "Je door de straatkolk omlaag wurmen",
+    "ContextMenu_SEW_DrainUp": "Je door de straatkolk naar buiten wurmen",
     "ContextMenu_SEW_Mine": "Graven",
     "ContextMenu_SEW_Dig_N": "In de rots graven naar het noorden",
     "ContextMenu_SEW_Dig_E": "In de rots graven naar het oosten",
